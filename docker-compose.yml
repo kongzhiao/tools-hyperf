@@ -1,0 +1,26 @@
+services:
+  hyperf-backend:
+    image: hyperf-backend-test:latest
+    container_name: hyperf-backend
+    restart: unless-stopped
+    ports:
+      - "9510:9510"
+    environment:
+      - APP_ENV=test
+      - TIMEZONE=Asia/Shanghai
+    volumes:
+      # 可选：如果需要持久化日志
+      - ./storage/logs:/opt/www/storage/logs
+      - ./runtime/logs:/opt/www/runtime/logs
+    networks:
+      - hyperf-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9510/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  hyperf-network:
+    driver: bridge 

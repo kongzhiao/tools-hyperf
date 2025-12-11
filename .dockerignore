@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Runtime
+runtime/
+*.pid
+
+# Cache
+.cache/
+vendor/
+
+# Test
+test/
+.phpunit.result.cache
+
+# Documentation
+*.md
+doc/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+deploy.test.yml
+
+# Environment
+.env
+.env.* 
