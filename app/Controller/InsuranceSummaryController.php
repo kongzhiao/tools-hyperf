@@ -18,7 +18,7 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 class InsuranceSummaryController extends AbstractController
 {
     /**
-     * 获取参保汇总数据
+     * 获取参保数据汇总
      */
     public function getData(RequestInterface $request)
     {
@@ -41,6 +41,7 @@ class InsuranceSummaryController extends AbstractController
                 ->where('payment_category', '!=', '')
                 ->whereNotNull('level')
                 ->where('level', '!=', '')
+                ->where('match_status', '=', 'matched')
                 ->groupBy(['street_town', 'payment_category', 'level'])
                 ->get();
 
@@ -70,8 +71,9 @@ class InsuranceSummaryController extends AbstractController
             }
             
             // 对每个类别的档次进行排序
-            foreach ($categoriesLevelsMapping as &$categoryData) {
+            foreach ($categoriesLevelsMapping as $k =>  $categoryData) {
                 sort($categoryData['levels']);
+                $categoriesLevelsMapping[$k] = $categoryData;
             }
             
             // 从统计数据中获取镇街信息
@@ -127,14 +129,9 @@ class InsuranceSummaryController extends AbstractController
                         'levels' => []
                     ];
 
-                    // 按档次分别统计
-                    foreach ($levels as $level) {
+                    foreach ($categoriesLevelsMapping[$category]['levels'] as $level) {
                         $levelData = $groupedStats[$streetTown][$category][$level] ?? ['count' => 0, 'amount' => 0];
-                        
-                        if ($levelData['count'] > 0) { // 只添加有数据的档次
-                            $categoryData['levels'][$level] = $levelData;
-                        }
-
+                        $categoryData['levels'][$level] = $levelData;
                         $categoryData['count'] += $levelData['count'];
                         $categoryData['amount'] += $levelData['amount'];
                     }
