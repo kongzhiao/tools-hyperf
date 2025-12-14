@@ -19,6 +19,8 @@ declare(strict_types=1);
 namespace App\Controller;
 use Hyperf\HttpServer\Contract\RequestInterface;
 
+use Hyperf\HttpServer\Annotation\GetMapping;
+
 /**
  * @Controller(prefix="/")
  */
@@ -125,11 +127,12 @@ class IndexController extends AbstractController
      * )
      * @RequestMapping(path="/health", methods="get")
      */
+
     public function health()
     {
         return [
             'status' => 'ok',
-            'timestamp' => date('c'),
+            'timestamp' => date('Y-m-d H:i:s'),
             'version' => '1.0.0',
             'service' => 'Insurance Data Import Service'
         ];

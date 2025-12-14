@@ -22,6 +22,10 @@
 ## 安装与运行
 
 ### 1. 安装依赖
+
+
+docker run -d --name tools-ty -p 9501:9501 -v /Users/macbook/Documents/codes/tools-hyperf-yf:/opt/www --user root hyperf-tools:1.0 tail -f /dev/null
+
 ```bash
 composer install
 ```

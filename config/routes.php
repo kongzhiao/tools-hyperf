@@ -14,18 +14,18 @@ use Hyperf\HttpServer\Router\Router;
 // ==================== 基础路由 ====================
 Router::addRoute(['GET', 'POST'], '/', 'App\Controller\IndexController::index');
 Router::get('/health', 'App\Controller\IndexController::health');
-Router::get('/favicon.ico', function () {
-    return '';
-});
+// Router::get('/favicon.ico', function () {
+//     return '';
+// });
 
 // 兼容 hyperf/swagger 组件未内置控制器的情况，直接读取 swagger.json
-Router::get('/swagger', function () {
-    $file = BASE_PATH . '/storage/swagger/swagger.json';
-    if (file_exists($file)) {
-        return json_decode(file_get_contents($file), true);
-    }
-    return ['error' => 'swagger.json not found'];
-});
+// Router::get('/swagger', function () {
+//     $file = BASE_PATH . '/storage/swagger/swagger.json';
+//     if (file_exists($file)) {
+//         return json_decode(file_get_contents($file), true);
+//     }
+//     return ['error' => 'swagger.json not found'];
+// });
 
 // ==================== 认证相关路由组 ====================
 Router::addGroup('/api', function () {
