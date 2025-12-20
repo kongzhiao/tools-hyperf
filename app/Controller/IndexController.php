@@ -26,6 +26,11 @@ use Hyperf\HttpServer\Annotation\GetMapping;
  */
 class IndexController extends AbstractController
 {
+    public function init()
+    {
+        return $this->success(["app" => env("APP_NAME"), 'env' => env("APP_ENV")], "init");
+    }
+
     /**
      * @OA\Post(
      *     path="/login",
@@ -101,7 +106,7 @@ class IndexController extends AbstractController
      */
     public function index()
     {
-        $user = $this->request->input('user', 'Hyperf');
+        $user = $this->request->input('user', 'world');
         $method = $this->request->getMethod();
 
         return [
@@ -134,7 +139,6 @@ class IndexController extends AbstractController
             'status' => 'ok',
             'timestamp' => date('Y-m-d H:i:s'),
             'version' => '1.0.0',
-            'service' => 'Insurance Data Import Service'
         ];
     }
 }

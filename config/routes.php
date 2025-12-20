@@ -13,7 +13,6 @@ use Hyperf\HttpServer\Router\Router;
 
 // ==================== 基础路由 ====================
 Router::addRoute(['GET', 'POST'], '/', 'App\Controller\IndexController::index');
-Router::get('/health', 'App\Controller\IndexController::health');
 // Router::get('/favicon.ico', function () {
 //     return '';
 // });
@@ -80,7 +79,7 @@ Router::addGroup('/api/category-conversions', function () {
     Router::get('/template', [App\Controller\CategoryConversionController::class, 'downloadTemplate']);
     Router::post('/import/preview', [App\Controller\CategoryConversionController::class, 'previewImport']);
     Router::post('/import/confirm', [App\Controller\CategoryConversionController::class, 'confirmImport']);
-    
+
     // 通配符路由放在最后
     Router::get('/{id}', [App\Controller\CategoryConversionController::class, 'show']);
     Router::put('/{id}', [App\Controller\CategoryConversionController::class, 'update']);
@@ -102,7 +101,7 @@ Router::addGroup('/api/insurance-level-configs', function () {
     Router::get('/template/download', [App\Controller\InsuranceLevelConfigController::class, 'downloadTemplate']);
     Router::post('/validate', [App\Controller\InsuranceLevelConfigController::class, 'validateImport']);
     Router::post('/import', [App\Controller\InsuranceLevelConfigController::class, 'import']);
-    
+
     // 通配符路由放在最后
     Router::get('/{id}', [App\Controller\InsuranceLevelConfigController::class, 'show']);
     Router::put('/{id}', [App\Controller\InsuranceLevelConfigController::class, 'update']);
@@ -132,12 +131,12 @@ Router::addGroup('/api/insurance-data', function () {
     Router::post('/import', [App\Controller\InsuranceDataController::class, 'importData']);
     Router::get('/year-list', [App\Controller\InsuranceDataController::class, 'getYearList']);
     Router::post('/import-level-match', [App\Controller\InsuranceDataController::class, 'importLevelMatch']);
-    
+
     // 年份相关路由
     Router::put('/years/{id}', [App\Controller\InsuranceDataController::class, 'updateYear']);
     Router::delete('/years/{id}/data', [App\Controller\InsuranceDataController::class, 'clearYearData']);
     Router::delete('/years/{id}', [App\Controller\InsuranceDataController::class, 'deleteYear']);
-    
+
     // 通配符路由放在最后
     Router::get('/{id}', [App\Controller\InsuranceDataController::class, 'show']);
     Router::put('/{id}', [App\Controller\InsuranceDataController::class, 'update']);
@@ -164,17 +163,17 @@ Router::addGroup('/api/statistics', function () {
     Router::put('/projects/{id:\d+}', [App\Controller\StatisticsSummaryController::class, 'updateProject']);
     Router::delete('/projects/{id:\d+}', [App\Controller\StatisticsSummaryController::class, 'deleteProject']);
     Router::delete('/projects/{id:\d+}/data', [App\Controller\StatisticsSummaryController::class, 'clearProjectData']);
-    
+
     // 统计数据管理
     Router::get('/list', [App\Controller\StatisticsSummaryController::class, 'getStatisticsList']);
     Router::post('/import', [App\Controller\StatisticsSummaryController::class, 'importStatistics']);
     Router::get('/data-type-options', [App\Controller\StatisticsSummaryController::class, 'getDataTypeOptions']);
-    
+
     // 统计接口
     Router::post('/person-time-statistics', [App\Controller\StatisticsSummaryController::class, 'getPersonTimeStatistics']);
     Router::post('/reimbursement-statistics', [App\Controller\StatisticsSummaryController::class, 'getReimbursementStatistics']);
     Router::post('/tilt-assistance-statistics', [App\Controller\StatisticsSummaryController::class, 'getTiltAssistanceStatistics']);
-    
+
     // 统计导出接口
     Router::post('/export-person-time-statistics', [App\Controller\StatisticsSummaryController::class, 'exportPersonTimeStatistics']);
     Router::post('/export-reimbursement-statistics', [App\Controller\StatisticsSummaryController::class, 'exportReimbursementStatistics']);
@@ -206,7 +205,7 @@ Router::addGroup('/api/medical-assistance', function () {
     Router::get('/medical-records/{id:\d+}', [App\Controller\MedicalAssistanceController::class, 'getMedicalRecord']);
     Router::put('/medical-records/{id:\d+}', [App\Controller\MedicalAssistanceController::class, 'updateMedicalRecord']);
     Router::delete('/medical-records/{id:\d+}', [App\Controller\MedicalAssistanceController::class, 'deleteMedicalRecord']);
-    
+
     // 报销管理
     Router::get('/reimbursements', [App\Controller\MedicalAssistanceController::class, 'getReimbursements']);
     Router::post('/reimbursements', [App\Controller\MedicalAssistanceController::class, 'createReimbursement']);
@@ -226,6 +225,9 @@ Router::addGroup('/api/medical-assistance', function () {
 
 // ==================== 其他功能路由组 ====================
 Router::addGroup('/api', function () {
+    Router::get('/init', 'App\Controller\IndexController::init');
+    Router::get('/health', 'App\Controller\IndexController::health');
+
     // 仪表盘相关路由
     Router::get('/dashboard/stats', [App\Controller\DashboardController::class, 'getStats']);
 

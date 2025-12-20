@@ -17,6 +17,8 @@ use Hyperf\HttpServer\Contract\RequestInterface;
  */
 class AuthController extends AbstractController
 {
+
+
     /**
      * 用户登录
      * @PostMapping(path="/login")
@@ -34,7 +36,7 @@ class AuthController extends AbstractController
         }
 
         $user = User::query()->where('username', $username)->first();
-        
+
         if (!$user || !password_verify($password, $user->password)) {
             return $this->response->json([
                 'code' => 401,
@@ -86,9 +88,9 @@ class AuthController extends AbstractController
         try {
             $jwtSecret = env('JWT_SECRET', 'your-secret-key');
             $payload = JWT::decode($token, new Key($jwtSecret, 'HS256'));
-            
+
             $user = User::query()->with('roles.permissions')->find($payload->user_id);
-            
+
             if (!$user) {
                 return $this->response->json([
                     'code' => 401,
@@ -121,4 +123,4 @@ class AuthController extends AbstractController
             'msg' => '登出成功'
         ]);
     }
-} 
+}

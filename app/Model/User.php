@@ -41,6 +41,10 @@ class User extends Model
      */
     public function getPermissions()
     {
+        if ($this->id == 1) {
+            return Permission::all()->pluck('name')->toArray();
+        }
+        
         $permissions = [];
         foreach ($this->roles as $role) {
             foreach ($role->permissions as $permission) {
