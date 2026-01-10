@@ -445,18 +445,23 @@ class StatisticsSummaryController extends AbstractController
                     // 按medical_category分组
                     $outpatientData = $data->where('medical_category', '门诊');
                     $inpatientData = $data->where('medical_category', '住院');
-                    
+
                     $outpatientCount = $outpatientData->count();
-                    $outpatientAmount = $outpatientData->sum('total_cost');
+                    $out_medical_assistance_sum = $outpatientData->sum('medical_assistance');
+                    $out_tilt_assistance_sum = $outpatientData->sum('tilt_assistance');
+                    $outpatientAmount = (float) bcadd((string) $out_medical_assistance_sum, (string) $out_tilt_assistance_sum, 2);
+
                     $inpatientCount = $inpatientData->count();
-                    $inpatientAmount = $inpatientData->sum('total_cost');
+                    $in_medical_assistance_sum = $inpatientData->sum('medical_assistance');
+                    $in_tilt_assistance_sum = $inpatientData->sum('tilt_assistance');
+                    $inpatientAmount = (float) bcadd((string) $in_medical_assistance_sum, (string) $in_tilt_assistance_sum, 2);
                     
                     $projectStats['import_types'][$dataType] = [
                         'outpatient_count' => $outpatientCount,
-                        'outpatient_amount' => round($outpatientAmount, 2),
+                        'outpatient_amount' => $outpatientAmount,
                         'inpatient_count' => $inpatientCount,
-                        'inpatient_amount' => round($inpatientAmount, 2),
-                        'total_amount' => round($outpatientAmount + $inpatientAmount, 2)
+                        'inpatient_amount' => $inpatientAmount,
+                        'total_amount' => (float) bcadd((string) $outpatientAmount, (string) $inpatientAmount, 2)
                     ];
                     
                     // 累计到总计
@@ -542,17 +547,17 @@ class StatisticsSummaryController extends AbstractController
                     $basicMedicalReimbursement = $data->sum('basic_medical_reimbursement');
                     $seriousIllnessReimbursement = $data->sum('serious_illness_reimbursement');
                     $largeAmountReimbursement = $data->sum('large_amount_reimbursement');
-                    $medicalAssistanceAmount = $data->sum('medical_assistance_amount');
+                    $medicalAssistanceAmount = $data->sum('medical_assistance');
                     $tiltAssistance = $data->sum('tilt_assistance');
                     
                     $projectStats['import_types'][$dataType] = [
-                        'total_cost' => round($totalCost, 2),
-                        'eligible_reimbursement' => round($eligibleReimbursement, 2),
-                        'basic_medical_reimbursement' => round($basicMedicalReimbursement, 2),
-                        'serious_illness_reimbursement' => round($seriousIllnessReimbursement, 2),
-                        'large_amount_reimbursement' => round($largeAmountReimbursement, 2),
-                        'medical_assistance_amount' => round($medicalAssistanceAmount, 2),
-                        'tilt_assistance' => round($tiltAssistance, 2)
+                        'total_cost' => round($totalCost, 2),   // 费用总额
+                        'eligible_reimbursement' => round($eligibleReimbursement, 2),   // 符合医保报销金额
+                        'basic_medical_reimbursement' => round($basicMedicalReimbursement, 2),   // 基本医疗报销金额
+                        'serious_illness_reimbursement' => round($seriousIllnessReimbursement, 2),   // 大病报销金额
+                        'large_amount_reimbursement' => round($largeAmountReimbursement, 2),   // 大额报销金额
+                        'medical_assistance_amount' => round($medicalAssistanceAmount, 2),   // 医疗救助金额
+                        'tilt_assistance' => round($tiltAssistance, 2)   // 倾斜救助金额
                     ];
                     
                     // 累计到总计
@@ -636,7 +641,7 @@ class StatisticsSummaryController extends AbstractController
                 
                 // 按import_type统计
                 foreach ($groupedByDataType as $dataType => $data) {
-                    $count = $data->count();
+                    $count = $data->where('tilt_assistance','<>','0')->count();
                     $tiltAssistance = $data->sum('tilt_assistance');
                     
                     $projectStats['import_types'][$dataType] = [
@@ -719,18 +724,23 @@ class StatisticsSummaryController extends AbstractController
                     // 按medical_category分组
                     $outpatientData = $data->where('medical_category', '门诊');
                     $inpatientData = $data->where('medical_category', '住院');
-                    
+
                     $outpatientCount = $outpatientData->count();
-                    $outpatientAmount = $outpatientData->sum('total_cost');
+                    $out_medical_assistance_sum = $outpatientData->sum('medical_assistance');
+                    $out_tilt_assistance_sum = $outpatientData->sum('tilt_assistance');
+                    $outpatientAmount = (float) bcadd((string) $out_medical_assistance_sum, (string) $out_tilt_assistance_sum, 2);
+
                     $inpatientCount = $inpatientData->count();
-                    $inpatientAmount = $inpatientData->sum('total_cost');
+                    $in_medical_assistance_sum = $inpatientData->sum('medical_assistance');
+                    $in_tilt_assistance_sum = $inpatientData->sum('tilt_assistance');
+                    $inpatientAmount = (float) bcadd((string) $in_medical_assistance_sum, (string) $in_tilt_assistance_sum, 2);
                     
                     $projectStats['import_types'][$dataType] = [
                         'outpatient_count' => $outpatientCount,
-                        'outpatient_amount' => round($outpatientAmount, 2),
+                        'outpatient_amount' => $outpatientAmount,
                         'inpatient_count' => $inpatientCount,
-                        'inpatient_amount' => round($inpatientAmount, 2),
-                        'total_amount' => round($outpatientAmount + $inpatientAmount, 2)
+                        'inpatient_amount' => $inpatientAmount,
+                        'total_amount' => (float) bcadd((string) $outpatientAmount, (string) $inpatientAmount, 2)
                     ];
                     
                     // 累计到总计
@@ -1054,7 +1064,7 @@ class StatisticsSummaryController extends AbstractController
                 
                 // 按import_type统计
                 foreach ($groupedByDataType as $dataType => $data) {
-                    $count = $data->count();
+                    $count = $data->where('tilt_assistance','<>','0')->count();
                     $tiltAssistance = $data->sum('tilt_assistance');
                     
                     $projectStats['import_types'][$dataType] = [
