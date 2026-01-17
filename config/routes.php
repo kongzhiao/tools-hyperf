@@ -241,3 +241,25 @@ Router::addGroup('/api', function () {
     Router::get('/identity-verification/template', [App\Controller\IdentityVerificationController::class, 'downloadTemplate']);
 });
 
+/** 优抚救助 2025-12-20 */
+// ==================== 优抚救助-类别额度配置路由组 ====================
+Router::addGroup('/api/settlement-config', function () {
+    // 具体路径要在参数路径之前
+    Router::get('', [App\Controller\SettlementConfigController::class, 'index']);
+    Router::post('', [App\Controller\SettlementConfigController::class, 'store']);
+    Router::get('/years', [App\Controller\SettlementConfigController::class, 'getYears']);
+    Router::get('/by-year', [App\Controller\SettlementConfigController::class, 'getByYear']);
+    Router::get('/categories', [App\Controller\SettlementConfigController::class, 'getCategories']);
+    Router::get('/levels', [App\Controller\SettlementConfigController::class, 'getLevels']);
+    Router::get('/template', [App\Controller\SettlementConfigController::class, 'getTemplate']);
+    Router::post('/batch-create', [App\Controller\SettlementConfigController::class, 'batchCreate']);
+    Router::delete('/by-year', [App\Controller\SettlementConfigController::class, 'deleteByYear']);
+    Router::get('/template/download', [App\Controller\SettlementConfigController::class, 'downloadTemplate']);
+    Router::post('/validate', [App\Controller\SettlementConfigController::class, 'validateImport']);
+    Router::post('/import', [App\Controller\SettlementConfigController::class, 'import']);
+
+    // 通配符路由放在最后
+    Router::get('/{id}', [App\Controller\SettlementConfigController::class, 'show']);
+    Router::put('/{id}', [App\Controller\SettlementConfigController::class, 'update']);
+    Router::delete('/{id}', [App\Controller\SettlementConfigController::class, 'destroy']);
+});
