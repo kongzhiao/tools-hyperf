@@ -16,12 +16,13 @@ return [
             'pool' => 'default',
         ],
         'channel' => '{queue}',
-        'timeout' => 2,
-        'retry_seconds' => 5,
-        'handle_timeout' => 10,
+        'timeout' => 5,
+        'retry_seconds' => [5, 10, 30,120,300],
+        'handle_timeout' => 300,
         'processes' => 1,
         'concurrent' => [
-            'limit' => 10,
+            'limit' => 1,
         ],
+        'max_messages' => 1000,
     ],
 ];

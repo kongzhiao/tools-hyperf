@@ -46,5 +46,16 @@ return [
                 'table_mapping' => [],
             ],
         ],
+        // 开启 SQL 日志（关键）
+        'options' => [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ],
+        'logger' => [
+            'enabled' => true, // 开启 SQL 日志
+            'level' => 'debug', // 日志级别
+            'record_sql' => true, // 记录 SQL 语句
+            'slow_sql' => 2000, // 慢查询阈值（毫秒），MySQL 8 适配
+            'log_file' => BASE_PATH . '/runtime/logs/sql.log', // 自定义 SQL 日志文件
+        ],
     ],
 ];

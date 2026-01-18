@@ -38,7 +38,7 @@ return [
         Constant::OPTION_SOCKET_BUFFER_SIZE => 2 * 1024 * 1024,
         Constant::OPTION_BUFFER_OUTPUT_SIZE => 2 * 1024 * 1024,
         // 文件上传配置
-        Constant::OPTION_PACKAGE_MAX_LENGTH => 100 * 1024 * 1024, // 100MB
+        Constant::OPTION_PACKAGE_MAX_LENGTH => 200 * 1024 * 1024, // 200MB
         Constant::OPTION_UPLOAD_TMP_DIR => BASE_PATH . '/runtime/temp',
         // 超时配置 - 增加超时时间
         Constant::OPTION_HEARTBEAT_IDLE_TIME => 3600, // 60分钟空闲超时

@@ -7,16 +7,24 @@ namespace App\Controller;
 use App\Model\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Annotation\PostMapping;
 use Hyperf\HttpServer\Annotation\RequestMapping;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Redis\Redis;
+use Hyperf\Context\ApplicationContext;
 
 /**
  * @Controller(prefix="/api")
  */
 class AuthController extends AbstractController
 {
+    /**
+     * @Inject
+     * @var Redis
+     */
+    protected $redis;
 
 
     /**
@@ -37,7 +45,7 @@ class AuthController extends AbstractController
 
         $user = User::query()->where('username', $username)->first();
 
-        if (!$user || !password_verify($password, $user->password)) {
+        if (!$user || !password_verify((string) $password, $user->password)) {
             return $this->response->json([
                 'code' => 401,
                 'msg' => '用户名或密码错误'
@@ -54,6 +62,16 @@ class AuthController extends AbstractController
 
         $jwtSecret = env('JWT_SECRET', 'your-secret-key');
         $token = JWT::encode($payload, $jwtSecret, 'HS256');
+
+        // 将用户信息存入 Redis 缓存 (2小时)
+        try {
+            $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
+            $cacheKey = 'user:cache:' . $user->id;
+            $redis->set($cacheKey, serialize($user->toJwtArray()), 7200);
+        } catch (\Exception $e) {
+            // Redis 失败不影响登录，但记录日志
+            error_log('Redis cache failed for user ' . $user->id . ': ' . $e->getMessage());
+        }
 
         return $this->response->json([
             'code' => 0,
@@ -75,49 +93,40 @@ class AuthController extends AbstractController
      */
     public function info(RequestInterface $request)
     {
-        $token = $request->getHeaderLine('Authorization');
-        $token = str_replace('Bearer ', '', $token);
+        $user = $request->getAttribute('user');
 
-        if (!$token) {
+        if (!$user) {
             return $this->response->json([
                 'code' => 401,
-                'msg' => 'Token 不能为空'
+                'msg' => '未登录或 Token 已失效'
             ]);
         }
 
-        try {
-            $jwtSecret = env('JWT_SECRET', 'your-secret-key');
-            $payload = JWT::decode($token, new Key($jwtSecret, 'HS256'));
+        $data = is_array($user) ? $user : $user->toJwtArray();
 
-            $user = User::query()->with('roles.permissions')->find($payload->user_id);
-
-            if (!$user) {
-                return $this->response->json([
-                    'code' => 401,
-                    'msg' => '用户不存在'
-                ]);
-            }
-
-            return $this->response->json([
-                'code' => 0,
-                'msg' => '获取成功',
-                'data' => $user->toJwtArray()
-            ]);
-
-        } catch (\Exception $e) {
-            return $this->response->json([
-                'code' => 401,
-                'msg' => 'Token 无效'
-            ]);
-        }
+        return $this->response->json([
+            'code' => 0,
+            'msg' => '获取成功',
+            'data' => $data
+        ]);
     }
 
     /**
      * 用户登出
      * @PostMapping(path="/logout")
      */
-    public function logout()
+    public function logout(RequestInterface $request)
     {
+        $userId = $request->getAttribute('userId');
+        if ($userId) {
+            try {
+                $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
+                $redis->del('user:cache:' . $userId);
+            } catch (\Exception $e) {
+                error_log('Redis clear failed for user ' . $userId . ': ' . $e->getMessage());
+            }
+        }
+
         return $this->response->json([
             'code' => 0,
             'msg' => '登出成功'
