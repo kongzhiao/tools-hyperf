@@ -36,6 +36,7 @@
         "hyperf/swagger": "^3.1",
         "hyperf/tracer": "~3.0",
         "hyperf/utils": "^3.1",
+        "openspout/openspout": "4.28.5",
         "phpoffice/phpspreadsheet": "^4.5"
     },
     "require-dev": {
