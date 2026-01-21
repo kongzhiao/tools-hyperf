@@ -93,11 +93,18 @@ class MedMedicalRecord extends Model
                      ->orderBy('admission_date', 'desc')
                      ->get();
 
+        $statics = [
+            'unreimbursed' => self::where('processing_status', 'unreimbursed')->count(),
+            'reimbursed' => self::where('processing_status', 'reimbursed')->count(),
+            'returned' => self::where('processing_status', 'returned')->count(),
+        ];
+
         return [
             'data' => $data,
             'total' => $total,
             'page' => $page,
             'page_size' => $pageSize,
+            'statics' => $statics,
         ];
     }
 
