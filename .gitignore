@@ -5,6 +5,7 @@
 .idea/
 .git/
 runtime/
+public/
 vendor/
 .phpintel/
 .env

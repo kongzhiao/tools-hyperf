@@ -46,6 +46,9 @@ return [
         // 进程配置
         Constant::OPTION_MAX_WAIT_TIME => 60, // 进程最大等待时间
         Constant::OPTION_RELOAD_ASYNC => true, // 异步重载
+        // 静态文件服务配置 - 支持导出文件下载
+        'document_root' => BASE_PATH . '/public',
+        'enable_static_handler' => true,
     ],
     'callbacks' => [
         Event::ON_WORKER_START => [Hyperf\Framework\Bootstrap\WorkerStartCallback::class, 'onWorkerStart'],

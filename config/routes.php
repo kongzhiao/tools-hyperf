@@ -13,6 +13,7 @@ use Hyperf\HttpServer\Router\Router;
 
 // ==================== 基础路由 ====================
 Router::addRoute(['GET', 'POST'], '/', 'App\Controller\IndexController::index');
+Router::get('/health', 'App\Controller\IndexController::health');
 // Router::get('/favicon.ico', function () {
 //     return '';
 // });

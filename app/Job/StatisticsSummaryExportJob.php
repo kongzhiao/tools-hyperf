@@ -7,13 +7,18 @@ namespace App\Job;
 use App\Model\StatisticsData;
 use Hyperf\Logger\LoggerFactory;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\AsyncQueue\Driver\DriverFactory;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Border;
+use OpenSpout\Writer\CSV\Writer;
+use OpenSpout\Writer\CSV\Options;
+use OpenSpout\Common\Entity\Row;
 
+/**
+ * 统计明细导出任务
+ * 
+ * 使用 OpenSpout CSV 流式写入，支持百万级数据导出不 OOM。
+ * 配合 Eloquent cursor() 游标查询，内存占用恒定。
+ * 
+ * CSV 格式比 XLSX 快 5-10 倍。
+ */
 class StatisticsSummaryExportJob extends AbstractJob
 {
     /**
@@ -25,6 +30,46 @@ class StatisticsSummaryExportJob extends AbstractJob
      * @var string
      */
     public $uuid;
+
+    /**
+     * 表头配置（增加"类型"列）
+     */
+    private const HEADERS = [
+        '类型',
+        '项目代码',
+        '医保分类',
+        '清算期',
+        '费款所属期',
+        '结算id',
+        '认定地',
+        '镇街',
+        '参保地',
+        '参保类别',
+        '身份证号',
+        '姓名',
+        '救助身份',
+        '就诊地',
+        '就诊医疗机构名称',
+        '医保就诊类别',
+        '医疗救助类别',
+        '病种编码',
+        '病种名称',
+        '入院日期',
+        '出院日期',
+        '结算日期',
+        '费用总额',
+        '符合医保报销金额',
+        '基本医疗保险报销金额',
+        '大病报销金额',
+        '大额报销金额',
+        '进入医疗救助金额',
+        '医疗救助',
+        '倾斜救助',
+        '扶贫济困金额（元）',
+        '渝快保支出金额（元）',
+        '个人账户支付金额（元）',
+        '个人现金支付金额（元）'
+    ];
 
     public function __construct(array $params, string $uuid)
     {
@@ -40,7 +85,8 @@ class StatisticsSummaryExportJob extends AbstractJob
         try {
             // 设置脚本执行时间不限
             set_time_limit(0);
-            ini_set('memory_limit', '1024M');
+            // 使用流式写入，内存需求大幅降低
+            ini_set('memory_limit', '256M');
 
             $projectIds = $this->params['project_ids'] ?? [];
             if (empty($projectIds)) {
@@ -48,180 +94,124 @@ class StatisticsSummaryExportJob extends AbstractJob
                 return;
             }
 
-            $spreadsheet = new Spreadsheet();
-
-            $detailTypes = [
-                '区内明细' => '区内明细',
-                '跨区明细' => '跨区明细',
-                '手工明细' => '手工明细'
-            ];
-
-            $headers = [
-                '项目代码',
-                '医保分类',
-                '清算期',
-                '费款所属期',
-                '结算id',
-                '认定地',
-                '镇街',
-                '参保地',
-                '参保类别',
-                '身份证号',
-                '姓名',
-                '救助身份',
-                '就诊地',
-                '就诊医疗机构名称',
-                '医保就诊类别',
-                '医疗救助类别',
-                '病种编码',
-                '病种名称',
-                '入院日期',
-                '出院日期',
-                '结算日期',
-                '费用总额',
-                '符合医保报销金额',
-                '基本医疗保险报销金额',
-                '大病报销金额',
-                '大额报销金额',
-                '进入医疗救助金额',
-                '医疗救助',
-                '倾斜救助',
-                '扶贫济困金额（元）',
-                '渝快保支出金额（元）',
-                '个人账户支付金额（元）',
-                '个人现金支付金额（元）'
-            ];
-
             // 计算总数量用于进度展示
             $totalCount = StatisticsData::whereIn('project_id', $projectIds)->count();
             if ($totalCount === 0) {
-                // No data to export
                 $this->updateProgress($this->uuid, 100);
                 return;
             }
 
-            // Chunk configuration
-            $chunkSize = 1000; // rows per chunk
-            $allTasks = [];
-            $totalChunksCombined = 0;
+            $logger->info("Task {$this->uuid} Export Start: {$totalCount} records to export (CSV mode)");
 
-            foreach ($detailTypes as $typeName => $importType) {
-                $count = StatisticsData::whereIn('project_id', $projectIds)
-                    ->where('import_type', $importType)
-                    ->count();
-                if ($count > 0) {
-                    $chunks = (int) ceil($count / $chunkSize);
-                    $allTasks[$typeName] = [
-                        'import_type' => $importType,
-                        'count' => $count,
-                        'chunks' => $chunks
-                    ];
-                    $totalChunksCombined += $chunks;
-                }
+            // 准备输出目录（使用 public 目录，容器重建后可持久化）
+            $runtimePath = sprintf('%s/public/export/%s/', BASE_PATH, $this->params['uid']);
+            if (!is_dir($runtimePath)) {
+                mkdir($runtimePath, 0777, true);
+                chmod($runtimePath, 0777);  // 确保 Linux 环境下权限正确
             }
 
-            if ($totalChunksCombined === 0) {
-                $this->updateProgress($this->uuid, 100);
-                return;
-            }
+            // CSV 文件名
+            $filename = '统计明细_导出_'. $this->uuid . '_' . date('Y-m-d_H-i-s') . '.csv';
+            $fullPath = $runtimePath . $filename;
 
-            // Initialize Redis coordination keys
-            $redis = $container->get(\Hyperf\Redis\Redis::class);
-            $totalKey = "export:{$this->uuid}:chunks_total";
-            $pendingKey = "export:{$this->uuid}:chunks_pending";
-            $filesKey = "export:{$this->uuid}:chunks_files";
-            $redis->set($totalKey, $totalChunksCombined);
-            $redis->set($pendingKey, $totalChunksCombined);
-            $redis->del($filesKey);
+            // 创建 CSV Writer
+            $options = new Options();
+            $options->FIELD_DELIMITER = ',';
+            $options->FIELD_ENCLOSURE = '"';
+            $options->SHOULD_ADD_BOM = true; // 添加 BOM 以支持 Excel 打开中文
+
+            $writer = new Writer($options);
+            $writer->openToFile($fullPath);
+
+            // 写入表头
+            $writer->addRow(Row::fromValues(self::HEADERS));
 
             $this->updateProgress($this->uuid, 5);
 
-            $driver = $container->get(DriverFactory::class)->get('default');
-            foreach ($allTasks as $sheetName => $info) {
-                $offset = 0;
-                for ($i = 0; $i < $info['chunks']; $i++) {
-                    $limit = min($chunkSize, $info['count'] - $offset);
-                    $chunkJob = new StatisticsSummaryExportChunkJob(
-                        $this->params,
-                        $this->uuid,
-                        $i, // sequence within sheet
-                        $offset,
-                        $limit
-                    );
-                    $chunkJob->sheetName = $sheetName;
-                    $chunkJob->importType = $info['import_type'];
-                    $driver->push($chunkJob);
-                    $offset += $limit;
+            $processedCount = 0;
+
+            // 使用 cursor() 游标查询，流式写入数据
+            $query = StatisticsData::query()->whereIn('project_id', $projectIds)->with(['project']);
+
+            foreach ($query->cursor() as $item) {
+                $rowData = [
+                    $item->import_type ?? '',  // 类型列，直接使用数据库字段
+                    $item->project->code ?? '',
+                    $item->medical_category ?? '',
+                    $item->settlement_period ?? '',
+                    $item->fee_period ?? '',
+                    $item->settlement_id ?? '',
+                    $item->certification_place ?? '',
+                    $item->street_town ?? '',
+                    $item->insurance_place ?? '',
+                    $item->insurance_category ?? '',
+                    $item->id_number ?? '',
+                    $item->name ?? '',
+                    $item->assistance_identity ?? '',
+                    $item->visit_place ?? '',
+                    $item->medical_institution ?? '',
+                    $item->medical_visit_category ?? '',
+                    $item->medical_assistance_category ?? '',
+                    $item->disease_code ?? '',
+                    $item->disease_name ?? '',
+                    $item->admission_date ?? '',
+                    $item->discharge_date ?? '',
+                    $item->settlement_date ?? '',
+                    $item->total_cost ?? 0,
+                    $item->eligible_reimbursement ?? 0,
+                    $item->basic_medical_reimbursement ?? 0,
+                    $item->serious_illness_reimbursement ?? 0,
+                    $item->large_amount_reimbursement ?? 0,
+                    $item->medical_assistance_amount ?? 0,
+                    $item->medical_assistance ?? 0,
+                    $item->tilt_assistance ?? 0,
+                    $item->poverty_relief_amount ?? 0,
+                    $item->yukuaibao_amount ?? 0,
+                    $item->personal_account_amount ?? 0,
+                    $item->personal_cash_amount ?? 0,
+                ];
+
+                $writer->addRow(Row::fromValues($rowData));
+                $processedCount++;
+
+                // 每处理 1000 条更新一次进度
+                if ($processedCount % 1000 === 0) {
+                    $progress = 5 + ($processedCount / $totalCount) * 90;
+                    $this->updateProgress($this->uuid, $progress);
+                    $logger->debug("Task {$this->uuid} Progress: {$processedCount}/{$totalCount}");
                 }
             }
-            return;
 
-            // 保存文件
-            // The original export logic has been replaced by chunked processing.
-            // This part will not be executed because the job now only dispatches chunk jobs.
-            // Keeping the code for reference but it will be unreachable.
-            // $writer = new Xlsx($spreadsheet);
-            // $runtimePath = BASE_PATH . '/runtime/export/';
-            // if (!is_dir($runtimePath)) {
-            //     mkdir($runtimePath, 0777, true);
-            // }
-            // $filename = '统计明细_导出_' . date('Y-m-d_H:i:s') . '_' . $this->uuid . '.xlsx';
-            // $fullPath = $runtimePath . $filename;
-            // $writer->save($fullPath);
-            // $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 1);
-            // $this->finalizeTask($fullPath, $filename, $fileSizeMb);
-            // $logger->info("Task {$this->uuid} Export Success: " . $fullPath . " (Size: {$fileSizeMb}MB)");
+            // 关闭 writer，完成文件写入
+            $writer->close();
+
+            // 计算文件大小
+            $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 2);
+
+            // 更新任务完成状态
+            $this->finalizeTask($fullPath, $filename, $fileSizeMb);
+
+            $logger->info("Task {$this->uuid} Export Success: {$fullPath} (Size: {$fileSizeMb}MB, Records: {$processedCount})");
 
         } catch (\Throwable $e) {
-            $logger->error("Task {$this->uuid} Export Failed: " . $e->getMessage());
+            $logger->error("Task {$this->uuid} Export Failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
             // 进度标记为 -1 表示失败
             $this->updateProgress($this->uuid, -1.00);
             throw $e;
         }
     }
 
-    private function setDetailExcelStyles($sheet, $lastRow): void
-    {
-        $highestColumn = $sheet->getHighestColumn();
-        // 标题样式
-        $sheet->getStyle('A1')->applyFromArray([
-            'font' => ['bold' => true, 'size' => 16],
-            'alignment' => [
-                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
-            ]
-        ]);
-        // 表头样式
-        $headerRange = 'A3:' . $highestColumn . '3';
-        $sheet->getStyle($headerRange)->applyFromArray([
-            'font' => ['bold' => true],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'E0E0E0']
-            ],
-            'alignment' => ['horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER]
-        ]);
-        // 设置边框
-        $dataRange = 'A1:' . $highestColumn . $lastRow;
-        $sheet->getStyle($dataRange)->applyFromArray([
-            'borders' => [
-                'allBorders' => [
-                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN
-                ]
-            ]
-        ]);
-    }
     /**
      * Finalize task after successful export.
      */
     protected function finalizeTask(string $fullPath, string $filename, float $fileSizeMb): void
     {
+        $uid = $this->params['uid'] ?? 0;
         $this->updateTask($this->uuid, [
             'progress' => 100.00,
-            'download_url' => '/runtime/export/' . $filename,
+            'download_url' => "/export/{$uid}/" . $filename,
             'url_at' => date('Y-m-d H:i:s'),
             'file_size' => $fileSizeMb
         ]);
     }
-
 }

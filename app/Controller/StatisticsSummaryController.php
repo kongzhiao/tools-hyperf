@@ -1152,6 +1152,7 @@ class StatisticsSummaryController extends AbstractController
             $userId = (int) $request->getAttribute('userId', 0);
             $username = $request->getAttribute('username', 'System');
             $uid = $userId ?: (int) ($params['uid'] ?? 0);
+            $params['uid'] = $uid;
             $uuid = $this->generateTaskId($uid);
             // 创建异步任务记录
             Task::create([
