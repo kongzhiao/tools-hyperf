@@ -36,8 +36,14 @@ class JwtAuthMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
+        // 优先从 Header 获取 token，其次从 query 参数获取（方便本地测试）
         $token = $request->getHeaderLine('Authorization');
         $token = str_replace('Bearer ', '', $token);
+        
+        if (!$token) {
+            $queryParams = $request->getQueryParams();
+            $token = $queryParams['token'] ?? '';
+        }
 
         if (!$token) {
             return $this->response->json([

@@ -17,6 +17,11 @@ abstract class AbstractJob extends Job
     protected int $maxAttempts = 0;
 
     /**
+     * 业务锁 Key（由 dispatchTask 自动注入）
+     */
+    public string $lockKey = '';
+
+    /**
      * 获取最大重试次数
      */
     public function getMaxAttempts(): int
@@ -63,4 +68,15 @@ abstract class AbstractJob extends Job
     {
         Task::where('uuid', $uuid)->update($data);
     }
+
+    /**
+     * 释放业务锁（子类在任务完成/失败时调用）
+     */
+    protected function releaseLock(): void
+    {
+        if (!empty($this->lockKey)) {
+            \App\Service\TaskService::unlock($this->lockKey);
+        }
+    }
 }
+

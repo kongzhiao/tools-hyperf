@@ -83,6 +83,12 @@ class StatisticsSummaryExportJob extends AbstractJob
         $logger = $container->get(LoggerFactory::class)->get('default');
 
         try {
+            // 标记任务为执行中
+            $this->updateTask($this->uuid, [
+                'status' => \App\Model\Task::STATUS_RUNNING,
+                'progress' => 0.00
+            ]);
+
             // 设置脚本执行时间不限
             set_time_limit(0);
             // 使用流式写入，内存需求大幅降低
@@ -126,7 +132,11 @@ class StatisticsSummaryExportJob extends AbstractJob
             // 写入表头
             $writer->addRow(Row::fromValues(self::HEADERS));
 
-            $this->updateProgress($this->uuid, 5);
+            // 更新任务状态为执行中
+            $this->updateTask($this->uuid, [
+                'progress' => 5.00,
+                'status' => \App\Model\Task::STATUS_RUNNING
+            ]);
 
             $processedCount = 0;
 
@@ -195,9 +205,13 @@ class StatisticsSummaryExportJob extends AbstractJob
 
         } catch (\Throwable $e) {
             $logger->error("Task {$this->uuid} Export Failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            // 进度标记为 -1 表示失败
-            $this->updateProgress($this->uuid, -1.00);
-            throw $e;
+            // 标记任务执行失败（status=-2）
+            $this->updateTask($this->uuid, [
+                'status' => \App\Model\Task::STATUS_FAILED
+            ]);
+            // 释放 Redis 锁
+            $this->releaseLock();
+            // 不再抛出异常，避免队列重试
         }
     }
 
@@ -209,9 +223,12 @@ class StatisticsSummaryExportJob extends AbstractJob
         $uid = $this->params['uid'] ?? 0;
         $this->updateTask($this->uuid, [
             'progress' => 100.00,
-            'download_url' => "/export/{$uid}/" . $filename,
+            'file_url' => "/export/{$uid}/" . $filename,
             'url_at' => date('Y-m-d H:i:s'),
-            'file_size' => $fileSizeMb
+            'file_size' => $fileSizeMb,
+            'status' => \App\Model\Task::STATUS_COMPLETED
         ]);
+        // 释放 Redis 锁
+        $this->releaseLock();
     }
 }

@@ -34,12 +34,13 @@ Router::addGroup('/api', function () {
     Router::post('/logout', [App\Controller\AuthController::class, 'logout']);
 });
 
-// Public endpoint for task progress (no authentication)
-Router::get('/api/statistics/task/progress', [App\Controller\StatisticsSummaryController::class, 'getTaskProgress']);
-
 // ==================== 需要认证的通用业务路由组 ====================
 Router::addGroup('/api', function () {
     Router::get('/user/info', [App\Controller\AuthController::class, 'info']);
+
+    // 任务管理路由
+    Router::get('/tasks', [App\Controller\TaskController::class, 'index']);
+    Router::get('/tasks/progress', [App\Controller\TaskController::class, 'show']);
 
     // 用户管理路由
     Router::get('/users', [App\Controller\UserController::class, 'index']);

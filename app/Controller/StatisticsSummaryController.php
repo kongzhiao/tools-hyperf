@@ -1153,25 +1153,26 @@ class StatisticsSummaryController extends AbstractController
             $username = $request->getAttribute('username', 'System');
             $uid = $userId ?: (int) ($params['uid'] ?? 0);
             $params['uid'] = $uid;
-            $uuid = $this->generateTaskId($uid);
-            // 创建异步任务记录
-            Task::create([
-                'uuid' => $uuid,
-                'title' => '明细统计导出-' . date('YmdHis'),
-                'uid' => $uid,
-                'uname' => $username,
-                'progress' => 0.00
-            ]);
 
-            // 投递异步任务
-            $this->driver->push(new StatisticsSummaryExportJob($params, $uuid));
+            // 使用 TaskService 创建任务并投递队列
+            $lockKey = sprintf('task:lock:%d:exportDetailStatistics', $uid);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '明细统计导出-' . date('YmdHis'),
+                $uid,
+                $username,
+                StatisticsSummaryExportJob::class,
+                [$params],  // Job 构造参数，uuid 会自动注入
+                $lockKey    // 锁 Key，自动校验并注入到 Job
+            );
+
+            if ($uuid === false) {
+                throw new BusinessException(400, '该业务已有导出任务正在执行中，请前往任务中心查看进度');
+            }
 
             return $response->json([
                 'code' => 200,
                 'message' => '导出任务已提交',
-                'data' => [
-                    'uuid' => $uuid
-                ]
+                'data' => ['uuid' => $uuid]
             ]);
 
         } catch (BusinessException $e) {
@@ -1304,49 +1305,5 @@ class StatisticsSummaryController extends AbstractController
     private function generateTaskId(int $uid): string
     {
         return date('YmdHis') . str_pad((string) $uid, 10, '0', STR_PAD_LEFT) . mt_rand(10000, 99999);
-    }
-
-    /**
-     * 获取任务处理进度
-     */
-    public function getTaskProgress(RequestInterface $request, ResponseInterface $response)
-    {
-        try {
-            $uid = (int) $request->input('uid');
-            $uuid = $request->input('uuid');
-
-            if (empty($uuid)) {
-                throw new BusinessException(400, '任务ID不能为空');
-            }
-
-            $task = Task::where('uid', $uid)->where('uuid', $uuid)->first();
-            if (!$task) {
-                throw new BusinessException(404, '任务不存在或无权访问');
-            }
-
-            $data = [
-                'uuid' => $task->uuid,
-                'title' => $task->title,
-                'progress' => (float) $task->progress,
-                'status' => 'processing',
-                'download_url' => $task->download_url,
-                'url_at' => $task->url_at,
-                'file_size' => $task->file_size,
-            ];
-
-            if ($task->progress >= 100.0) {
-                $data['status'] = 'completed';
-            } elseif ($task->progress < 0) {
-                $data['status'] = 'failed';
-            }
-
-            return $response->json([
-                'code' => 200,
-                'message' => '获取成功',
-                'data' => $data
-            ]);
-        } catch (\Exception $e) {
-            throw new BusinessException(500, '获取任务进度失败: ' . $e->getMessage());
-        }
     }
 }
