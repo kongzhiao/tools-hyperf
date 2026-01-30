@@ -10,6 +10,7 @@ use Hyperf\HttpServer\Contract\ResponseInterface;
 use Hyperf\DbConnection\Db;
 use App\Model\InsuranceLevelConfig;
 use App\Service\InsuranceLevelConfigCache;
+use App\Job\InsuranceDataExportJob;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class InsuranceDataController extends AbstractController
@@ -22,7 +23,7 @@ class InsuranceDataController extends AbstractController
     {
         $page = (int) $request->input('page', 1);
         $pageSize = (int) $request->input('page_size', 15);
-        
+
         // 搜索条件
         $filters = [
             'year' => $request->input('year', ''),
@@ -67,12 +68,12 @@ class InsuranceDataController extends AbstractController
         }
 
         $updateData = $request->all();
-        
+
         // 验证数据
         if (isset($updateData['payment_amount']) && (!is_numeric($updateData['payment_amount']) || $updateData['payment_amount'] < 0)) {
             return $this->error('代缴金额必须是非负数');
         }
-        
+
         if (isset($updateData['personal_amount']) && (!is_numeric($updateData['personal_amount']) || $updateData['personal_amount'] < 0)) {
             return $this->error('个人实缴金额必须是非负数');
         }
@@ -80,11 +81,11 @@ class InsuranceDataController extends AbstractController
         // 验证匹配状态字段
         $matchStatusFields = [
             'level_match_status',
-            'assistance_identity_match_status', 
+            'assistance_identity_match_status',
             'street_town_match_status',
             'match_status'
         ];
-        
+
         foreach ($matchStatusFields as $field) {
             if (isset($updateData[$field]) && !in_array($updateData[$field], ['matched', 'unmatched', ''], true)) {
                 return $this->error("{$field} 字段值无效，只能是 'matched' 或 'unmatched'");
@@ -173,7 +174,7 @@ class InsuranceDataController extends AbstractController
     public function batchUpdate(RequestInterface $request, ResponseInterface $response)
     {
         $data = $request->all();
-        
+
         if (empty($data['ids']) || !is_array($data['ids'])) {
             return $this->error('请选择要更新的数据');
         }
@@ -187,13 +188,13 @@ class InsuranceDataController extends AbstractController
         if (isset($updateData['payment_amount']) && (!is_numeric($updateData['payment_amount']) || $updateData['payment_amount'] < 0)) {
             return $this->error('代缴金额必须是非负数');
         }
-        
+
         if (isset($updateData['personal_amount']) && (!is_numeric($updateData['personal_amount']) || $updateData['personal_amount'] < 0)) {
             return $this->error('个人实缴金额必须是非负数');
         }
 
         $count = InsuranceData::whereIn('id', $data['ids'])->update($updateData);
-        
+
         return $this->success(['updated_count' => $count], "成功更新 {$count} 条数据");
     }
 
@@ -208,12 +209,12 @@ class InsuranceDataController extends AbstractController
         }
 
         $year = (int) $year;
-        
+
         // 检查年份是否已经在管理表中存在
         if (\App\Model\InsuranceYear::yearExists($year)) {
             return $this->error("{$year}年已经存在");
         }
-        
+
         // 创建新年份
         $success = \App\Model\InsuranceYear::createYear($year, "{$year}年度参保数据");
         if (!$success) {
@@ -231,7 +232,7 @@ class InsuranceDataController extends AbstractController
         try {
             $years = \App\Model\InsuranceYear::all();
             $yearList = [];
-            
+
             foreach ($years as $year) {
                 $dataCount = InsuranceData::where('year', $year->year)->count();
                 $yearList[] = [
@@ -244,7 +245,7 @@ class InsuranceDataController extends AbstractController
                     'updated_at' => $year->updated_at,
                 ];
             }
-            
+
             return $this->success($yearList);
         } catch (\Exception $e) {
             return $this->error('获取年份列表失败: ' . $e->getMessage());
@@ -264,17 +265,17 @@ class InsuranceDataController extends AbstractController
 
             $data = $request->all();
             $updateData = [];
-            
+
             if (isset($data['description'])) {
                 $updateData['description'] = $data['description'];
             }
-            
+
             if (isset($data['is_active'])) {
                 $updateData['is_active'] = (bool) $data['is_active'];
             }
 
             $year->update($updateData);
-            
+
             return $this->success(['year' => $year], '年份更新成功');
         } catch (\Exception $e) {
             return $this->error('更新年份失败: ' . $e->getMessage());
@@ -299,7 +300,7 @@ class InsuranceDataController extends AbstractController
             }
 
             $year->delete();
-            
+
             return $this->success([], "{$year->year}年删除成功");
         } catch (\Exception $e) {
             return $this->error('删除年份失败: ' . $e->getMessage());
@@ -319,7 +320,7 @@ class InsuranceDataController extends AbstractController
 
             // 删除该年份的所有数据
             $deletedCount = InsuranceData::where('year', $year->year)->delete();
-            
+
             return $this->success([
                 'year' => $year->year,
                 'deleted_count' => $deletedCount
@@ -337,7 +338,7 @@ class InsuranceDataController extends AbstractController
         $year = $request->input('year');
         $mode = $request->input('mode', 'incremental');
         $file = $request->file('file');
-        
+
         if (!$year || !is_numeric($year)) {
             return $this->error('请提供有效的年份');
         }
@@ -345,12 +346,12 @@ class InsuranceDataController extends AbstractController
         if (!in_array($mode, ['incremental', 'full'])) {
             return $this->error('导入模式必须是 incremental 或 full');
         }
-        
+
         // 检查是否上传了文件
         if (!$file) {
             return $this->error('请选择要导入的Excel文件');
         }
-        
+
         // 检查文件是否有效
         if (!$file->isValid()) {
             $error = $file->getError();
@@ -366,7 +367,7 @@ class InsuranceDataController extends AbstractController
             $errorMessage = $errorMessages[$error] ?? '文件上传失败，错误代码：' . $error;
             return $this->error($errorMessage);
         }
-        
+
         // 检查文件类型
         $allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
         $mimeType = $file->getMimeType();
@@ -375,12 +376,12 @@ class InsuranceDataController extends AbstractController
         }
 
         $year = (int) $year;
-        
+
         // 检查年份是否存在
         if (!\App\Model\InsuranceYear::yearExists($year)) {
             return $this->error("{$year}年不存在，请先创建该年份");
         }
-        
+
         // 检查是否已有数据
         $existingCount = InsuranceData::where('year', $year)->count();
         if ($existingCount > 0 && $mode === 'incremental') {
@@ -388,7 +389,7 @@ class InsuranceDataController extends AbstractController
         } elseif ($existingCount > 0 && $mode === 'full') {
             // 全量模式：允许有数据，会覆盖
         }
-        
+
         try {
             // 保存上传的文件
             $uploadDir = BASE_PATH . '/storage/uploads/';
@@ -397,10 +398,10 @@ class InsuranceDataController extends AbstractController
                     return $this->error('创建上传目录失败');
                 }
             }
-            
+
             $fileName = 'insurance_data_' . $year . '_' . time() . '.' . $file->getExtension();
             $filePath = $uploadDir . $fileName;
-            
+
             // 尝试移动文件
             $moveResult = $file->moveTo($filePath);
             if (!$moveResult) {
@@ -409,24 +410,24 @@ class InsuranceDataController extends AbstractController
                     return $this->error('文件保存失败，请检查目录权限');
                 }
             }
-            
+
             // 验证文件是否真的保存了
             if (!file_exists($filePath)) {
                 return $this->error('文件保存验证失败');
             }
-            
+
             // 执行导入命令，传入文件路径
             $command = "php bin/hyperf.php import:insurance-data --year={$year} --mode={$mode} --file={$filePath}";
             $output = [];
             $returnCode = 0;
-            
+
             exec($command . " 2>&1", $output, $returnCode);
-            
+
             // 删除临时文件
             if (file_exists($filePath)) {
                 unlink($filePath);
             }
-            
+
             if ($returnCode === 0) {
                 // 获取导入后的数据条数
                 $importedCount = InsuranceData::where('year', $year)->count();
@@ -446,11 +447,57 @@ class InsuranceDataController extends AbstractController
     }
 
     /**
-     * 导出参保数据
+     * 导出参保数据匹配结果（异步任务）
      */
     public function export(RequestInterface $request, ResponseInterface $response)
     {
-        return $this->exportCsv($request, $response);
+        try {
+            $userId = (int) $request->getAttribute('userId', 0);
+            $username = $request->getAttribute('username', 'System');
+            $uid = $userId ?: 0;
+
+            // 搜索条件
+            $filters = [
+                'year' => $request->input('year', ''),
+                'street_town' => $request->input('street_town', ''),
+                'name' => $request->input('name', ''),
+                'id_number' => $request->input('id_number', ''),
+                'payment_category' => $request->input('payment_category', ''),
+                'level' => $request->input('level', ''),
+                'medical_assistance_category' => $request->input('medical_assistance_category', ''),
+                'level_match_status' => $request->input('level_match_status', ''),
+                'assistance_identity_match_status' => $request->input('assistance_identity_match_status', ''),
+                'street_town_match_status' => $request->input('street_town_match_status', ''),
+                'match_status' => $request->input('match_status', ''),
+            ];
+
+            $params = [
+                'uid' => $uid,
+                'filters' => $filters,
+            ];
+
+            // 使用 TaskService 创建任务并投递队列
+            $lockKey = sprintf('task:lock:%d:exportInsuranceData', $uid);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '参保数据_导出_匹配结果_' . date('YmdHis'),
+                $uid,
+                $username,
+                InsuranceDataExportJob::class,
+                [$params, '%UUID%'],
+                $lockKey
+            );
+
+            if ($uuid === false) {
+                return $this->error('任务正在执行中，请在任务中心查看进度');
+            }
+
+            return $this->success([
+                'uuid' => $uuid
+            ], '导出任务已提交，请在任务中心查看进度');
+
+        } catch (\Exception $e) {
+            return $this->error('导出失败: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -459,7 +506,7 @@ class InsuranceDataController extends AbstractController
     public function getExportInfo(RequestInterface $request, ResponseInterface $response)
     {
         $year = (int) $request->input('year', date('Y'));
-        
+
         // 搜索条件
         $filters = [
             'year' => $request->input('year', ''),
@@ -474,7 +521,7 @@ class InsuranceDataController extends AbstractController
         try {
             // 构建查询
             $query = InsuranceData::query();
-            
+
             // 应用搜索条件
             if (!empty($filters['year'])) {
                 $query->where('year', $filters['year']);
@@ -500,13 +547,13 @@ class InsuranceDataController extends AbstractController
 
             // 获取总记录数
             $totalCount = $query->count();
-            
+
             return $this->success([
                 'total_count' => $totalCount,
                 'can_export' => $totalCount <= 100000,
                 'suggested_format' => 'csv'
             ]);
-            
+
         } catch (\Exception $e) {
             return $this->error('获取导出信息失败: ' . $e->getMessage());
         }
@@ -521,142 +568,6 @@ class InsuranceDataController extends AbstractController
 
 
 
-    /**
-     * 导出CSV文件
-     */
-    private function exportCsv(RequestInterface $request, ResponseInterface $response)
-    {
-        // 设置脚本执行时间限制
-        set_time_limit(1800); // 30分钟超时
-        
-        $year = (int) $request->input('year', date('Y'));
-        
-        // 搜索条件
-        $filters = [
-            'year' => $request->input('year', ''),
-            'street_town' => $request->input('street_town', ''),
-            'name' => $request->input('name', ''),
-            'id_number' => $request->input('id_number', ''),
-            'payment_category' => $request->input('payment_category', ''),
-            'level' => $request->input('level', ''),
-            'medical_assistance_category' => $request->input('medical_assistance_category', ''),
-            'level_match_status' => $request->input('level_match_status', ''),
-            'assistance_identity_match_status' => $request->input('assistance_identity_match_status', ''),
-            'street_town_match_status' => $request->input('street_town_match_status', ''),
-            'match_status' => $request->input('match_status', ''),
-        ];
-
-        try {
-            // 构建查询
-            $query = InsuranceData::query();
-            
-            // 应用搜索条件
-            if (!empty($filters['year'])) {
-                $query->where('year', $filters['year']);
-            }
-            if (!empty($filters['street_town'])) {
-                $query->where('street_town', 'like', "%{$filters['street_town']}%");
-            }
-            if (!empty($filters['name'])) {
-                $query->where('name', 'like', "%{$filters['name']}%");
-            }
-            if (!empty($filters['id_number'])) {
-                $query->where('id_number', 'like', "%{$filters['id_number']}%");
-            }
-            if (!empty($filters['payment_category'])) {
-                $query->where('payment_category', $filters['payment_category']);
-            }
-            if (!empty($filters['level'])) {
-                $query->where('level', $filters['level']);
-            }
-            if (!empty($filters['medical_assistance_category'])) {
-                $query->where('medical_assistance_category', $filters['medical_assistance_category']);
-            }
-            if (!empty($filters['level_match_status'])) {
-                $query->where('level_match_status', $filters['level_match_status']);
-            }
-            if (!empty($filters['assistance_identity_match_status'])) {
-                $query->where('assistance_identity_match_status', $filters['assistance_identity_match_status']);
-            }
-            if (!empty($filters['street_town_match_status'])) {
-                $query->where('street_town_match_status', $filters['street_town_match_status']);
-            }
-            if (!empty($filters['match_status'])) {
-                $query->where('match_status', $filters['match_status']);
-            }
-
-            // 获取总记录数
-            $totalCount = $query->count();
-            
-            // 如果数据量太大，建议分批处理或限制导出
-            if ($totalCount > 100000) {
-                return $this->error('数据量过大（超过10万条），请缩小搜索范围后重试');
-            }
-
-            // 创建CSV文件
-            $filename = $year . '年参保数据.csv';
-            $tempFile = tempnam(sys_get_temp_dir(), 'insurance_data_csv_');
-            
-            $handle = fopen($tempFile, 'w');
-            
-            // 写入BOM，确保Excel正确识别中文
-            fwrite($handle, "\xEF\xBB\xBF");
-            
-            // 写入表头（只包含核心字段）
-            $headers = [
-                '序号',
-                '街道乡镇',
-                '姓名',
-                '身份证件号码',
-                '代缴类别',
-                '代缴金额',
-                '档次',
-                '档次匹配状态',
-                '医疗救助匹配状态',
-                '认定区匹配状态',
-                '匹配状态'
-            ];
-            fputcsv($handle, $headers);
-
-            // 分批处理数据，减小批次大小以提高稳定性
-            $batchSize = 500; // 减小批次大小
-            $index = 0;
-            $startTime = time();
-            
-            $query->orderBy('id', 'asc')->chunk($batchSize, function ($items) use ($handle, &$index, $startTime) {
-                // 检查是否超时
-                if (time() - $startTime > 1500) { // 25分钟超时保护
-                    throw new \Exception('导出操作超时，请缩小数据范围后重试');
-                }
-                
-                foreach ($items as $item) {
-                    $row = [
-                        $index + 1,
-                        $item->street_town,
-                        $item->name,
-                        $item->id_number,
-                        $item->payment_category,
-                        $item->payment_amount,
-                        $item->level,
-                        $this->convertMatchStatusToChinese($item->level_match_status, 'default'),
-                        $this->convertMatchStatusToChinese($item->assistance_identity_match_status, 'default'),
-                        $this->convertMatchStatusToChinese($item->street_town_match_status, 'default'),
-                        $this->convertMatchStatusToChinese($item->match_status, 'ms')
-                    ];
-                    fputcsv($handle, $row);
-                    $index++;
-                }
-            });
-            
-            fclose($handle);
-            
-            // 使用文件流输出，避免内存问题
-            return $response->download($tempFile, $filename);
-            
-        } catch (\Exception $e) {
-            return $this->error('导出失败: ' . $e->getMessage());
-        }
-    }
 
     /**
      * 验证保险数据文件格式
@@ -681,18 +592,18 @@ class InsuranceDataController extends AbstractController
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
-            
+
             // 获取第一行所有列的值
             $headerRow = $worksheet->getRowIterator(1)->current();
             $cellIterator = $headerRow->getCellIterator();
             $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-            
+
             // 收集表头
             $headers = [];
             foreach ($cellIterator as $cell) {
                 $value = $cell->getValue();
                 if (!empty($value)) { // 只添加非空值
-                    $headers[] = trim((string)$value);
+                    $headers[] = trim((string) $value);
                 }
             }
 
@@ -749,18 +660,18 @@ class InsuranceDataController extends AbstractController
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
-            
+
             // 获取第一行所有列的值
             $headerRow = $worksheet->getRowIterator(1)->current();
             $cellIterator = $headerRow->getCellIterator();
             $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-            
+
             // 收集表头
             $headers = [];
             foreach ($cellIterator as $cell) {
                 $value = $cell->getValue();
                 if (!empty($value)) { // 只添加非空值
-                    $headers[] = trim((string)$value);
+                    $headers[] = trim((string) $value);
                 }
             }
 
@@ -796,67 +707,67 @@ class InsuranceDataController extends AbstractController
      * 验证导入认定区数据
      */
 
-     public function validateImportStreetTown()
-     {
-         try {
-             $file = $this->request->file('file');
-             $year = $this->request->input('year');
- 
-             if (!$file || !$file->isValid()) {
-                 return $this->error('请上传有效的文件');
-             }
- 
-             if (!in_array($file->getExtension(), ['xlsx', 'xls'])) {
-                 return $this->error('文件格式不正确，只支持 .xlsx 和 .xls 格式');
-             }
- 
-             // 读取Excel文件
-             $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-             $reader->setReadDataOnly(true);
-             $spreadsheet = $reader->load($file->getRealPath());
-             $worksheet = $spreadsheet->getActiveSheet();
-             
-             // 获取第一行所有列的值
-             $headerRow = $worksheet->getRowIterator(1)->current();
-             $cellIterator = $headerRow->getCellIterator();
-             $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-             
-             // 收集表头
-             $headers = [];
-             foreach ($cellIterator as $cell) {
-                 $value = $cell->getValue();
-                 if (!empty($value)) { // 只添加非空值
-                     $headers[] = trim((string)$value);
-                 }
-             }
- 
-             // 必要的字段列表
-             $requiredFields = [
-                 '身份证号',
-                 '认定区',
-                 '资助身份'
-             ];
- 
-             // 检查必要字段是否都存在
-             $missingFields = [];
-             foreach ($requiredFields as $field) {
-                 if (!in_array($field, $headers)) {
-                     $missingFields[] = $field;
-                 }
-             }
- 
-             if (!empty($missingFields)) {
-                 return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields));
-             }
- 
-             return $this->success([
-                 'headers' => $headers,
-                 'message' => '文件格式验证通过'
-             ]);
-         } catch (\Exception $e) {
-             return $this->error('验证文件时发生错误：' . $e->getMessage());
-         }
-     }
+    public function validateImportStreetTown()
+    {
+        try {
+            $file = $this->request->file('file');
+            $year = $this->request->input('year');
+
+            if (!$file || !$file->isValid()) {
+                return $this->error('请上传有效的文件');
+            }
+
+            if (!in_array($file->getExtension(), ['xlsx', 'xls'])) {
+                return $this->error('文件格式不正确，只支持 .xlsx 和 .xls 格式');
+            }
+
+            // 读取Excel文件
+            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file->getRealPath());
+            $worksheet = $spreadsheet->getActiveSheet();
+
+            // 获取第一行所有列的值
+            $headerRow = $worksheet->getRowIterator(1)->current();
+            $cellIterator = $headerRow->getCellIterator();
+            $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
+
+            // 收集表头
+            $headers = [];
+            foreach ($cellIterator as $cell) {
+                $value = $cell->getValue();
+                if (!empty($value)) { // 只添加非空值
+                    $headers[] = trim((string) $value);
+                }
+            }
+
+            // 必要的字段列表
+            $requiredFields = [
+                '身份证号',
+                '认定区',
+                '资助身份'
+            ];
+
+            // 检查必要字段是否都存在
+            $missingFields = [];
+            foreach ($requiredFields as $field) {
+                if (!in_array($field, $headers)) {
+                    $missingFields[] = $field;
+                }
+            }
+
+            if (!empty($missingFields)) {
+                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields));
+            }
+
+            return $this->success([
+                'headers' => $headers,
+                'message' => '文件格式验证通过'
+            ]);
+        } catch (\Exception $e) {
+            return $this->error('验证文件时发生错误：' . $e->getMessage());
+        }
+    }
 
 
     /**
@@ -885,7 +796,7 @@ class InsuranceDataController extends AbstractController
             'payment_category' => null,
             'payment_amount' => null,
             'level' => null,
-            'personal_amount'=> null,
+            'personal_amount' => null,
             'assistance_identity' => null,
             'street_town_name' => null
         ];
@@ -893,7 +804,7 @@ class InsuranceDataController extends AbstractController
 
         // 遍历表头，查找对应的字段
         foreach ($headers as $column => $header) {
-            $header = trim((string)$header);
+            $header = trim((string) $header);
             switch ($header) {
                 case '姓名':
                     $columnMap['name'] = $column;
@@ -955,13 +866,13 @@ class InsuranceDataController extends AbstractController
                 'batch_count' => 0
             ]
         ];
-        
+
         $duplicateCheckTime = 0.0;
         $dataCreationTime = 0.0;
         $levelMatchingTime = 0.0;
         $batchInsertTime = 0.0;
         $batchCount = 0;
-        
+
         // 批量插入配置
         $batchSize = 100; // 每批次处理100条记录
         $validData = []; // 存储有效数据用于批量插入
@@ -971,16 +882,16 @@ class InsuranceDataController extends AbstractController
         if ($importType === 'increment') {
             $checkStart = microtime(true);
             $idNumbers = [];
-            
+
             // 收集所有身份证号
             for ($row = $startRow; $row <= $endRow; $row++) {
-                $idCard = isset($columnMap['id_number']) ? 
-                    trim((string)$worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
+                $idCard = isset($columnMap['id_number']) ?
+                    trim((string) $worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
                 if (!empty($idCard)) {
                     $idNumbers[] = $idCard;
                 }
             }
-            
+
             // 批量查询已存在的记录
             if (!empty($idNumbers)) {
                 $existingIds = InsuranceData::where('year', $year)
@@ -989,19 +900,19 @@ class InsuranceDataController extends AbstractController
                     ->toArray();
                 $duplicateIds = array_flip($existingIds);
             }
-            
+
             $duplicateCheckTime = microtime(true) - $checkStart;
         }
 
         // 第二步：处理数据并收集有效记录
         $dataCreationStart = microtime(true);
-        
+
         for ($row = $startRow; $row <= $endRow; $row++) {
             try {
                 // 获取身份证号用于查重
-                $idCard = isset($columnMap['id_number']) ? 
-                    trim((string)$worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
-                
+                $idCard = isset($columnMap['id_number']) ?
+                    trim((string) $worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
+
                 if (empty($idCard)) {
                     $result['skipped_count']++;
                     $result['error_rows'][] = [
@@ -1022,7 +933,7 @@ class InsuranceDataController extends AbstractController
                     'year' => $year,
                     'id_type' => '居民身份证', // 设置默认的证件类型
                 ];
-                
+
                 foreach ($columnMap as $field => $col) {
                     if ($col !== null) {  // 只处理存在的列
                         try {
@@ -1031,7 +942,7 @@ class InsuranceDataController extends AbstractController
                             if (in_array($field, ['payment_amount'])) {
                                 $value = is_numeric($cellValue) ? floatval($cellValue) : 0;
                             } else {
-                                $value = $cellValue !== null ? trim((string)$cellValue) : '';
+                                $value = $cellValue !== null ? trim((string) $cellValue) : '';
                             }
                             $data[$field] = $value;
                         } catch (\Exception $e) {
@@ -1048,14 +959,14 @@ class InsuranceDataController extends AbstractController
                     'payment_category' => '代缴类别',
                     'payment_amount' => '代缴金额'
                 ];
-                
+
                 $missingFields = [];
                 foreach ($requiredFields as $field => $label) {
                     if (empty($data[$field])) {
                         $missingFields[] = $label;
                     }
                 }
-                
+
                 if (!empty($missingFields)) {
                     $result['skipped_count']++;
                     $result['error_rows'][] = [
@@ -1069,24 +980,24 @@ class InsuranceDataController extends AbstractController
                 // 根据代缴类别和金额匹配档次（使用缓存）
                 $levelMatchingStart = microtime(true);
                 $levelConfigs = InsuranceLevelConfigCache::findMatchingConfigs(
-                    $year, 
-                    $data['payment_category'], 
+                    $year,
+                    $data['payment_category'],
                     $data['payment_amount']
                 );
                 $levelMatchingTime += microtime(true) - $levelMatchingStart;
 
                 // 记录匹配过程的详细信息（使用缓存）
                 $availableConfigs = InsuranceLevelConfigCache::getAvailableConfigs(
-                    $year, 
+                    $year,
                     $data['payment_category']
                 );
-                
+
                 $matchLog = [
                     'year' => $year,
                     'payment_category' => $data['payment_category'],
                     'payment_amount' => $data['payment_amount'],
                     'matched_count' => $levelConfigs->count(),
-                    'available_configs' => $availableConfigs->map(function($config) {
+                    'available_configs' => $availableConfigs->map(function ($config) {
                         return [
                             'level' => $config->level,
                             'subsidy_amount' => $config->subsidy_amount,
@@ -1105,7 +1016,7 @@ class InsuranceDataController extends AbstractController
                     // 有多条匹配记录时，不进行匹配
                     $data['level'] = '';  // 改为空字符串而不是 null
                     $data['level_match_status'] = 'unmatched';
-                    
+
                     // 记录匹配到多条的情况
                     $result['error_rows'][] = [
                         'row' => $row,
@@ -1121,7 +1032,7 @@ class InsuranceDataController extends AbstractController
                     // 没有匹配记录
                     $data['level'] = '';  // 改为空字符串而不是 null
                     $data['level_match_status'] = 'unmatched';
-                    
+
                     // 记录未匹配的情况
                     $result['error_rows'][] = [
                         'row' => $row,
@@ -1136,7 +1047,7 @@ class InsuranceDataController extends AbstractController
 
                 // 添加到批量插入数组
                 $validData[] = $data;
-                
+
             } catch (\Exception $e) {
                 $result['error_rows'][] = [
                     'row' => $row,
@@ -1145,13 +1056,13 @@ class InsuranceDataController extends AbstractController
                 $result['skipped_count']++;
             }
         }
-        
+
         $dataCreationTime = microtime(true) - $dataCreationStart;
 
         // 第三步：批量插入数据
         if (!empty($validData)) {
             $batchInsertStart = microtime(true);
-            
+
             // 分批插入，避免单次插入过多数据
             $chunks = array_chunk($validData, $batchSize);
             foreach ($chunks as $chunk) {
@@ -1176,7 +1087,7 @@ class InsuranceDataController extends AbstractController
                     }
                 }
             }
-            
+
             $batchInsertTime = microtime(true) - $batchInsertStart;
         }
 
@@ -1220,18 +1131,18 @@ class InsuranceDataController extends AbstractController
             $reader->setReadDataOnly(true);
             $spreadsheet = $reader->load($file->getRealPath());
             $worksheet = $spreadsheet->getActiveSheet();
-            
+
             // 获取表头
             $headerRow = $worksheet->getRowIterator(1)->current();
             $cellIterator = $headerRow->getCellIterator();
             $cellIterator->setIterateOnlyExistingCells(true);
-            
+
             $headers = [];
             $column = 'A';
             foreach ($cellIterator as $cell) {
                 $value = $cell->getValue();
                 if (!empty($value)) {
-                    $headers[$column] = trim((string)$value);
+                    $headers[$column] = trim((string) $value);
                 }
                 $column++;
             }
@@ -1256,7 +1167,7 @@ class InsuranceDataController extends AbstractController
                     'payment_category' => '代缴类别',
                     'payment_amount' => '代缴金额'
                 ];
-                $missingFieldNames = array_map(function($field) use ($fieldNames) {
+                $missingFieldNames = array_map(function ($field) use ($fieldNames) {
                     return $fieldNames[$field];
                 }, $missingFields);
                 return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
@@ -1265,7 +1176,7 @@ class InsuranceDataController extends AbstractController
 
 
             $highestRow = $worksheet->getHighestRow();
- 
+
             // 初始化档次配置缓存
             InsuranceLevelConfigCache::loadConfigsForYear($year);
 
@@ -1283,29 +1194,29 @@ class InsuranceDataController extends AbstractController
             $batchSize = 100; // 每批次处理100条记录
             $totalRows = $highestRow - 1;
             $batchCount = 0;
-            
+
             // 分批处理数据
             for ($startRow = 2; $startRow <= $highestRow; $startRow += $batchSize) {
                 $endRow = min($startRow + $batchSize - 1, $highestRow);
                 $batchCount++;
-                
+
                 // 开启小事务
                 Db::beginTransaction();
                 try {
                     $processingStart = microtime(true);
                     $batchResult = $this->processBatchWithCoroutine($worksheet, $startRow, $endRow, $columnMap, $year, $importType);
                     $processingTime = microtime(true) - $processingStart;
-                    
+
                     // 累计结果
                     $totalImported += $batchResult['imported_count'];
                     $totalSkipped += $batchResult['skipped_count'];
                     $allErrorRows = array_merge($allErrorRows, $batchResult['error_rows']);
-                    
+
                     Db::commit();
-                    
+
                     // 记录批次性能
                     error_log("批次 {$batchCount}: 行 {$startRow}-{$endRow}, 导入 {$batchResult['imported_count']} 条, 跳过 {$batchResult['skipped_count']} 条, 耗时 " . round($processingTime, 3) . " 秒");
-                    
+
                 } catch (\Exception $e) {
                     Db::rollBack();
                     // 记录批次失败
@@ -1316,7 +1227,7 @@ class InsuranceDataController extends AbstractController
                     ];
                 }
             }
-            
+
             // 合并结果
             $result = [
                 'imported_count' => $totalImported,
@@ -1397,18 +1308,18 @@ class InsuranceDataController extends AbstractController
                 } catch (\Exception $e) {
                     return $this->error('Excel文件读取失败：' . $e->getMessage());
                 }
-                
+
                 // 获取表头（从第3行开始，因为前两行是标题和说明）
                 $headerRow = $worksheet->getRowIterator(3)->current();
                 $cellIterator = $headerRow->getCellIterator();
                 $cellIterator->setIterateOnlyExistingCells(true);
-                
+
                 $headers = [];
                 $column = 'A';
                 foreach ($cellIterator as $cell) {
                     $value = $cell->getValue();
                     if (!empty($value)) {
-                        $headers[$column] = trim((string)$value);
+                        $headers[$column] = trim((string) $value);
                     }
                     $column++;
                 }
@@ -1433,10 +1344,10 @@ class InsuranceDataController extends AbstractController
                         'payment_category' => '代缴类别',
                         'payment_amount' => '代缴金额'
                     ];
-                    $missingFieldNames = array_map(function($field) use ($fieldNames) {
+                    $missingFieldNames = array_map(function ($field) use ($fieldNames) {
                         return $fieldNames[$field];
                     }, $missingFields);
-                    
+
                     return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
                 }
 
@@ -1541,7 +1452,7 @@ class InsuranceDataController extends AbstractController
             }
 
             $year = $request->input('year', date('Y'));
-            
+
             // 读取Excel文件
             $spreadsheet = IOFactory::load($file->getPath() . '/' . $file->getFilename());
             $worksheet = $spreadsheet->getActiveSheet();
@@ -1556,7 +1467,7 @@ class InsuranceDataController extends AbstractController
             foreach ($cellIterator as $cell) {
                 $value = $cell->getValue();
                 if (!empty($value)) {
-                    $headers[$column] = trim((string)$value);
+                    $headers[$column] = trim((string) $value);
                 }
                 $column++;
             }
@@ -1564,7 +1475,7 @@ class InsuranceDataController extends AbstractController
             $columnMap = $this->getFieldMapping($headers);
 
             // 验证必要字段是否都存在
-            $requiredFields = ['id_number', 'assistance_identity','street_town_name'];
+            $requiredFields = ['id_number', 'assistance_identity', 'street_town_name'];
             $missingFields = [];
             foreach ($requiredFields as $field) {
                 if ($columnMap[$field] === null) {
@@ -1577,19 +1488,19 @@ class InsuranceDataController extends AbstractController
                     'assistance_identity' => '资助身份',
                     'street_town_name' => '认定地'
                 ];
-                $missingFieldNames = array_map(function($field) use ($fieldNames) {
+                $missingFieldNames = array_map(function ($field) use ($fieldNames) {
                     return $fieldNames[$field];
                 }, $missingFields);
                 return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
             }
-  
-            
+
+
             // 查询category_conversions表中所有数据，使用自己的Model
             $categoryConversions = \App\Model\CategoryConversion::query()->get()->toArray();
 
             // 移除表头
             array_shift($data);
-            
+
 
             $assistanceSuccessCount = 0;
             $streetTownSuccessCount = 0;
@@ -1608,7 +1519,7 @@ class InsuranceDataController extends AbstractController
                     $idNumber = $worksheet->getCell($idCol . $index)->getValue();
                     $assistanceIdentity = $worksheet->getCell($assistanceIdentityCol . $index)->getValue();
                     $streetTownName = $worksheet->getCell($streetTownNameCol . $index)->getValue();
-   
+
 
                     if (empty($idNumber)) {
                         $failCount++;
@@ -1628,7 +1539,7 @@ class InsuranceDataController extends AbstractController
                     }
 
                     // 根据医疗救助匹配身份
-                    if(!empty($assistanceIdentity)){
+                    if (!empty($assistanceIdentity)) {
                         // 判断$assistanceIdentity是否在$categoryConversions的任一项中
                         $isMatched = false;
                         foreach ($categoryConversions as $conversion) {
@@ -1639,7 +1550,7 @@ class InsuranceDataController extends AbstractController
                                 (isset($conversion['medical_export_standard']) && $conversion['medical_export_standard'] == $assistanceIdentity) ||
                                 (isset($conversion['national_dict_name']) && $conversion['national_dict_name'] == $assistanceIdentity)
                                  */
-                                ) {
+                            ) {
                                 $isMatched = true;
                                 break;
                             }
@@ -1653,19 +1564,19 @@ class InsuranceDataController extends AbstractController
                         $insuranceData->assistance_identity = $assistanceIdentity;
                         $insuranceData->save();
                         $assistanceSuccessCount++;
-      
-                    }else{
+
+                    } else {
                         $errors[] = "第" . ($index + 2) . "行：资助身份为空, 已跳过";
                         $assistanceFailCount++;
                     }
 
                     // 根据认定区匹配档次
-                    if(!empty($streetTownName) && $streetTownName == "江津区"){
+                    if (!empty($streetTownName) && $streetTownName == "江津区") {
                         $insuranceData->street_town_name = $streetTownName;
                         $insuranceData->street_town_match_status = 'matched';
                         $insuranceData->save();
                         $streetTownSuccessCount++;
-                    }else{
+                    } else {
                         $insuranceData->street_town_name = $streetTownName;
                         $insuranceData->street_town_match_status = 'unmatched';
                         $insuranceData->save();
@@ -1673,13 +1584,14 @@ class InsuranceDataController extends AbstractController
                         $streetTownFailCount++;
                     }
 
-                    if($insuranceData->street_town_match_status == 'matched' && 
-                        $insuranceData->assistance_identity_match_status == 'matched' && 
+                    if (
+                        $insuranceData->street_town_match_status == 'matched' &&
+                        $insuranceData->assistance_identity_match_status == 'matched' &&
                         $insuranceData->level_match_status == 'matched'
-                    ){
+                    ) {
                         $insuranceData->match_status = 'matched';
                         $insuranceData->save();
-                    }else{
+                    } else {
                         $insuranceData->match_status = 'unmatched';
                         $insuranceData->save();
                         $failCount++;
@@ -1704,7 +1616,7 @@ class InsuranceDataController extends AbstractController
         }
     }
 
-       /**
+    /**
      * 导入参保档次匹配数据
      * @param RequestInterface $request
      * @return array
@@ -1718,12 +1630,12 @@ class InsuranceDataController extends AbstractController
             }
 
             $year = $request->input('year', date('Y'));
-            
+
             // 读取Excel文件
             $spreadsheet = IOFactory::load($file->getPath() . '/' . $file->getFilename());
             $worksheet = $spreadsheet->getActiveSheet();
             $data = $worksheet->toArray();
-            
+
             // 获取表头
             $headerRow = $worksheet->getRowIterator(1)->current();
             $cellIterator = $headerRow->getCellIterator();
@@ -1733,7 +1645,7 @@ class InsuranceDataController extends AbstractController
             foreach ($cellIterator as $cell) {
                 $value = $cell->getValue();
                 if (!empty($value)) {
-                    $headers[$column] = trim((string)$value);
+                    $headers[$column] = trim((string) $value);
                 }
                 $column++;
             }
@@ -1752,7 +1664,7 @@ class InsuranceDataController extends AbstractController
                     'id_number' => '身份证号',
                     'personal_amount' => '个人实缴金额'
                 ];
-                $missingFieldNames = array_map(function($field) use ($fieldNames) {
+                $missingFieldNames = array_map(function ($field) use ($fieldNames) {
                     return $fieldNames[$field];
                 }, $missingFields);
                 return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
@@ -1762,7 +1674,7 @@ class InsuranceDataController extends AbstractController
 
             // 移除表头
             array_shift($data);
-            
+
             $successCount = 0;
             $failCount = 0;
             $errors = [];
@@ -1774,7 +1686,7 @@ class InsuranceDataController extends AbstractController
                 ->groupBy('payment_category')
                 ->toArray();
 
-                
+
             foreach ($data as $index => $row) {
                 try {
                     // 根据字段映射自动获取对应列的数据
@@ -1827,10 +1739,11 @@ class InsuranceDataController extends AbstractController
 
 
 
-                    if($insuranceData->street_town_match_status == 'matched' && 
-                        $insuranceData->assistance_identity_match_status == 'matched' && 
+                    if (
+                        $insuranceData->street_town_match_status == 'matched' &&
+                        $insuranceData->assistance_identity_match_status == 'matched' &&
                         $insuranceData->level_match_status == 'matched'
-                    ){
+                    ) {
                         $insuranceData->match_status = 'matched';
                         $insuranceData->save();
                         continue;
@@ -1862,7 +1775,7 @@ class InsuranceDataController extends AbstractController
      */
     private function convertMatchStatusToChinese($status, $type = 'ms'): string
     {
-        if($type === 'ms'){
+        if ($type === 'ms') {
             switch ($status) {
                 case 'matched':
                     return '正常数据';
@@ -1870,10 +1783,10 @@ class InsuranceDataController extends AbstractController
                     return '疑点数据';
                 case null:
                 case '':
-                    default:
-                        return '未处理';
-                }
-        }else{
+                default:
+                    return '未处理';
+            }
+        } else {
             switch ($status) {
                 case 'matched':
                     return '已匹配';
@@ -1885,4 +1798,4 @@ class InsuranceDataController extends AbstractController
             }
         }
     }
-} 
+}
