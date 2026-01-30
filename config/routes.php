@@ -40,6 +40,7 @@ Router::addGroup('/api', function () {
 
     // 任务管理路由
     Router::get('/tasks', [App\Controller\TaskController::class, 'index']);
+    Router::get('/tasks/count', [App\Controller\TaskController::class, 'count']);
     Router::get('/tasks/progress', [App\Controller\TaskController::class, 'show']);
 
     // 用户管理路由

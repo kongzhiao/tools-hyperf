@@ -117,7 +117,7 @@ class StatisticsSummaryExportJob extends AbstractJob
             }
 
             // CSV 文件名
-            $filename = '统计明细_导出_'. $this->uuid . '_' . date('Y-m-d_H-i-s') . '.csv';
+            $filename = '统计汇总_导出_明细_'. $this->uuid . '_' . date('Y-m-d_H-i-s') . '.csv';
             $fullPath = $runtimePath . $filename;
 
             // 创建 CSV Writer

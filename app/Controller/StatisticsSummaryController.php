@@ -347,7 +347,7 @@ class StatisticsSummaryController extends AbstractController
     }
 
     /**
-     * 人次统计
+     * 人次统计（优化版 - 使用 SQL 聚合查询）
      */
     public function getPersonTimeStatistics(RequestInterface $request, ResponseInterface $response)
     {
@@ -360,26 +360,33 @@ class StatisticsSummaryController extends AbstractController
             }
 
             $projectIds = $params['project_ids'];
+
+            // 1. 批量获取项目信息（1次查询）
+            $projects = Project::whereIn('id', $projectIds)->get()->keyBy('id');
+
+            // 2. 使用 SQL 聚合查询统计（1次查询）
+            $stats = StatisticsData::selectRaw('
+                    project_id,
+                    import_type,
+                    medical_category,
+                    COUNT(*) as count,
+                    SUM(medical_assistance) as medical_assistance_sum,
+                    SUM(tilt_assistance) as tilt_assistance_sum
+                ')
+                ->whereIn('project_id', $projectIds)
+                ->groupBy('project_id', 'import_type', 'medical_category')
+                ->get();
+
+            // 3. 在 PHP 中组装结果（数据量很小，仅几十行）
             $statisticsResults = [];
+            $groupedStats = $stats->groupBy('project_id');
+            $importTypes = ['区内明细', '跨区明细', '手工明细'];
 
             foreach ($projectIds as $projectId) {
-                // 获取项目信息
-                $project = Project::find($projectId);
-                if (!$project) {
-                    continue; // 跳过不存在的项目
-                }
+                $project = $projects->get($projectId);
+                if (!$project)
+                    continue;
 
-                // 获取项目数据
-                $projectData = StatisticsData::where('project_id', $projectId)->get();
-
-                // 按import_type分组
-                $groupedByDataType = [
-                    '区内明细' => $projectData->where('import_type', '区内明细'),
-                    '跨区明细' => $projectData->where('import_type', '跨区明细'),
-                    '手工明细' => $projectData->where('import_type', '手工明细')
-                ];
-
-                // 统计结果
                 $projectStats = [
                     'project_name' => $project->dec,
                     'project_code' => $project->code,
@@ -392,38 +399,42 @@ class StatisticsSummaryController extends AbstractController
                     ]
                 ];
 
-                // 按import_type统计
-                foreach ($groupedByDataType as $dataType => $data) {
-                    // 按medical_category分组
-                    $outpatientData = $data->where('medical_category', '门诊');
-                    $inpatientData = $data->where('medical_category', '住院');
+                $projectData = $groupedStats->get($projectId, collect());
 
-                    $outpatientCount = $outpatientData->count();
-                    $out_medical_assistance_sum = $outpatientData->sum('medical_assistance');
-                    $out_tilt_assistance_sum = $outpatientData->sum('tilt_assistance');
-                    $outpatientAmount = (float) bcadd((string) $out_medical_assistance_sum, (string) $out_tilt_assistance_sum, 2);
+                foreach ($importTypes as $importType) {
+                    $typeData = $projectData->where('import_type', $importType);
 
-                    $inpatientCount = $inpatientData->count();
-                    $in_medical_assistance_sum = $inpatientData->sum('medical_assistance');
-                    $in_tilt_assistance_sum = $inpatientData->sum('tilt_assistance');
-                    $inpatientAmount = (float) bcadd((string) $in_medical_assistance_sum, (string) $in_tilt_assistance_sum, 2);
+                    $outpatient = $typeData->firstWhere('medical_category', '门诊');
+                    $inpatient = $typeData->firstWhere('medical_category', '住院');
 
-                    $projectStats['import_types'][$dataType] = [
+                    $outpatientCount = (int) ($outpatient->count ?? 0);
+                    $outpatientAmount = round(
+                        (float) ($outpatient->medical_assistance_sum ?? 0) +
+                        (float) ($outpatient->tilt_assistance_sum ?? 0),
+                        2
+                    );
+
+                    $inpatientCount = (int) ($inpatient->count ?? 0);
+                    $inpatientAmount = round(
+                        (float) ($inpatient->medical_assistance_sum ?? 0) +
+                        (float) ($inpatient->tilt_assistance_sum ?? 0),
+                        2
+                    );
+
+                    $projectStats['import_types'][$importType] = [
                         'outpatient_count' => $outpatientCount,
                         'outpatient_amount' => $outpatientAmount,
                         'inpatient_count' => $inpatientCount,
                         'inpatient_amount' => $inpatientAmount,
-                        'total_amount' => (float) bcadd((string) $outpatientAmount, (string) $inpatientAmount, 2)
+                        'total_amount' => round($outpatientAmount + $inpatientAmount, 2)
                     ];
 
-                    // 累计到总计
                     $projectStats['summary']['total_outpatient_count'] += $outpatientCount;
                     $projectStats['summary']['total_outpatient_amount'] += $outpatientAmount;
                     $projectStats['summary']['total_inpatient_count'] += $inpatientCount;
                     $projectStats['summary']['total_inpatient_amount'] += $inpatientAmount;
                 }
 
-                // 格式化总计金额
                 $projectStats['summary']['total_outpatient_amount'] = round($projectStats['summary']['total_outpatient_amount'], 2);
                 $projectStats['summary']['total_inpatient_amount'] = round($projectStats['summary']['total_inpatient_amount'], 2);
 
@@ -444,7 +455,7 @@ class StatisticsSummaryController extends AbstractController
     }
 
     /**
-     * 报销统计
+     * 报销统计（优化版 - 使用 SQL 聚合查询）
      */
     public function getReimbursementStatistics(RequestInterface $request, ResponseInterface $response)
     {
@@ -457,26 +468,36 @@ class StatisticsSummaryController extends AbstractController
             }
 
             $projectIds = $params['project_ids'];
+
+            // 1. 批量获取项目信息（1次查询）
+            $projects = Project::whereIn('id', $projectIds)->get()->keyBy('id');
+
+            // 2. 使用 SQL 聚合查询统计（1次查询）
+            $stats = StatisticsData::selectRaw('
+                    project_id,
+                    import_type,
+                    SUM(total_cost) as total_cost_sum,
+                    SUM(eligible_reimbursement) as eligible_reimbursement_sum,
+                    SUM(basic_medical_reimbursement) as basic_medical_reimbursement_sum,
+                    SUM(serious_illness_reimbursement) as serious_illness_reimbursement_sum,
+                    SUM(large_amount_reimbursement) as large_amount_reimbursement_sum,
+                    SUM(medical_assistance) as medical_assistance_sum,
+                    SUM(tilt_assistance) as tilt_assistance_sum
+                ')
+                ->whereIn('project_id', $projectIds)
+                ->groupBy('project_id', 'import_type')
+                ->get();
+
+            // 3. 在 PHP 中组装结果
             $statisticsResults = [];
+            $groupedStats = $stats->groupBy('project_id');
+            $importTypes = ['区内明细', '跨区明细', '手工明细'];
 
             foreach ($projectIds as $projectId) {
-                // 获取项目信息
-                $project = Project::find($projectId);
-                if (!$project) {
-                    continue; // 跳过不存在的项目
-                }
+                $project = $projects->get($projectId);
+                if (!$project)
+                    continue;
 
-                // 获取项目数据
-                $projectData = StatisticsData::where('project_id', $projectId)->get();
-
-                // 按import_type分组
-                $groupedByDataType = [
-                    '区内明细' => $projectData->where('import_type', '区内明细'),
-                    '跨区明细' => $projectData->where('import_type', '跨区明细'),
-                    '手工明细' => $projectData->where('import_type', '手工明细')
-                ];
-
-                // 统计结果
                 $projectStats = [
                     'project_name' => $project->dec,
                     'project_code' => $project->code,
@@ -492,24 +513,27 @@ class StatisticsSummaryController extends AbstractController
                     ]
                 ];
 
-                // 按import_type统计
-                foreach ($groupedByDataType as $dataType => $data) {
-                    $totalCost = $data->sum('total_cost');
-                    $eligibleReimbursement = $data->sum('eligible_reimbursement');
-                    $basicMedicalReimbursement = $data->sum('basic_medical_reimbursement');
-                    $seriousIllnessReimbursement = $data->sum('serious_illness_reimbursement');
-                    $largeAmountReimbursement = $data->sum('large_amount_reimbursement');
-                    $medicalAssistanceAmount = $data->sum('medical_assistance');
-                    $tiltAssistance = $data->sum('tilt_assistance');
+                $projectData = $groupedStats->get($projectId, collect());
 
-                    $projectStats['import_types'][$dataType] = [
-                        'total_cost' => round($totalCost, 2),   // 费用总额
-                        'eligible_reimbursement' => round($eligibleReimbursement, 2),   // 符合医保报销金额
-                        'basic_medical_reimbursement' => round($basicMedicalReimbursement, 2),   // 基本医疗报销金额
-                        'serious_illness_reimbursement' => round($seriousIllnessReimbursement, 2),   // 大病报销金额
-                        'large_amount_reimbursement' => round($largeAmountReimbursement, 2),   // 大额报销金额
-                        'medical_assistance_amount' => round($medicalAssistanceAmount, 2),   // 医疗救助金额
-                        'tilt_assistance' => round($tiltAssistance, 2)   // 倾斜救助金额
+                foreach ($importTypes as $importType) {
+                    $typeData = $projectData->firstWhere('import_type', $importType);
+
+                    $totalCost = round((float) ($typeData->total_cost_sum ?? 0), 2);
+                    $eligibleReimbursement = round((float) ($typeData->eligible_reimbursement_sum ?? 0), 2);
+                    $basicMedicalReimbursement = round((float) ($typeData->basic_medical_reimbursement_sum ?? 0), 2);
+                    $seriousIllnessReimbursement = round((float) ($typeData->serious_illness_reimbursement_sum ?? 0), 2);
+                    $largeAmountReimbursement = round((float) ($typeData->large_amount_reimbursement_sum ?? 0), 2);
+                    $medicalAssistanceAmount = round((float) ($typeData->medical_assistance_sum ?? 0), 2);
+                    $tiltAssistance = round((float) ($typeData->tilt_assistance_sum ?? 0), 2);
+
+                    $projectStats['import_types'][$importType] = [
+                        'total_cost' => $totalCost,
+                        'eligible_reimbursement' => $eligibleReimbursement,
+                        'basic_medical_reimbursement' => $basicMedicalReimbursement,
+                        'serious_illness_reimbursement' => $seriousIllnessReimbursement,
+                        'large_amount_reimbursement' => $largeAmountReimbursement,
+                        'medical_assistance_amount' => $medicalAssistanceAmount,
+                        'tilt_assistance' => $tiltAssistance
                     ];
 
                     // 累计到总计
@@ -523,13 +547,9 @@ class StatisticsSummaryController extends AbstractController
                 }
 
                 // 格式化总计金额
-                $projectStats['summary']['total_cost'] = round($projectStats['summary']['total_cost'], 2);
-                $projectStats['summary']['eligible_reimbursement'] = round($projectStats['summary']['eligible_reimbursement'], 2);
-                $projectStats['summary']['basic_medical_reimbursement'] = round($projectStats['summary']['basic_medical_reimbursement'], 2);
-                $projectStats['summary']['serious_illness_reimbursement'] = round($projectStats['summary']['serious_illness_reimbursement'], 2);
-                $projectStats['summary']['large_amount_reimbursement'] = round($projectStats['summary']['large_amount_reimbursement'], 2);
-                $projectStats['summary']['medical_assistance_amount'] = round($projectStats['summary']['medical_assistance_amount'], 2);
-                $projectStats['summary']['tilt_assistance'] = round($projectStats['summary']['tilt_assistance'], 2);
+                foreach ($projectStats['summary'] as $key => $value) {
+                    $projectStats['summary'][$key] = round($value, 2);
+                }
 
                 $statisticsResults[] = $projectStats;
             }
@@ -548,7 +568,7 @@ class StatisticsSummaryController extends AbstractController
     }
 
     /**
-     * 倾斜救助统计
+     * 倾斜救助统计（优化版 - 使用 SQL 聚合查询）
      */
     public function getTiltAssistanceStatistics(RequestInterface $request, ResponseInterface $response)
     {
@@ -561,26 +581,31 @@ class StatisticsSummaryController extends AbstractController
             }
 
             $projectIds = $params['project_ids'];
+
+            // 1. 批量获取项目信息（1次查询）
+            $projects = Project::whereIn('id', $projectIds)->get()->keyBy('id');
+
+            // 2. 使用 SQL 聚合查询统计（1次查询）
+            $stats = StatisticsData::selectRaw('
+                    project_id,
+                    import_type,
+                    COUNT(CASE WHEN tilt_assistance <> 0 THEN 1 END) as count,
+                    SUM(tilt_assistance) as tilt_assistance_sum
+                ')
+                ->whereIn('project_id', $projectIds)
+                ->groupBy('project_id', 'import_type')
+                ->get();
+
+            // 3. 在 PHP 中组装结果
             $statisticsResults = [];
+            $groupedStats = $stats->groupBy('project_id');
+            $importTypes = ['区内明细', '跨区明细', '手工明细'];
 
             foreach ($projectIds as $projectId) {
-                // 获取项目信息
-                $project = Project::find($projectId);
-                if (!$project) {
-                    continue; // 跳过不存在的项目
-                }
+                $project = $projects->get($projectId);
+                if (!$project)
+                    continue;
 
-                // 获取项目数据
-                $projectData = StatisticsData::where('project_id', $projectId)->get();
-
-                // 按import_type分组
-                $groupedByDataType = [
-                    '区内明细' => $projectData->where('import_type', '区内明细'),
-                    '跨区明细' => $projectData->where('import_type', '跨区明细'),
-                    '手工明细' => $projectData->where('import_type', '手工明细')
-                ];
-
-                // 统计结果
                 $projectStats = [
                     'project_name' => $project->dec,
                     'project_code' => $project->code,
@@ -591,14 +616,17 @@ class StatisticsSummaryController extends AbstractController
                     ]
                 ];
 
-                // 按import_type统计
-                foreach ($groupedByDataType as $dataType => $data) {
-                    $count = $data->where('tilt_assistance', '<>', '0')->count();
-                    $tiltAssistance = $data->sum('tilt_assistance');
+                $projectData = $groupedStats->get($projectId, collect());
 
-                    $projectStats['import_types'][$dataType] = [
+                foreach ($importTypes as $importType) {
+                    $typeData = $projectData->firstWhere('import_type', $importType);
+
+                    $count = (int) ($typeData->count ?? 0);
+                    $tiltAssistance = round((float) ($typeData->tilt_assistance_sum ?? 0), 2);
+
+                    $projectStats['import_types'][$importType] = [
                         'count' => $count,
-                        'tilt_assistance' => round($tiltAssistance, 2)
+                        'tilt_assistance' => $tiltAssistance
                     ];
 
                     // 累计到总计
@@ -1157,7 +1185,7 @@ class StatisticsSummaryController extends AbstractController
             // 使用 TaskService 创建任务并投递队列
             $lockKey = sprintf('task:lock:%d:exportDetailStatistics', $uid);
             $uuid = \App\Service\TaskService::instance()->dispatchTask(
-                '明细统计导出-' . date('YmdHis'),
+                '统计汇总_导出_明细_' . date('YmdHis'),
                 $uid,
                 $username,
                 StatisticsSummaryExportJob::class,
@@ -1166,7 +1194,7 @@ class StatisticsSummaryController extends AbstractController
             );
 
             if ($uuid === false) {
-                throw new BusinessException(400, '该业务已有导出任务正在执行中，请前往任务中心查看进度');
+                throw new BusinessException(400, '任务正在执行中，请在任务中心查看进度');
             }
 
             return $response->json([

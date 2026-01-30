@@ -15,16 +15,20 @@ use Hyperf\HttpServer\Contract\ResponseInterface;
 class TaskController extends AbstractController
 {
     /**
-     * 获取用户任务列表
+     * 获取用户任务列表（支持分页）
      */
     public function index(RequestInterface $request, ResponseInterface $response)
     {
         try {
             $userId = (int) $request->getAttribute('userId');
 
+            // 分页参数
+            $page = (int) $request->input('page', 1);
+            $pageSize = (int) $request->input('page_size', 10);
+
             // 状态参数（非必填，默认全部）
             $status = $request->input('status');
-            
+
             $query = Task::where('uid', $userId);
 
             // 如果传了状态参数，则按状态筛选
@@ -36,8 +40,14 @@ class TaskController extends AbstractController
                 $query->where('status', $status);
             }
 
-            // 按创建时间倒序
-            $tasks = $query->orderBy('created_at', 'desc')->get();
+            // 计算总数
+            $total = $query->count();
+
+            // 按创建时间倒序并分页
+            $tasks = $query->orderBy('created_at', 'desc')
+                ->offset(($page - 1) * $pageSize)
+                ->limit($pageSize)
+                ->get();
 
             $list = $tasks->map(function ($task) {
                 return [
@@ -56,12 +66,39 @@ class TaskController extends AbstractController
             return $response->json([
                 'code' => 200,
                 'message' => '获取成功',
-                'data' => $list
+                'data' => [
+                    'list' => $list,
+                    'total' => $total,
+                    'page' => $page,
+                    'page_size' => $pageSize,
+                ]
             ]);
         } catch (BusinessException $e) {
             throw $e;
         } catch (\Exception $e) {
             throw new BusinessException(500, '获取任务列表失败: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * 获取未完成任务数量
+     */
+    public function count(RequestInterface $request, ResponseInterface $response)
+    {
+        try {
+            $userId = (int) $request->getAttribute('userId');
+
+            $count = Task::where('uid', $userId)
+                ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_RUNNING])
+                ->count();
+
+            return $response->json([
+                'code' => 200,
+                'message' => '获取成功',
+                'data' => ['count' => $count]
+            ]);
+        } catch (\Exception $e) {
+            throw new BusinessException(500, '获取任务数量失败: ' . $e->getMessage());
         }
     }
 

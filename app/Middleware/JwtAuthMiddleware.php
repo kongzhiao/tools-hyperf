@@ -39,7 +39,7 @@ class JwtAuthMiddleware implements MiddlewareInterface
         // 优先从 Header 获取 token，其次从 query 参数获取（方便本地测试）
         $token = $request->getHeaderLine('Authorization');
         $token = str_replace('Bearer ', '', $token);
-        
+
         if (!$token) {
             $queryParams = $request->getQueryParams();
             $token = $queryParams['token'] ?? '';
@@ -108,7 +108,7 @@ class JwtAuthMiddleware implements MiddlewareInterface
         } catch (\Exception $e) {
             return $this->response->json([
                 'code' => 401,
-                'msg' => 'Token 无效或已过期: ' . $e->getMessage()
+                'msg' => $e->getMessage() ?? 'Token 无效或已过期'
             ]);
         }
     }
