@@ -19,16 +19,6 @@ use OpenSpout\Common\Entity\Row;
 class InsuranceDataExportJob extends AbstractJob
 {
     /**
-     * @var array
-     */
-    public $params;
-
-    /**
-     * @var string
-     */
-    public $uuid;
-
-    /**
      * 表头配置
      */
     private const HEADERS = [
@@ -45,12 +35,6 @@ class InsuranceDataExportJob extends AbstractJob
         '匹配状态'
     ];
 
-    public function __construct(array $params, string $uuid)
-    {
-        $this->params = $params;
-        $this->uuid = $uuid;
-    }
-
     public function handle()
     {
         $container = ApplicationContext::getContainer();
@@ -58,10 +42,7 @@ class InsuranceDataExportJob extends AbstractJob
 
         try {
             // 标记任务为执行中
-            $this->updateTask($this->uuid, [
-                'status' => \App\Model\Task::STATUS_RUNNING,
-                'progress' => 0.00
-            ]);
+            $this->startTask();
 
             // 设置脚本执行时间不限
             set_time_limit(0);
@@ -110,8 +91,8 @@ class InsuranceDataExportJob extends AbstractJob
             // 计算总数量
             $totalCount = $query->count();
             if ($totalCount === 0) {
-                $this->updateProgress($this->uuid, 100);
-                return;
+                // 理论上不会到这里，因为控制器已经做了预检查
+                throw new \RuntimeException('没有可导出的数据');
             }
 
             $logger->info("Task {$this->uuid} InsuranceData Export Start: {$totalCount} records");
@@ -142,10 +123,7 @@ class InsuranceDataExportJob extends AbstractJob
             $writer->addRow(Row::fromValues(self::HEADERS));
 
             // 更新进度
-            $this->updateTask($this->uuid, [
-                'progress' => 5.00,
-                'status' => \App\Model\Task::STATUS_RUNNING
-            ]);
+            $this->updateProgress($this->uuid, 5.00);
 
             $processedCount = 0;
             $index = 0;
@@ -185,25 +163,12 @@ class InsuranceDataExportJob extends AbstractJob
             $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 2);
 
             // 更新任务完成状态
-            $this->updateTask($this->uuid, [
-                'progress' => 100.00,
-                'file_url' => "/export/{$uid}/" . $filename,
-                'url_at' => date('Y-m-d H:i:s'),
-                'file_size' => $fileSizeMb,
-                'status' => \App\Model\Task::STATUS_COMPLETED
-            ]);
-
-            // 释放锁
-            $this->releaseLock();
+            $this->finishTask("/export/{$uid}/" . $filename, $fileSizeMb);
 
             $logger->info("Task {$this->uuid} Export Success: {$fullPath} (Size: {$fileSizeMb}MB, Records: {$processedCount})");
 
         } catch (\Throwable $e) {
-            $logger->error("Task {$this->uuid} Export Failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            $this->updateTask($this->uuid, [
-                'status' => \App\Model\Task::STATUS_FAILED
-            ]);
-            $this->releaseLock();
+            $this->failTask($e, "Task {$this->uuid} Export Failed");
         }
     }
 

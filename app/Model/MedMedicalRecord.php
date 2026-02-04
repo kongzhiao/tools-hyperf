@@ -89,9 +89,9 @@ class MedMedicalRecord extends Model
 
         $total = $query->count();
         $data = $query->offset(($page - 1) * $pageSize)
-                     ->limit($pageSize)
-                     ->orderBy('admission_date', 'desc')
-                     ->get();
+            ->limit($pageSize)
+            ->orderBy('id', 'desc')
+            ->get();
 
         $statics = [
             'unreimbursed' => self::where('processing_status', 'unreimbursed')->count(),
@@ -131,4 +131,4 @@ class MedMedicalRecord extends Model
     {
         return ['unreimbursed', 'reimbursed', 'returned'];
     }
-} 
+}

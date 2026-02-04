@@ -22,16 +22,6 @@ use OpenSpout\Common\Entity\Row;
 class StatisticsSummaryExportJob extends AbstractJob
 {
     /**
-     * @var array
-     */
-    public $params;
-
-    /**
-     * @var string
-     */
-    public $uuid;
-
-    /**
      * 表头配置（增加"类型"列）
      */
     private const HEADERS = [
@@ -71,23 +61,13 @@ class StatisticsSummaryExportJob extends AbstractJob
         '个人现金支付金额（元）'
     ];
 
-    public function __construct(array $params, string $uuid)
-    {
-        $this->params = $params;
-        $this->uuid = $uuid;
-    }
-
     public function handle()
     {
         $container = ApplicationContext::getContainer();
         $logger = $container->get(LoggerFactory::class)->get('default');
 
         try {
-            // 标记任务为执行中
-            $this->updateTask($this->uuid, [
-                'status' => \App\Model\Task::STATUS_RUNNING,
-                'progress' => 0.00
-            ]);
+            $this->startTask();
 
             // 设置脚本执行时间不限
             set_time_limit(0);
@@ -103,8 +83,8 @@ class StatisticsSummaryExportJob extends AbstractJob
             // 计算总数量用于进度展示
             $totalCount = StatisticsData::whereIn('project_id', $projectIds)->count();
             if ($totalCount === 0) {
-                $this->updateProgress($this->uuid, 100);
-                return;
+                // 理论上不会到这里，因为控制器已经做了预检查
+                throw new \RuntimeException('没有可导出的数据');
             }
 
             $logger->info("Task {$this->uuid} Export Start: {$totalCount} records to export (CSV mode)");
@@ -117,7 +97,7 @@ class StatisticsSummaryExportJob extends AbstractJob
             }
 
             // CSV 文件名
-            $filename = '统计汇总_导出_明细_'. $this->uuid . '_' . date('Y-m-d_H-i-s') . '.csv';
+            $filename = '统计汇总_导出_明细_' . $this->uuid . '.csv';
             $fullPath = $runtimePath . $filename;
 
             // 创建 CSV Writer
@@ -133,10 +113,7 @@ class StatisticsSummaryExportJob extends AbstractJob
             $writer->addRow(Row::fromValues(self::HEADERS));
 
             // 更新任务状态为执行中
-            $this->updateTask($this->uuid, [
-                'progress' => 5.00,
-                'status' => \App\Model\Task::STATUS_RUNNING
-            ]);
+            $this->updateProgress($this->uuid, 5.00);
 
             $processedCount = 0;
 
@@ -199,36 +176,12 @@ class StatisticsSummaryExportJob extends AbstractJob
             $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 2);
 
             // 更新任务完成状态
-            $this->finalizeTask($fullPath, $filename, $fileSizeMb);
+            $this->finishTask("/export/{$this->params['uid']}/" . $filename, $fileSizeMb);
 
             $logger->info("Task {$this->uuid} Export Success: {$fullPath} (Size: {$fileSizeMb}MB, Records: {$processedCount})");
 
         } catch (\Throwable $e) {
-            $logger->error("Task {$this->uuid} Export Failed: " . $e->getMessage() . "\n" . $e->getTraceAsString());
-            // 标记任务执行失败（status=-2）
-            $this->updateTask($this->uuid, [
-                'status' => \App\Model\Task::STATUS_FAILED
-            ]);
-            // 释放 Redis 锁
-            $this->releaseLock();
-            // 不再抛出异常，避免队列重试
+            $this->failTask($e, "Task {$this->uuid} Export Failed");
         }
-    }
-
-    /**
-     * Finalize task after successful export.
-     */
-    protected function finalizeTask(string $fullPath, string $filename, float $fileSizeMb): void
-    {
-        $uid = $this->params['uid'] ?? 0;
-        $this->updateTask($this->uuid, [
-            'progress' => 100.00,
-            'file_url' => "/export/{$uid}/" . $filename,
-            'url_at' => date('Y-m-d H:i:s'),
-            'file_size' => $fileSizeMb,
-            'status' => \App\Model\Task::STATUS_COMPLETED
-        ]);
-        // 释放 Redis 锁
-        $this->releaseLock();
     }
 }

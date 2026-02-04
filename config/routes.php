@@ -186,6 +186,7 @@ Router::addGroup('/api', function () {
         Router::get('/medical-records/visit-types', [App\Controller\MedicalAssistanceController::class, 'getVisitTypes']);
         Router::get('/medical-records/hospitals', [App\Controller\MedicalAssistanceController::class, 'getHospitals']);
         Router::get('/medical-records/processing-statuses', [App\Controller\MedicalAssistanceController::class, 'getProcessingStatuses']);
+        Router::get('/medical-records/export', [App\Controller\MedicalAssistanceController::class, 'exportMedicalRecords']);
         Router::post('/medical-records/batch-update-status', [App\Controller\MedicalAssistanceController::class, 'batchUpdateMedicalRecordStatus']);
         Router::post('/medical-records/batch-delete', [App\Controller\MedicalAssistanceController::class, 'batchDeleteMedicalRecords']);
         Router::get('/medical-records/{id:\d+}', [App\Controller\MedicalAssistanceController::class, 'getMedicalRecord']);

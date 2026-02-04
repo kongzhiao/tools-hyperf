@@ -11,14 +11,11 @@ use Hyperf\Context\ApplicationContext;
 
 class StatisticsSummaryImportJob extends AbstractJob
 {
-    public $params;
-    public $uuid;
-    public $tempFile;
+    public string $tempFile;
 
     public function __construct(array $params, string $uuid, string $tempFile)
     {
-        $this->params = $params;
-        $this->uuid = $uuid;
+        parent::__construct($params, $uuid);
         $this->tempFile = $tempFile;
     }
 

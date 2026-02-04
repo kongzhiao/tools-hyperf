@@ -471,6 +471,47 @@ class InsuranceDataController extends AbstractController
                 'match_status' => $request->input('match_status', ''),
             ];
 
+            // 预检查数据量
+            $query = InsuranceData::query();
+            if (!empty($filters['year'])) {
+                $query->where('year', $filters['year']);
+            }
+            if (!empty($filters['street_town'])) {
+                $query->where('street_town', $filters['street_town']);
+            }
+            if (!empty($filters['name'])) {
+                $query->where('name', 'like', "%{$filters['name']}%");
+            }
+            if (!empty($filters['id_number'])) {
+                $query->where('id_number', 'like', "%{$filters['id_number']}%");
+            }
+            if (!empty($filters['payment_category'])) {
+                $query->where('payment_category', $filters['payment_category']);
+            }
+            if (!empty($filters['level'])) {
+                $query->where('level', $filters['level']);
+            }
+            if (!empty($filters['medical_assistance_category'])) {
+                $query->where('medical_assistance_category', $filters['medical_assistance_category']);
+            }
+            if (!empty($filters['level_match_status'])) {
+                $query->where('level_match_status', $filters['level_match_status']);
+            }
+            if (!empty($filters['assistance_identity_match_status'])) {
+                $query->where('assistance_identity_match_status', $filters['assistance_identity_match_status']);
+            }
+            if (!empty($filters['street_town_match_status'])) {
+                $query->where('street_town_match_status', $filters['street_town_match_status']);
+            }
+            if (!empty($filters['match_status'])) {
+                $query->where('match_status', $filters['match_status']);
+            }
+
+            $count = $query->count();
+            if ($count === 0) {
+                return $this->error('当前筛选条件下没有可导出的数据');
+            }
+
             $params = [
                 'uid' => $uid,
                 'filters' => $filters,
@@ -479,7 +520,7 @@ class InsuranceDataController extends AbstractController
             // 使用 TaskService 创建任务并投递队列
             $lockKey = sprintf('task:lock:%d:exportInsuranceData', $uid);
             $uuid = \App\Service\TaskService::instance()->dispatchTask(
-                '参保数据_导出_匹配结果_' . date('YmdHis'),
+                '参保数据_导出_匹配结果_',
                 $uid,
                 $username,
                 InsuranceDataExportJob::class,

@@ -1182,10 +1182,23 @@ class StatisticsSummaryController extends AbstractController
             $uid = $userId ?: (int) ($params['uid'] ?? 0);
             $params['uid'] = $uid;
 
+            // 预检查数据量
+            $query = \App\Model\StatisticsData::query();
+            $projectIds = $params['project_ids'];
+            $query->whereIn('project_id', $projectIds);
+            if (!empty($params['import_type'])) {
+                $query->where('import_type', $params['import_type']);
+            }
+
+            $count = $query->count();
+            if ($count === 0) {
+                throw new BusinessException(400, '当前筛选条件下没有可导出的数据');
+            }
+
             // 使用 TaskService 创建任务并投递队列
             $lockKey = sprintf('task:lock:%d:exportDetailStatistics', $uid);
             $uuid = \App\Service\TaskService::instance()->dispatchTask(
-                '统计汇总_导出_明细_' . date('YmdHis'),
+                '统计汇总_导出_明细_',
                 $uid,
                 $username,
                 StatisticsSummaryExportJob::class,

@@ -77,7 +77,7 @@ class TaskService
         // 3. 创建任务记录
         Task::create([
             'uuid' => $uuid,
-            'title' => $title,
+            'title' => $title . $uuid,
             'uid' => $uid,
             'uname' => $uname,
             'progress' => 0.00,
