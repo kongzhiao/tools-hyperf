@@ -1147,14 +1147,28 @@ class StatisticsSummaryController extends AbstractController
                 throw new BusinessException(404, '项目不存在');
             }
 
-            // 删除该项目的所有统计数据
-            $deletedCount = StatisticsData::where('project_id', $id)->delete();
+            // 获取可选的 import_type 参数
+            $importType = $request->input('import_type');
+
+            // 构建删除查询
+            $query = StatisticsData::where('project_id', $id);
+
+            // 如果指定了 import_type，则只删除该类型的数据
+            if (!empty($importType)) {
+                $query->where('import_type', $importType);
+            }
+
+            // 删除该项目的统计数据
+            $deletedCount = $query->delete();
+
+            $message = $importType ? "成功清空 " . (string) $importType . " 数据" : '成功清空全部数据';
 
             return $response->json([
                 'code' => 200,
-                'message' => '数据清空成功',
+                'message' => $message,
                 'data' => [
-                    'deleted_count' => $deletedCount
+                    'deleted_count' => $deletedCount,
+                    'import_type' => $importType
                 ]
             ]);
         } catch (BusinessException $e) {
