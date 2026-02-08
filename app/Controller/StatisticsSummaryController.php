@@ -258,12 +258,14 @@ class StatisticsSummaryController extends AbstractController
             $allowedTypes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'application/vnd.ms-excel',
-                'application/octet-stream' // 某些情况下 Excel 文件可能被识别为此类型
+                'application/octet-stream',
+                'text/plain',
+                'text/csv'
             ];
 
             $fileType = $file->getClientMediaType();
             if (!in_array($fileType, $allowedTypes)) {
-                throw new BusinessException(400, '只支持 Excel 文件格式，当前文件类型: ' . $fileType);
+                throw new BusinessException(400, '只支持 Excel 或 CSV 文件格式，当前文件类型: ' . $fileType);
             }
 
             // 保存至相对更稳定的 runtime 目录
@@ -282,8 +284,10 @@ class StatisticsSummaryController extends AbstractController
             // 创建异步任务记录
             Task::create([
                 'uuid' => $uuid,
-                'title' => '数据统计导入-' . date('YmdHis'),
+                'title' => '统计汇总-导入-' . ($data['import_type'] ?? '未知类型') . '-' . $uuid,
                 'uid' => $uid,
+                'userId' => $userId,
+                'username' => $username,
                 'uname' => $username,
                 'progress' => 0.00
             ]);

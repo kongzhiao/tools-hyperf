@@ -664,7 +664,7 @@ class MedicalAssistanceController extends AbstractController
             // 使用 TaskService 创建任务并投递队列
             $lockKey = sprintf('task:lock:%d:exportMedicalRecords', $uid);
             $uuid = \App\Service\TaskService::instance()->dispatchTask(
-                '就诊记录_导出_',
+                '救助报销_就诊记录_导出_',
                 $uid,
                 $username,
                 \App\Job\MedicalRecordExportJob::class,
@@ -1181,45 +1181,69 @@ class MedicalAssistanceController extends AbstractController
     // ==================== Excel导入接口 ====================
 
     /**
-     * 导入Excel文件
+     * 导入CSV/Excel文件（异步任务）
      * @RequestMapping(path="/import-excel", methods="post")
      */
     public function importExcel(RequestInterface $request)
     {
         try {
+            $uid = (int) $request->getAttribute('userId', 0);
+            $username = $request->getAttribute('username', 'Unknown');
+
             // 检查是否有文件上传
             $file = $request->file('excel_file');
             if (!$file || !$file->isValid()) {
-                return $this->error('请上传有效的Excel文件');
+                return $this->error('请上传有效的文件');
             }
 
-            // 检查文件类型
-            $allowedTypes = ['xlsx', 'xls'];
+            // 检查文件类型（支持CSV和Excel）
+            $allowedTypes = ['csv', 'xlsx', 'xls'];
             $extension = strtolower($file->getExtension());
             if (!in_array($extension, $allowedTypes)) {
-                return $this->error('只支持.xlsx和.xls格式的Excel文件');
+                return $this->error('只支持.csv、.xlsx和.xls格式的文件');
             }
 
-            // 检查文件大小（限制为10MB）
-            if ($file->getSize() > 10 * 1024 * 1024) {
-                return $this->error('文件大小不能超过10MB');
+            // 检查文件大小（限制为20MB）
+            if ($file->getSize() > 20 * 1024 * 1024) {
+                return $this->error('文件大小不能超过20MB');
             }
 
-            // 使用事务确保数据一致性
-            Db::beginTransaction();
-
-            try {
-                $importResult = $this->processExcelFile($file);
-                Db::commit();
-
-                return $this->success($importResult, 'Excel文件导入成功');
-            } catch (\Exception $e) {
-                Db::rollBack();
-                throw $e;
+            // 保存文件到 runtime 目录
+            $tempDir = BASE_PATH . '/runtime/uploads/medical_assistance';
+            if (!is_dir($tempDir)) {
+                mkdir($tempDir, 0755, true);
             }
+            $tempFile = $tempDir . '/' . uniqid('import_') . '.' . $extension;
+            $file->moveTo($tempFile);
+
+            if (!file_exists($tempFile)) {
+                return $this->error('文件保存失败');
+            }
+
+            // 使用 TaskService 创建任务并投递队列
+            $lockKey = sprintf('task:lock:%d:importMedicalAssistance', $uid);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '救助报销_就诊记录_导入_',
+                $uid,
+                $username,
+                \App\Job\MedicalAssistanceImportJob::class,
+                [[], $tempFile],
+                $lockKey
+            );
+
+            if ($uuid === false) {
+                // 清理临时文件
+                if (file_exists($tempFile)) {
+                    unlink($tempFile);
+                }
+                return $this->error('导入任务正在执行中，请稍后再试');
+            }
+
+            return $this->success(['uuid' => $uuid], '导入任务已提交，请在任务中心查看进度');
 
         } catch (\Exception $e) {
-            return $this->error('导入失败：' . $e->getMessage());
+            $this->logger->error('导入医疗救助数据失败: ' . $e->getMessage());
+            return $this->error('导入任务提交失败: ' . $e->getMessage());
         }
     }
 

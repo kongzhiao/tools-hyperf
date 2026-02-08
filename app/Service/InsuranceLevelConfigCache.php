@@ -27,8 +27,22 @@ class InsuranceLevelConfigCache
                 ->orderBy('level')
                 ->get();
 
-            // 按代缴类别分组
-            self::$cache[$year] = $configs->groupBy('payment_category');
+            // 性能优化：在加载配置时，将分类名称通过映射表标准化为“税务代缴数据口径”
+            $groupedConfigs = [];
+            foreach ($configs as $config) {
+                $category = $config->payment_category;
+
+                // 自动映射口径
+                $conversion = \App\Service\CategoryConversionCache::findByAnyValue($category);
+                $standardCategory = $conversion ? $conversion->tax_standard : $category;
+
+                if (!isset($groupedConfigs[$standardCategory])) {
+                    $groupedConfigs[$standardCategory] = new Collection();
+                }
+                $groupedConfigs[$standardCategory]->add($config);
+            }
+
+            self::$cache[$year] = $groupedConfigs;
         }
     }
 
@@ -53,6 +67,29 @@ class InsuranceLevelConfigCache
         });
 
         // 转换为 Collection 对象
+        return new Collection($filtered->values()->all());
+    }
+
+    /**
+     * 通过个人实缴金额查找匹配的档次配置
+     * 
+     * @param int $year 年份
+     * @param string $paymentCategory 代缴类别
+     * @param float $personalAmount 个人实缴金额
+     * @return Collection 匹配的配置集合
+     */
+    public static function findMatchingConfigsByPersonalAmount(int $year, string $paymentCategory, float $personalAmount): Collection
+    {
+        self::loadConfigsForYear($year);
+
+        if (!isset(self::$cache[$year][$paymentCategory])) {
+            return new Collection();
+        }
+
+        $filtered = self::$cache[$year][$paymentCategory]->filter(function ($config) use ($personalAmount) {
+            return abs($config->personal_amount - $personalAmount) < 0.01;
+        });
+
         return new Collection($filtered->values()->all());
     }
 

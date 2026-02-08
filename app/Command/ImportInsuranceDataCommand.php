@@ -6,6 +6,7 @@ namespace App\Command;
 
 use App\Model\InsuranceData;
 use App\Model\InsuranceLevelConfig;
+use App\Service\CsvReaderService;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Annotation\Command;
 use Psr\Container\ContainerInterface;
@@ -84,7 +85,7 @@ class ImportInsuranceDataCommand extends HyperfCommand
     {
         // 设置脚本执行时间限制
         set_time_limit(600); // 10分钟
-        
+
         $year = $this->input->getOption('year');
         if (!$year) {
             $this->output->writeln('<error>请指定导入的年份，使用 --year 参数</error>');
@@ -93,12 +94,12 @@ class ImportInsuranceDataCommand extends HyperfCommand
 
         $year = (int) $year;
         $mode = $this->input->getOption('mode');
-        
+
         if (!in_array($mode, ['incremental', 'full'])) {
             $this->output->writeln("<error>导入模式必须是 incremental 或 full</error>");
             return;
         }
-        
+
         $this->output->writeln("开始导入{$year}年参保数据，模式：{$mode}...");
 
         try {
@@ -125,59 +126,26 @@ class ImportInsuranceDataCommand extends HyperfCommand
                 // 如果没有指定文件，使用默认文件
                 $filePath = BASE_PATH . '/../doc/税务代缴明细汇总参考.xlsx';
             }
-            
+
             if (!file_exists($filePath)) {
                 $this->output->writeln('<error>Excel文件不存在: ' . $filePath . '</error>');
                 return;
             }
 
-            // 使用Python脚本读取Excel数据
-            try {
-                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($filePath);
-                $worksheet = $spreadsheet->getActiveSheet();
-                
-                // 获取数据范围（跳过前两行表头）
-                $highestRow = $worksheet->getHighestRow();
-                $highestColumn = $worksheet->getHighestColumn();
-                $dataRange = $worksheet->rangeToArray('A3:' . $highestColumn . $highestRow, null, true, false);
-                
-                // 获取表头（第3行，索引为2）
-                $headers = $worksheet->rangeToArray('A2:' . $highestColumn . '2', null, true, false)[0];
-                
-                // 过滤空行（姓名和身份证件号码为空的行）
-                $data = [];
-                foreach ($dataRange as $row) {
-                    // 根据表头找到姓名和身份证件号码的列索引
-                    $nameIndex = array_search('姓名', $headers);
-                    $idNumberIndex = array_search('身份证件号码', $headers);
-                    
-                    if ($nameIndex !== false && $idNumberIndex !== false && 
-                        !empty($row[$nameIndex]) && !empty($row[$idNumberIndex])) {
-                        
-                        // 构建数据行，使用列标题作为键
-                        $rowData = [];
-                        foreach ($headers as $index => $header) {
-                            if (!empty($header)) {
-                                $rowData[$header] = $row[$index] ?? '';
-                            }
-                        }
-                        
-                        if (!empty($rowData)) {
-                            $data[] = $rowData;
-                        }
-                    }
-                }
-                
-                if (empty($data)) {
-                    $this->output->writeln('<error>Excel文件中没有有效数据</error>');
-                    return;
-                }
-            } catch (\Exception $e) {
-                $this->output->writeln('<error>读取Excel文件失败: ' . $e->getMessage() . '</error>');
+            // 使用 CsvReaderService 读取数据
+            $csvReader = new CsvReaderService();
+            $data = [];
+
+            $csvReader->read($filePath, function ($row) use (&$data) {
+                $data[] = $row;
+            }, true);
+
+            if (empty($data)) {
+                $this->output->writeln('<error>CSV文件中没有有效数据</error>');
                 return;
             }
 
-            $this->output->writeln('Excel数据读取成功，共 ' . count($data) . ' 条记录');
+            $this->output->writeln('数据读取成功，共 ' . count($data) . ' 条记录');
 
             $successCount = 0;
             $skipCount = 0;
@@ -187,16 +155,32 @@ class ImportInsuranceDataCommand extends HyperfCommand
 
             foreach ($data as $row) {
                 try {
+                    // 增强字段匹配效率
+                    $idNumber = $row['身份证件号码'] ?? $row['身份证号'] ?? $row['身份证'] ?? '';
+                    $name = $row['姓名'] ?? '';
+                    $streetTown = $row['街道乡镇'] ?? '';
+                    $serialNumber = $row['序号'] ?? null;
+                    $personNumber = $row['人员编号'] ?? null;
+                    $paymentCategory = $row['代缴类别'] ?? '';
+                    $paymentAmount = (float) ($row['代缴金额'] ?? 0);
+                    $paymentDate = $row['个人缴费日期'] ?? $row['缴费日期'] ?? null;
+                    $idType = $row['身份证件类型'] ?? '居民身份证';
+
+                    if (empty($idNumber) || empty($name)) {
+                        $skipCount++;
+                        continue;
+                    }
+
                     // 检查是否已存在（根据年份和身份证件号码）
                     $existing = InsuranceData::where('year', $year)
-                        ->where('id_number', $row['身份证件号码'])
+                        ->where('id_number', $idNumber)
                         ->first();
-                    
+
                     // 匹配档次和个人实缴金额
                     $paymentCategory = $row['代缴类别'] ?? '';
-                    $paymentAmount = (float)($row['代缴金额'] ?? 0);
+                    $paymentAmount = (float) ($row['代缴金额'] ?? 0);
                     $levelMatch = $this->matchLevelAndPersonalAmount($paymentCategory, $paymentAmount, $year);
-                    
+
                     if ($levelMatch['level_match_status']) {
                         $matchedCount++;
                     } else {
@@ -209,20 +193,19 @@ class ImportInsuranceDataCommand extends HyperfCommand
                             $skipCount++;
                             continue;
                         } else {
-                            // 全量模式：更新现有记录
                             $updateData = [
-                                'serial_number' => $row['序号'] ?? null,
-                                'street_town' => $row['街道乡镇'] ?? '',
-                                'name' => $row['姓名'] ?? '',
-                                'id_type' => $row['身份证件类型'] ?? '',
-                                'person_number' => $row['人员编号'] ?? null,
-                                'payment_category' => $row['代缴类别'] ?? '',
-                                'payment_amount' => $row['代缴金额'] ?? 0,
-                                'payment_date' => $row['个人缴费日期'] ?? null,
+                                'serial_number' => $serialNumber,
+                                'street_town' => $streetTown,
+                                'name' => $name,
+                                'id_type' => $idType,
+                                'person_number' => $personNumber,
+                                'payment_category' => $paymentCategory,
+                                'payment_amount' => $paymentAmount,
+                                'payment_date' => $paymentDate,
                                 'level' => $levelMatch['level'],
                                 'personal_amount' => $levelMatch['personal_amount'],
                             ];
-                            
+
                             $existing->update($updateData);
                             $successCount++;
                         }
@@ -230,15 +213,15 @@ class ImportInsuranceDataCommand extends HyperfCommand
                         // 创建新记录
                         $insuranceData = [
                             'year' => $year,
-                            'serial_number' => $row['序号'] ?? null,
-                            'street_town' => $row['街道乡镇'] ?? '',
-                            'name' => $row['姓名'] ?? '',
-                            'id_type' => $row['身份证件类型'] ?? '',
-                            'id_number' => $row['身份证件号码'] ?? '',
-                            'person_number' => $row['人员编号'] ?? null,
-                            'payment_category' => $row['代缴类别'] ?? '',
-                            'payment_amount' => $row['代缴金额'] ?? 0,
-                            'payment_date' => $row['个人缴费日期'] ?? null,
+                            'serial_number' => $serialNumber,
+                            'street_town' => $streetTown,
+                            'name' => $name,
+                            'id_type' => $idType,
+                            'id_number' => $idNumber,
+                            'person_number' => $personNumber,
+                            'payment_category' => $paymentCategory,
+                            'payment_amount' => $paymentAmount,
+                            'payment_date' => $paymentDate,
                             'level' => $levelMatch['level'],
                             'personal_amount' => $levelMatch['personal_amount'],
                             'medical_assistance_category' => null, // 后续匹配
@@ -267,4 +250,4 @@ class ImportInsuranceDataCommand extends HyperfCommand
             $this->output->writeln('<error>导入过程中出错: ' . $e->getMessage() . '</error>');
         }
     }
-} 
+}

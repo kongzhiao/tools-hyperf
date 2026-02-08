@@ -33,11 +33,11 @@ class InsuranceLevelConfigController extends AbstractController
         $level = $request->input('level', '');
 
         $query = InsuranceLevelConfig::where('year', $year);
-        
+
         if (!empty($paymentCategory)) {
             $query->where('payment_category', 'like', "%{$paymentCategory}%");
         }
-        
+
         if (!empty($level)) {
             $query->where('level', 'like', "%{$level}%");
         }
@@ -64,19 +64,19 @@ class InsuranceLevelConfigController extends AbstractController
     public function store(RequestInterface $request, ResponseInterface $response)
     {
         $data = $request->all();
-        
+
         // 验证数据
         if (empty($data['year']) || !is_numeric($data['year']) || $data['year'] < 2020 || $data['year'] > 2030) {
             return $this->error('年份必须是2020-2030之间的数字');
         }
 
         // 处理数组输入并清理字符串
-        $data['payment_category'] = is_array($data['payment_category']) 
-            ? trim($data['payment_category'][0] ?? '') 
+        $data['payment_category'] = is_array($data['payment_category'])
+            ? trim($data['payment_category'][0] ?? '')
             : trim($data['payment_category'] ?? '');
-        
-        $data['level'] = is_array($data['level']) 
-            ? trim($data['level'][0] ?? '') 
+
+        $data['level'] = is_array($data['level'])
+            ? trim($data['level'][0] ?? '')
             : trim($data['level'] ?? '');
 
         if (empty($data['payment_category'])) {
@@ -117,19 +117,19 @@ class InsuranceLevelConfigController extends AbstractController
         }
 
         $data = $request->all();
-        
+
         // 验证数据
         if (empty($data['year']) || !is_numeric($data['year']) || $data['year'] < 2020 || $data['year'] > 2030) {
             return $this->error('年份必须是2020-2030之间的数字');
         }
 
         // 处理数组输入并清理字符串
-        $data['payment_category'] = is_array($data['payment_category']) 
-            ? trim($data['payment_category'][0] ?? '') 
+        $data['payment_category'] = is_array($data['payment_category'])
+            ? trim($data['payment_category'][0] ?? '')
             : trim($data['payment_category'] ?? '');
-        
-        $data['level'] = is_array($data['level']) 
-            ? trim($data['level'][0] ?? '') 
+
+        $data['level'] = is_array($data['level'])
+            ? trim($data['level'][0] ?? '')
             : trim($data['level'] ?? '');
 
         if (empty($data['payment_category'])) {
@@ -239,7 +239,7 @@ class InsuranceLevelConfigController extends AbstractController
     public function batchCreate(RequestInterface $request, ResponseInterface $response)
     {
         $data = $request->all();
-        
+
         // 验证数据
         if (empty($data['year']) || !is_numeric($data['year']) || $data['year'] < 2020 || $data['year'] > 2030) {
             return $this->error('年份必须是2020-2030之间的数字');
@@ -247,7 +247,7 @@ class InsuranceLevelConfigController extends AbstractController
         if (!is_array($data['configs'])) {
             return $this->error('配置数据必须是数组');
         }
-        
+
         $year = (int) $data['year'];
         $configs = $data['configs'];
 
@@ -375,18 +375,22 @@ class InsuranceLevelConfigController extends AbstractController
             $data = $sheet->toArray();
 
             // 验证表头
-            $expectedHeaders = ['代缴类别', '档次', '资助代缴金额（元）', '个人实缴金额（元）', '标准执行起止时间', '代缴资金支付部门'];
-            $actualHeaders = $data[0];
+            $expectedHeaders = ['代缴类别', '档次', '资助代缴金额（元）', '个人实缴金额（元）', '标准执行起止时间', '代缴资金支付部门', '备注'];
+            $actualHeaders = array_slice($data[0], 0, 7); // 只取前7列比较
 
-            if ($actualHeaders !== $expectedHeaders) {
-                return $this->error('文件格式不正确，请使用正确的模板 ，确实表头：' . implode(',', $expectedHeaders));
+            // 只检查前4个必填表头
+            $requiredHeaders = array_slice($expectedHeaders, 0, 4);
+            $actualRequired = array_slice($actualHeaders, 0, 4);
+
+            if ($actualRequired !== $requiredHeaders) {
+                return $this->error('文件格式不正确，请使用正确的模板，确认表头：' . implode(',', $requiredHeaders));
             }
 
             // 验证数据
             $validData = [];
             for ($i = 1; $i < count($data); $i++) {
                 $row = $data[$i];
-                
+
                 // 跳过空行
                 if (empty(array_filter($row))) {
                     continue;
@@ -400,8 +404,8 @@ class InsuranceLevelConfigController extends AbstractController
                 $validData[] = [
                     'payment_category' => trim($row[0]),
                     'level' => trim($row[1]),
-                    'subsidy_amount' => (float)$row[2],
-                    'personal_amount' => (float)$row[3],
+                    'subsidy_amount' => (float) $row[2],
+                    'personal_amount' => (float) $row[3],
                     'effective_period' => $row[4] ?? '',
                     'payment_department' => $row[5] ?? '',
                     'remark' => $row[6] ?? '',
@@ -419,16 +423,22 @@ class InsuranceLevelConfigController extends AbstractController
     }
 
     /**
-     * 导入配置
+     * 导入配置（同步处理，使用 CsvReaderService）
      */
     public function import(RequestInterface $request, ResponseInterface $response)
     {
         $file = $request->file('file');
         if (!$file || !$file->isValid()) {
-            return $this->error('请上传有效的文件');
+            return $this->error('请上传有效的 CSV 文件');
         }
 
-        $year = (int)$request->input('year');
+        // 验证文件类型
+        $extension = strtolower($file->getExtension());
+        if ($extension !== 'csv') {
+            return $this->error('仅支持 CSV 格式文件');
+        }
+
+        $year = (int) $request->input('year');
         if ($year < 2020 || $year > 2100) {
             return $this->error('年份必须在2020-2100之间');
         }
@@ -439,69 +449,111 @@ class InsuranceLevelConfigController extends AbstractController
         }
 
         try {
-            $spreadsheet = IOFactory::load($file->getRealPath());
-            $sheet = $spreadsheet->getActiveSheet();
-            $data = $sheet->toArray();
-
-            // 验证表头
-            $expectedHeaders = ['代缴类别', '档次', '资助代缴金额（元）', '个人实缴金额（元）', '标准执行起止时间', '代缴资金支付部门'];
-            $actualHeaders = $data[0];
-            if ($actualHeaders !== $expectedHeaders) {
-                return $this->error('文件格式不正确，请使用正确的模板 ,确实表头：' . implode(',', $actualHeaders));
-            }
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
 
             // 如果是覆盖模式，先删除原有数据
             if ($mode === 'overwrite') {
                 InsuranceLevelConfig::where('year', $year)->delete();
             }
 
-            // 处理数据
-            $importData = [];
-            for ($i = 1; $i < count($data); $i++) {
-                $row = $data[$i];
-                
-                // 跳过空行
-                if (empty(array_filter($row))) {
-                    continue;
-                }
+            $result = [
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => []
+            ];
 
-                // 验证必填字段
-                if (empty($row[0]) || empty($row[1]) || !is_numeric($row[2]) || !is_numeric($row[3])) {
-                    return $this->error("第" . ($i + 1) . "行数据格式不正确");
-                }
+            // 表头字段映射
+            $mappings = [
+                'payment_category' => ['代缴类别', '类别'],
+                'level' => ['档次'],
+                'subsidy_amount' => ['资助代缴金额（元）', '资助代缴金额', '代缴金额'],
+                'personal_amount' => ['个人实缴金额（元）', '个人实缴金额', '实缴金额'],
+                'effective_period' => ['标准执行起止时间', '执行时间', '有效期'],
+                'payment_department' => ['代缴资金支付部门', '支付部门'],
+                'remark' => ['备注']
+            ];
 
-                $importData[] = [
-                    'year' => $year,
-                    'payment_category' => trim($row[0]),
-                    'level' => trim($row[1]),
-                    'subsidy_amount' => (float)$row[2],
-                    'personal_amount' => (float)$row[3],
-                    'effective_period' => $row[4] ?? '',
-                    'payment_department' => $row[5] ?? '',
-                    'remark' => $row[6] ?? '',
-                ];
-            }
+            // 逐行处理数据
+            $csvReader->read(
+                $tempFile,
+                function ($rowData, $rowIndex, $headers) use (&$result, $mappings, $year) {
+                    try {
+                        // 提取数据
+                        $data = ['year' => $year];
+                        foreach ($mappings as $field => $possibleHeaders) {
+                            foreach ($rowData as $csvHeader => $value) {
+                                $csvHeaderTrimmed = trim((string) $csvHeader);
+                                foreach ($possibleHeaders as $expectedHeader) {
+                                    if (
+                                        $csvHeaderTrimmed === $expectedHeader ||
+                                        mb_strpos($csvHeaderTrimmed, $expectedHeader) !== false ||
+                                        mb_strpos($expectedHeader, $csvHeaderTrimmed) !== false
+                                    ) {
+                                        if ($value !== null && $value !== '') {
+                                            $data[$field] = trim((string) $value);
+                                        }
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
 
-            if (empty($importData)) {
-                return $this->error('文件中没有有效数据');
-            }
+                        // 验证必填字段
+                        if (empty($data['payment_category'])) {
+                            throw new \Exception('代缴类别不能为空');
+                        }
+                        if (empty($data['level'])) {
+                            throw new \Exception('档次不能为空');
+                        }
+                        if (!isset($data['subsidy_amount']) || !is_numeric($data['subsidy_amount'])) {
+                            throw new \Exception('资助代缴金额格式不正确');
+                        }
+                        if (!isset($data['personal_amount']) || !is_numeric($data['personal_amount'])) {
+                            throw new \Exception('个人实缴金额格式不正确');
+                        }
 
-            // 批量插入数据
-            foreach ($importData as $data) {
-                // 检查是否存在相同配置
-                $exists = InsuranceLevelConfig::where('year', $data['year'])
-                    ->where('payment_category', $data['payment_category'])
-                    ->where('level', $data['level'])
-                    ->exists();
+                        // 转换数值类型
+                        $data['subsidy_amount'] = (float) $data['subsidy_amount'];
+                        $data['personal_amount'] = (float) $data['personal_amount'];
 
-                if (!$exists) {
-                    InsuranceLevelConfig::create($data);
-                }
-            }
+                        // 检查是否已存在
+                        $exists = InsuranceLevelConfig::where('year', $year)
+                            ->where('payment_category', $data['payment_category'])
+                            ->where('level', $data['level'])
+                            ->exists();
 
-            return $this->success(['imported_count' => count($importData)], '导入成功');
+                        if ($exists) {
+                            $result['skipped']++;
+                            $result['skipped_items'][] = "第" . ($rowIndex + 1) . "行：{$data['payment_category']} - {$data['level']} (已存在)";
+                        } else {
+                            InsuranceLevelConfig::create($data);
+                            $result['imported']++;
+                        }
+
+                    } catch (\Throwable $e) {
+                        $result['errors'][] = "第" . ($rowIndex + 1) . "行：" . $e->getMessage();
+                    }
+                },
+                true,
+                null
+            );
+
+            return $this->success([
+                'imported' => $result['imported'],
+                'skipped' => $result['skipped'],
+                'skipped_items' => $result['skipped_items'] ?? [],
+                'error_count' => count($result['errors']),
+                'errors' => array_slice($result['errors'], 0, 10),
+                'message' => sprintf(
+                    '导入完成：成功 %d 条，跳过 %d 条，失败 %d 条',
+                    $result['imported'],
+                    $result['skipped'],
+                    count($result['errors'])
+                )
+            ]);
         } catch (\Exception $e) {
             return $this->error('导入失败：' . $e->getMessage());
         }
     }
-} 
+}

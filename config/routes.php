@@ -86,6 +86,7 @@ Router::addGroup('/api/category-conversions', function () {
     Router::get('/template', [App\Controller\CategoryConversionController::class, 'downloadTemplate']);
     Router::post('/import/preview', [App\Controller\CategoryConversionController::class, 'previewImport']);
     Router::post('/import/confirm', [App\Controller\CategoryConversionController::class, 'confirmImport']);
+    Router::post('/import/upload', [App\Controller\CategoryConversionController::class, 'uploadImport']);
 
     // 通配符路由放在最后
     Router::get('/{id}', [App\Controller\CategoryConversionController::class, 'show']);

@@ -58,7 +58,7 @@ class CategoryConversionController extends AbstractController
     public function store(RequestInterface $request, ResponseInterface $response)
     {
         $data = $request->all();
-        
+
         // 验证数据
         if (empty($data['tax_standard'])) {
             return $this->error('税务代缴数据口径不能为空');
@@ -85,7 +85,7 @@ class CategoryConversionController extends AbstractController
     public function update(RequestInterface $request, ResponseInterface $response, int $id)
     {
         $data = $request->all();
-        
+
         $categoryConversion = CategoryConversion::find($id);
         if (!$categoryConversion) {
             return $this->error('记录不存在');
@@ -200,8 +200,8 @@ class CategoryConversionController extends AbstractController
             $results[] = [
                 'original_value' => $value,
                 'converted_value' => $conversion ? $conversion->tax_standard : $value,
-                'conversion_type' => $conversion ? 
-                    ($conversion->medical_export_standard === $value ? 'medical_export' : 'national_dict') : 
+                'conversion_type' => $conversion ?
+                    ($conversion->medical_export_standard === $value ? 'medical_export' : 'national_dict') :
                     'no_match'
             ];
         }
@@ -216,57 +216,139 @@ class CategoryConversionController extends AbstractController
     {
         try {
             $tempFile = $this->importService->generateTemplate();
-            
+
             $content = file_get_contents($tempFile);
             unlink($tempFile); // 删除临时文件
-            
+
             return $this->response->raw($content)
-                                 ->withHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                                 ->withHeader('Content-Disposition', 'attachment; filename="类别转换导入模板.xlsx"')
-                                 ->withHeader('Cache-Control', 'no-cache');
+                ->withHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ->withHeader('Content-Disposition', 'attachment; filename="类别转换导入模板.xlsx"')
+                ->withHeader('Cache-Control', 'no-cache');
         } catch (\Exception $e) {
             return $this->error('模板生成失败: ' . $e->getMessage());
         }
     }
 
     /**
-     * 预览导入数据
+     * 上传并导入数据（同步处理）
      */
-    public function previewImport(RequestInterface $request, ResponseInterface $response)
+    public function uploadImport(RequestInterface $request, ResponseInterface $response)
     {
         try {
             $uploadedFile = $request->file('file');
-            
+
             if (!$uploadedFile || !$uploadedFile->isValid()) {
-                return $this->error('请上传有效的Excel文件');
+                return $this->error('请上传有效的 CSV 文件');
+            }
+
+            // 验证文件类型
+            $extension = strtolower($uploadedFile->getExtension());
+            if ($extension !== 'csv') {
+                return $this->error('仅支持 CSV 格式文件');
             }
 
             $tempFile = $uploadedFile->getPathname();
-            $result = $this->importService->parseExcelFile($tempFile);
 
-            return $this->success($result);
-        } catch (\Exception $e) {
-            return $this->error('文件解析失败: ' . $e->getMessage());
-        }
-    }
+            // 使用 CsvReaderService 读取并导入
+            $csvReader = new \App\Service\CsvReaderService();
+            $result = [
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => []
+            ];
 
-    /**
-     * 确认导入数据
-     */
-    public function confirmImport(RequestInterface $request, ResponseInterface $response)
-    {
-        try {
-            $data = $request->input('data', []);
-            
-            if (empty($data) || !is_array($data)) {
-                return $this->error('导入数据不能为空');
-            }
+            // 表头字段映射
+            $mappings = [
+                'tax_standard' => ['税务代缴数据口径', '税务口径', '税务代缴口径'],
+                'medical_export_standard' => ['医保数据导出对象口径', '医保口径', '医保导出口径'],
+                'national_dict_name' => ['国家字典值名称', '国家字典', '字典名称']
+            ];
 
-            $result = $this->importService->batchImport($data);
+            $logger = \Hyperf\Context\ApplicationContext::getContainer()
+                ->get(\Hyperf\Logger\LoggerFactory::class)
+                ->get('default');
 
-            return $this->success($result, '导入完成');
+            // 逐行处理数据
+            $csvReader->read(
+                $tempFile,
+                function ($rowData, $rowIndex, $headers) use (&$result, $mappings, $logger) {
+                    try {
+                        // 调试：打印第一行数据
+                        if ($rowIndex <= 2) {
+                            $logger->info("CSV Row {$rowIndex} headers: " . json_encode(array_keys($rowData), JSON_UNESCAPED_UNICODE));
+                            $logger->info("CSV Row {$rowIndex} data: " . json_encode($rowData, JSON_UNESCAPED_UNICODE));
+                        }
+
+                        // 提取数据 - 使用 mb_strpos 进行模糊匹配
+                        $data = [];
+                        foreach ($mappings as $field => $possibleHeaders) {
+                            foreach ($rowData as $csvHeader => $value) {
+                                $csvHeaderTrimmed = trim((string) $csvHeader);
+                                foreach ($possibleHeaders as $expectedHeader) {
+                                    // 精确匹配或包含匹配
+                                    if (
+                                        $csvHeaderTrimmed === $expectedHeader ||
+                                        mb_strpos($csvHeaderTrimmed, $expectedHeader) !== false ||
+                                        mb_strpos($expectedHeader, $csvHeaderTrimmed) !== false
+                                    ) {
+                                        if ($value !== null && $value !== '') {
+                                            $data[$field] = trim((string) $value);
+                                        }
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 验证必填字段
+                        if (empty($data['tax_standard'])) {
+                            throw new \Exception('税务代缴数据口径不能为空');
+                        }
+
+                        // 验证至少有一个映射字段
+                        if (empty($data['medical_export_standard']) && empty($data['national_dict_name'])) {
+                            throw new \Exception('医保数据导出对象口径和国家字典值名称至少填写一项');
+                        }
+
+                        // 检查是否已存在
+                        $existing = CategoryConversion::where('tax_standard', $data['tax_standard'])
+                            ->where('medical_export_standard', $data['medical_export_standard'] ?? '')
+                            ->where('national_dict_name', $data['national_dict_name'] ?? '')
+                            ->first();
+
+                        if ($existing) {
+                            $result['skipped']++;
+                        } else {
+                            CategoryConversion::create([
+                                'tax_standard' => $data['tax_standard'],
+                                'medical_export_standard' => $data['medical_export_standard'] ?? null,
+                                'national_dict_name' => $data['national_dict_name'] ?? null
+                            ]);
+                            $result['imported']++;
+                        }
+
+                    } catch (\Throwable $e) {
+                        $result['errors'][] = "第" . ($rowIndex + 1) . "行：" . $e->getMessage();
+                    }
+                },
+                true,
+                null
+            );
+
+            return $this->success([
+                'imported' => $result['imported'],
+                'skipped' => $result['skipped'],
+                'error_count' => count($result['errors']),
+                'errors' => array_slice($result['errors'], 0, 10), // 最多返回10条错误
+                'message' => sprintf(
+                    '导入完成：成功 %d 条，跳过 %d 条，失败 %d 条',
+                    $result['imported'],
+                    $result['skipped'],
+                    count($result['errors'])
+                )
+            ]);
         } catch (\Exception $e) {
             return $this->error('导入失败: ' . $e->getMessage());
         }
     }
-} 
+}

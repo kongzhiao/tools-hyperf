@@ -369,10 +369,15 @@ class InsuranceDataController extends AbstractController
         }
 
         // 检查文件类型
-        $allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
+        $allowedTypes = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'text/csv',
+            'text/plain'
+        ];
         $mimeType = $file->getMimeType();
         if (!in_array($mimeType, $allowedTypes)) {
-            return $this->error('请上传Excel文件（.xlsx或.xls格式），当前文件类型：' . $mimeType);
+            return $this->error('请上传有效的文件（.xlsx, .xls 或 .csv 格式），当前文件类型：' . $mimeType);
         }
 
         $year = (int) $year;
@@ -624,29 +629,14 @@ class InsuranceDataController extends AbstractController
                 return $this->error('请上传有效的文件');
             }
 
-            if (!in_array($file->getExtension(), ['xlsx', 'xls'])) {
-                return $this->error('文件格式不正确，只支持 .xlsx 和 .xls 格式');
+            if ($file->getExtension() !== 'csv') {
+                return $this->error('文件格式不正确，只支持 .csv 格式');
             }
 
-            // 读取Excel文件
-            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
-
-            // 获取第一行所有列的值
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-
-            // 收集表头
-            $headers = [];
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) { // 只添加非空值
-                    $headers[] = trim((string) $value);
-                }
-            }
+            // 使用 CsvReaderService 读取表头
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
+            $headers = $csvReader->getHeaders($tempFile);
 
             // 必要的字段列表
             $requiredFields = [
@@ -658,16 +648,24 @@ class InsuranceDataController extends AbstractController
                 '代缴金额'
             ];
 
-            // 检查必要字段是否都存在
+            // 检查必要字段是否都存在（模糊匹配）
             $missingFields = [];
             foreach ($requiredFields as $field) {
-                if (!in_array($field, $headers)) {
+                $found = false;
+                foreach ($headers as $header) {
+                    if (mb_strpos($header, $field) !== false || mb_strpos($field, $header) !== false) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
                     $missingFields[] = $field;
                 }
             }
 
             if (!empty($missingFields)) {
-                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields));
+                $debugHeaders = !empty($headers) ? implode('、', $headers) : '[未识别到表头]';
+                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields) . '。当前识别到的表头为：' . $debugHeaders);
             }
 
             return $this->success([
@@ -692,29 +690,14 @@ class InsuranceDataController extends AbstractController
                 return $this->error('请上传有效的文件');
             }
 
-            if (!in_array($file->getExtension(), ['xlsx', 'xls'])) {
-                return $this->error('文件格式不正确，只支持 .xlsx 和 .xls 格式');
+            if ($file->getExtension() !== 'csv') {
+                return $this->error('文件格式不正确，只支持 .csv 格式');
             }
 
-            // 读取Excel文件
-            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
-
-            // 获取第一行所有列的值
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-
-            // 收集表头
-            $headers = [];
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) { // 只添加非空值
-                    $headers[] = trim((string) $value);
-                }
-            }
+            // 使用 CsvReaderService 读取表头
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
+            $headers = $csvReader->getHeaders($tempFile);
 
             // 必要的字段列表
             $requiredFields = [
@@ -722,16 +705,24 @@ class InsuranceDataController extends AbstractController
                 '个人实缴金额'
             ];
 
-            // 检查必要字段是否都存在
+            // 检查必要字段是否都存在（模糊匹配）
             $missingFields = [];
             foreach ($requiredFields as $field) {
-                if (!in_array($field, $headers)) {
+                $found = false;
+                foreach ($headers as $header) {
+                    if (mb_strpos($header, $field) !== false || mb_strpos($field, $header) !== false) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
                     $missingFields[] = $field;
                 }
             }
 
             if (!empty($missingFields)) {
-                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields));
+                $debugHeaders = !empty($headers) ? implode('、', $headers) : '[未识别到表头]';
+                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields) . '。当前识别到的表头为：' . $debugHeaders);
             }
 
             return $this->success([
@@ -758,29 +749,14 @@ class InsuranceDataController extends AbstractController
                 return $this->error('请上传有效的文件');
             }
 
-            if (!in_array($file->getExtension(), ['xlsx', 'xls'])) {
-                return $this->error('文件格式不正确，只支持 .xlsx 和 .xls 格式');
+            if ($file->getExtension() !== 'csv') {
+                return $this->error('文件格式不正确，只支持 .csv 格式');
             }
 
-            // 读取Excel文件
-            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
-
-            // 获取第一行所有列的值
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true); // 只遍历非空单元格
-
-            // 收集表头
-            $headers = [];
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) { // 只添加非空值
-                    $headers[] = trim((string) $value);
-                }
-            }
+            // 使用 CsvReaderService 读取表头
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
+            $headers = $csvReader->getHeaders($tempFile);
 
             // 必要的字段列表
             $requiredFields = [
@@ -789,16 +765,24 @@ class InsuranceDataController extends AbstractController
                 '资助身份'
             ];
 
-            // 检查必要字段是否都存在
+            // 检查必要字段是否都存在（模糊匹配）
             $missingFields = [];
             foreach ($requiredFields as $field) {
-                if (!in_array($field, $headers)) {
+                $found = false;
+                foreach ($headers as $header) {
+                    if (mb_strpos($header, $field) !== false || mb_strpos($field, $header) !== false) {
+                        $found = true;
+                        break;
+                    }
+                }
+                if (!$found) {
                     $missingFields[] = $field;
                 }
             }
 
             if (!empty($missingFields)) {
-                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields));
+                $debugHeaders = !empty($headers) ? implode('、', $headers) : '[未识别到表头]';
+                return $this->error('表格第一行缺少必要字段：' . implode('、', $missingFields) . '。当前识别到的表头为：' . $debugHeaders);
             }
 
             return $this->success([
@@ -887,7 +871,7 @@ class InsuranceDataController extends AbstractController
     /**
      * 使用批量插入优化处理数据批次
      */
-    private function processBatchWithCoroutine($worksheet, $startRow, $endRow, $columnMap, $year, $importType)
+    protected function processBatchWithCoroutine($worksheet, int $startRow, int $endRow, array $columnMap, int $year, string $importType): array
     {
         $result = [
             'imported_count' => 0,
@@ -895,206 +879,131 @@ class InsuranceDataController extends AbstractController
             'error_rows' => [],
             'debug_info' => [
                 'total_rows' => $endRow - $startRow + 1,
-                'column_map' => $columnMap,
-                'start_row' => $startRow,
-                'end_row' => $endRow
             ],
-            'performance' => [
-                'duplicate_check_time' => 0,
-                'data_creation_time' => 0,
-                'level_matching_time' => 0,
-                'batch_insert_time' => 0,
-                'batch_count' => 0
-            ]
+            'performance' => []
         ];
 
-        $duplicateCheckTime = 0.0;
-        $dataCreationTime = 0.0;
-        $levelMatchingTime = 0.0;
-        $batchInsertTime = 0.0;
+        $duplicateCheckTime = 0;
+        $dataCreationTime = 0;
+        $levelMatchingTime = 0;
+        $batchInsertTime = 0;
         $batchCount = 0;
 
-        // 批量插入配置
-        $batchSize = 100; // 每批次处理100条记录
         $validData = []; // 存储有效数据用于批量插入
         $duplicateIds = []; // 存储重复的身份证号
+        $batchSize = 500;
 
-        // 第一步：批量检查重复记录（仅增量导入）
-        if ($importType === 'increment') {
-            $checkStart = microtime(true);
-            $idNumbers = [];
-
-            // 收集所有身份证号
-            for ($row = $startRow; $row <= $endRow; $row++) {
-                $idCard = isset($columnMap['id_number']) ?
-                    trim((string) $worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
-                if (!empty($idCard)) {
-                    $idNumbers[] = $idCard;
+        if ($worksheet instanceof \PhpOffice\PhpSpreadsheet\Worksheet\Worksheet) {
+            // ============ Excel 分支 ============
+            // 第一步：预查重（仅针对增量导入）
+            if ($importType === 'increment') {
+                $checkStart = microtime(true);
+                $idNumbers = [];
+                for ($rowIdx = $startRow; $rowIdx <= $endRow; $rowIdx++) {
+                    $idCard = isset($columnMap['id_number']) ?
+                        trim((string) $worksheet->getCell($columnMap['id_number'] . $rowIdx)->getValue()) : null;
+                    if (!empty($idCard)) {
+                        $idNumbers[] = $idCard;
+                    }
                 }
+                if (!empty($idNumbers)) {
+                    $existingIds = \App\Model\InsuranceData::where('year', $year)->whereIn('id_number', $idNumbers)->pluck('id_number')->toArray();
+                    $duplicateIds = array_flip($existingIds);
+                }
+                $duplicateCheckTime = microtime(true) - $checkStart;
             }
 
-            // 批量查询已存在的记录
-            if (!empty($idNumbers)) {
-                $existingIds = InsuranceData::where('year', $year)
-                    ->whereIn('id_number', $idNumbers)
-                    ->pluck('id_number')
-                    ->toArray();
-                $duplicateIds = array_flip($existingIds);
-            }
+            $dataCreationStart = microtime(true);
+            for ($rowIdx = $startRow; $rowIdx <= $endRow; $rowIdx++) { // 使用 $rowIdx 避免混淆
+                try {
+                    $idCard = isset($columnMap['id_number']) ? trim((string) $worksheet->getCell($columnMap['id_number'] . $rowIdx)->getValue()) : null;
+                    if (empty($idCard)) {
+                        $result['skipped_count']++;
+                        $result['error_rows'][] = ['row' => $rowIdx, 'reason' => '身份证号为空'];
+                        continue;
+                    }
+                    if ($importType === 'increment' && isset($duplicateIds[$idCard])) {
+                        $result['skipped_count']++;
+                        continue;
+                    }
 
-            $duplicateCheckTime = microtime(true) - $checkStart;
-        }
-
-        // 第二步：处理数据并收集有效记录
-        $dataCreationStart = microtime(true);
-
-        for ($row = $startRow; $row <= $endRow; $row++) {
-            try {
-                // 获取身份证号用于查重
-                $idCard = isset($columnMap['id_number']) ?
-                    trim((string) $worksheet->getCell($columnMap['id_number'] . $row)->getValue()) : null;
-
-                if (empty($idCard)) {
-                    $result['skipped_count']++;
-                    $result['error_rows'][] = [
-                        'row' => $row,
-                        'reason' => '身份证号为空'
-                    ];
-                    continue;
-                }
-
-                // 检查是否重复（使用预查询的结果）
-                if ($importType === 'increment' && isset($duplicateIds[$idCard])) {
-                    $result['skipped_count']++;
-                    continue;
-                }
-
-                // 创建新记录
-                $data = [
-                    'year' => $year,
-                    'id_type' => '居民身份证', // 设置默认的证件类型
-                ];
-
-                foreach ($columnMap as $field => $col) {
-                    if ($col !== null) {  // 只处理存在的列
-                        try {
-                            $cellValue = $worksheet->getCell($col . $row)->getValue();
-                            // 对金额字段进行特殊处理
+                    $data = ['year' => $year, 'id_type' => '居民身份证'];
+                    foreach ($columnMap as $field => $col) {
+                        if ($col !== null) {
+                            $cellValue = $worksheet->getCell($col . $rowIdx)->getValue();
                             if (in_array($field, ['payment_amount'])) {
                                 $value = is_numeric($cellValue) ? floatval($cellValue) : 0;
                             } else {
                                 $value = $cellValue !== null ? trim((string) $cellValue) : '';
                             }
                             $data[$field] = $value;
-                        } catch (\Exception $e) {
-                            throw new \Exception("读取单元格 {$col}{$row} 时出错：" . $e->getMessage());
                         }
                     }
+
+                    // 调用统一的后续处理逻辑
+                    $this->handleRowPostProcessing($data, $rowIdx, $result, $validData, $year, $levelMatchingTime);
+
+                } catch (\Exception $e) {
+                    $result['error_rows'][] = ['row' => $rowIdx, 'reason' => '数据处理异常：' . $e->getMessage()];
+                    $result['skipped_count']++;
                 }
-
-                // 验证必填字段
-                $requiredFields = [
-                    'name' => '姓名',
-                    'id_number' => '身份证号',
-                    'street_town' => '街道乡镇',
-                    'payment_category' => '代缴类别',
-                    'payment_amount' => '代缴金额'
-                ];
-
-                $missingFields = [];
-                foreach ($requiredFields as $field => $label) {
-                    if (empty($data[$field])) {
-                        $missingFields[] = $label;
+            }
+        } else {
+            // ============ CSV 分支 ============
+            // 第一步：预查重
+            if ($importType === 'increment') {
+                $checkStart = microtime(true);
+                $idNumbers = [];
+                foreach ($worksheet as $item) {
+                    $row = $item['row_data'];
+                    $idCard = isset($columnMap['id_number']) ? trim((string) ($row[$columnMap['id_number']] ?? '')) : null;
+                    if (!empty($idCard)) {
+                        $idNumbers[] = $idCard;
                     }
                 }
+                if (!empty($idNumbers)) {
+                    $existingIds = \App\Model\InsuranceData::where('year', $year)->whereIn('id_number', $idNumbers)->pluck('id_number')->toArray();
+                    $duplicateIds = array_flip($existingIds);
+                }
+                $duplicateCheckTime = microtime(true) - $checkStart;
+            }
 
-                if (!empty($missingFields)) {
+            $dataCreationStart = microtime(true);
+            foreach ($worksheet as $item) {
+                $row = $item['row_data'];
+                $rowIdx = $item['row_idx'];
+                try {
+                    $idCard = isset($columnMap['id_number']) ? trim((string) ($row[$columnMap['id_number']] ?? '')) : null;
+                    if (empty($idCard)) {
+                        $result['skipped_count']++;
+                        $result['error_rows'][] = ['row' => $rowIdx, 'reason' => '身份证号为空'];
+                        continue;
+                    }
+                    if ($importType === 'increment' && isset($duplicateIds[$idCard])) {
+                        $result['skipped_count']++;
+                        continue;
+                    }
+
+                    $data = ['year' => $year, 'id_type' => '居民身份证'];
+                    foreach ($columnMap as $field => $colIdx) {
+                        if ($colIdx !== null) {
+                            $cellValue = $row[$colIdx] ?? '';
+                            if (in_array($field, ['payment_amount'])) {
+                                $value = is_numeric($cellValue) ? floatval($cellValue) : 0;
+                            } else {
+                                $value = trim((string) $cellValue);
+                            }
+                            $data[$field] = $value;
+                        }
+                    }
+
+                    // 调用统一的后续处理逻辑
+                    $this->handleRowPostProcessing($data, $rowIdx, $result, $validData, $year, $levelMatchingTime);
+
+                } catch (\Exception $e) {
+                    $result['error_rows'][] = ['row' => $rowIdx, 'reason' => '数据处理异常：' . $e->getMessage()];
                     $result['skipped_count']++;
-                    $result['error_rows'][] = [
-                        'row' => $row,
-                        'reason' => '必填字段不能为空：' . implode('、', $missingFields),
-                        'data' => $data
-                    ];
-                    continue;
                 }
-
-                // 根据代缴类别和金额匹配档次（使用缓存）
-                $levelMatchingStart = microtime(true);
-                $levelConfigs = InsuranceLevelConfigCache::findMatchingConfigs(
-                    $year,
-                    $data['payment_category'],
-                    $data['payment_amount']
-                );
-                $levelMatchingTime += microtime(true) - $levelMatchingStart;
-
-                // 记录匹配过程的详细信息（使用缓存）
-                $availableConfigs = InsuranceLevelConfigCache::getAvailableConfigs(
-                    $year,
-                    $data['payment_category']
-                );
-
-                $matchLog = [
-                    'year' => $year,
-                    'payment_category' => $data['payment_category'],
-                    'payment_amount' => $data['payment_amount'],
-                    'matched_count' => $levelConfigs->count(),
-                    'available_configs' => $availableConfigs->map(function ($config) {
-                        return [
-                            'level' => $config->level,
-                            'subsidy_amount' => $config->subsidy_amount,
-                            'personal_amount' => $config->personal_amount
-                        ];
-                    })->all()
-                ];
-
-                if ($levelConfigs->count() === 1) {
-                    // 只有一条匹配记录时，进行完整匹配
-                    $levelConfig = $levelConfigs->first();
-                    $data['level'] = $levelConfig->level;
-                    $data['level_match_status'] = 'matched';
-                    $data['personal_amount'] = $levelConfig->personal_amount;
-                } else if ($levelConfigs->count() > 1) {
-                    // 有多条匹配记录时，不进行匹配
-                    $data['level'] = '';  // 改为空字符串而不是 null
-                    $data['level_match_status'] = 'unmatched';
-
-                    // 记录匹配到多条的情况
-                    $result['error_rows'][] = [
-                        'row' => $row,
-                        'reason' => '找到多条匹配的档次配置，跳过匹配',
-                        'match_log' => $matchLog,
-                        'data' => [
-                            'payment_category' => $data['payment_category'],
-                            'payment_amount' => $data['payment_amount'],
-                            'matched_levels' => $levelConfigs->pluck('level')->toArray()
-                        ]
-                    ];
-                } else {
-                    // 没有匹配记录
-                    $data['level'] = '';  // 改为空字符串而不是 null
-                    $data['level_match_status'] = 'unmatched';
-
-                    // 记录未匹配的情况
-                    $result['error_rows'][] = [
-                        'row' => $row,
-                        'reason' => '找不到匹配的档次配置',
-                        'match_log' => $matchLog,
-                        'data' => [
-                            'payment_category' => $data['payment_category'],
-                            'payment_amount' => $data['payment_amount']
-                        ]
-                    ];
-                }
-
-                // 添加到批量插入数组
-                $validData[] = $data;
-
-            } catch (\Exception $e) {
-                $result['error_rows'][] = [
-                    'row' => $row,
-                    'reason' => '数据格式错误：' . $e->getMessage()
-                ];
-                $result['skipped_count']++;
             }
         }
 
@@ -1146,6 +1055,50 @@ class InsuranceDataController extends AbstractController
     }
 
     /**
+     * 统一处理行数据的验证、匹配和加入待插入队列
+     */
+    protected function handleRowPostProcessing(array &$data, $rowIdx, array &$result, array &$validData, int $year, &$levelMatchingTime)
+    {
+        // 验证必填字段
+        $requiredFields = [
+            'name' => '姓名',
+            'id_number' => '身份证号',
+            'street_town' => '街道乡镇',
+            'payment_category' => '代缴类别',
+            'payment_amount' => '代缴金额'
+        ];
+        foreach ($requiredFields as $field => $label) {
+            $val = $data[$field] ?? '';
+            if ($val === '' || $val === null) {
+                $result['skipped_count']++;
+                $result['error_rows'][] = ['row' => $rowIdx, 'reason' => "必填字段 {$label} 不能为空"];
+                return;
+            }
+        }
+
+        // 根据代缴类别和金额匹配档次（使用缓存）
+        $levelMatchingStart = microtime(true);
+        $levelConfigs = InsuranceLevelConfigCache::findMatchingConfigs(
+            $year,
+            $data['payment_category'],
+            $data['payment_amount']
+        );
+        $levelMatchingTime += microtime(true) - $levelMatchingStart;
+
+        if ($levelConfigs->count() === 1) {
+            $levelConfig = $levelConfigs->first();
+            $data['level'] = $levelConfig->level;
+            $data['level_match_status'] = 'matched';
+            $data['personal_amount'] = $levelConfig->personal_amount;
+        } else {
+            $data['level'] = '';
+            $data['level_match_status'] = 'unmatched';
+        }
+
+        $validData[] = $data;
+    }
+
+    /**
      * 导入保险数据
      * @RequestMapping(path="import", methods="post")
      */
@@ -1164,38 +1117,50 @@ class InsuranceDataController extends AbstractController
                 return $this->error('请指定导入年份');
             }
 
-            // 将年份转换为整数类型
-            $year = (int) $year;
+            // 获取文件信息
+            $filePath = $file->getRealPath();
+            $fileExtension = strtolower($file->getExtension());
 
-            // 读取Excel文件 - 性能监控
-            $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-            $reader->setReadDataOnly(true);
-            $spreadsheet = $reader->load($file->getRealPath());
-            $worksheet = $spreadsheet->getActiveSheet();
+            // 检查是否是 CSV
+            $isCsv = $fileExtension === 'csv' || $file->getMimeType() === 'text/csv' || $file->getMimeType() === 'text/plain';
 
-            // 获取表头
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true);
-
+            $columnMap = [];
             $headers = [];
-            $column = 'A';
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) {
-                    $headers[$column] = trim((string) $value);
-                }
-                $column++;
-            }
 
-            // 获取字段映射 
-            $columnMap = $this->getFieldMapping($headers);
+            if ($isCsv) {
+                $csvReader = new \App\Service\CsvReaderService();
+                $headers = $csvReader->getHeaders($filePath);
+                $columnMap = $this->getFieldMapping($headers);
+            } else {
+                // 读取Excel文件 - 性能监控
+                $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+                $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($filePath);
+                $worksheet = $spreadsheet->getActiveSheet();
+
+                // 获取表头
+                $headerRow = $worksheet->getRowIterator(1)->current();
+                $cellIterator = $headerRow->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(true);
+
+                $column = 'A';
+                foreach ($cellIterator as $cell) {
+                    $value = $cell->getValue();
+                    if (!empty($value)) {
+                        $headers[$column] = trim((string) $value);
+                    }
+                    $column++;
+                }
+
+                // 获取字段映射 
+                $columnMap = $this->getFieldMapping($headers);
+            }
 
             // 验证必要字段是否都存在
             $requiredFields = ['name', 'id_number', 'street_town', 'payment_category', 'payment_amount'];
             $missingFields = [];
             foreach ($requiredFields as $field) {
-                if ($columnMap[$field] === null) {
+                if (($columnMap[$field] ?? null) === null) {
                     $missingFields[] = $field;
                 }
             }
@@ -1211,86 +1176,68 @@ class InsuranceDataController extends AbstractController
                 $missingFieldNames = array_map(function ($field) use ($fieldNames) {
                     return $fieldNames[$field];
                 }, $missingFields);
-                return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
+                return $this->error('文件缺少必要字段：' . implode('、', $missingFieldNames));
             }
 
-
-
-            $highestRow = $worksheet->getHighestRow();
-
             // 初始化档次配置缓存
-            InsuranceLevelConfigCache::loadConfigsForYear($year);
+            InsuranceLevelConfigCache::loadConfigsForYear((int) $year);
 
             // 如果是全量导入，先删除该年份的所有数据
             if ($importType === 'full') {
-                $deleteStart = microtime(true);
-                $deletedCount = InsuranceData::where('year', $year)->delete();
+                InsuranceData::where('year', (int) $year)->delete();
             }
 
-            // 分批事务处理 - 性能监控
-            $transactionStart = microtime(as_float: true);
             $totalImported = 0;
             $totalSkipped = 0;
             $allErrorRows = [];
-            $batchSize = 100; // 每批次处理100条记录
-            $totalRows = $highestRow - 1;
-            $batchCount = 0;
+            $batchSize = 100;
+            $totalRows = 0;
 
-            // 分批处理数据
-            for ($startRow = 2; $startRow <= $highestRow; $startRow += $batchSize) {
-                $endRow = min($startRow + $batchSize - 1, $highestRow);
-                $batchCount++;
+            // 初始化档次配置缓存
+            InsuranceLevelConfigCache::loadConfigsForYear((int) $year);
 
-                // 开启小事务
-                Db::beginTransaction();
-                try {
-                    $processingStart = microtime(true);
-                    $batchResult = $this->processBatchWithCoroutine($worksheet, $startRow, $endRow, $columnMap, $year, $importType);
-                    $processingTime = microtime(true) - $processingStart;
+            // 保存文件供异步 Job 处理
+            $uploadDir = BASE_PATH . '/storage/uploads/';
+            if (!is_dir($uploadDir))
+                mkdir($uploadDir, 0755, true);
+            $newFileName = 'insurance_import_' . time() . '_' . uniqid() . '.csv';
+            $finalPath = $uploadDir . $newFileName;
 
-                    // 累计结果
-                    $totalImported += $batchResult['imported_count'];
-                    $totalSkipped += $batchResult['skipped_count'];
-                    $allErrorRows = array_merge($allErrorRows, $batchResult['error_rows']);
-
-                    Db::commit();
-
-                    // 记录批次性能
-                    error_log("批次 {$batchCount}: 行 {$startRow}-{$endRow}, 导入 {$batchResult['imported_count']} 条, 跳过 {$batchResult['skipped_count']} 条, 耗时 " . round($processingTime, 3) . " 秒");
-
-                } catch (\Exception $e) {
-                    Db::rollBack();
-                    // 记录批次失败
-                    error_log("批次 {$batchCount} 失败: " . $e->getMessage());
-                    $allErrorRows[] = [
-                        'row' => "批次 {$batchCount} ({$startRow}-{$endRow})",
-                        'reason' => '批次处理失败：' . $e->getMessage()
-                    ];
-                }
-            }
-
-            // 合并结果
-            $result = [
-                'imported_count' => $totalImported,
-                'skipped_count' => $totalSkipped,
-                'error_rows' => $allErrorRows,
-                'debug_info' => [
-                    'total_rows' => $totalRows,
-                    'batch_count' => $batchCount,
-                    'batch_size' => $batchSize
-                ]
-            ];
-
-
-            if ($result['imported_count'] > 0) {
-                return $this->success($result, '导入成功');
+            // 如果是流上传，可能没有 getRealPath
+            if (method_exists($file, 'moveTo')) {
+                $file->moveTo($finalPath);
             } else {
-                // 即使没有导入成功，也返回详细信息
-                $result['total_rows'] = $highestRow - 1;
-                return $this->error('导入失败：没有有效数据被导入', $result);
+                file_put_contents($finalPath, file_get_contents($filePath));
             }
+
+            // 投递异步任务
+            $userId = (int) $this->request->getAttribute('userId', 0);
+            $username = (string) $this->request->getAttribute('username', 'System');
+
+            $lockKey = sprintf('task:lock:%d:importInsuranceData', $userId);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '参保数据导入_',
+                $userId,
+                $username,
+                \App\Job\InsuranceDataImportJob::class,
+                [
+                    [], // 基础参数
+                    $finalPath,
+                    (int) $year,
+                    (string) $importType,
+                    $columnMap
+                ],
+                $lockKey
+            );
+
+            if ($uuid === false) {
+                return $this->error('导入任务正在执行中，请在任务中心查看进度');
+            }
+
+            return $this->success([
+                'uuid' => $uuid
+            ], '导入任务已提交，请在任务中心查看进度');
         } catch (\Exception $e) {
-            // 记录异常时的性能信息
             return $this->error('导入数据时发生错误：' . $e->getMessage());
         }
     }
@@ -1310,52 +1257,46 @@ class InsuranceDataController extends AbstractController
             }
 
             // 验证文件格式
-            $allowedExtensions = ['xlsx', 'xls'];
             $fileExtension = strtolower($file->getExtension());
-            if (!in_array($fileExtension, $allowedExtensions)) {
-                return $this->error('只支持 Excel 文件格式 (.xlsx, .xls)');
+            $isCsv = $fileExtension === 'csv' || $file->getMimeType() === 'text/csv' || $file->getMimeType() === 'text/plain';
+
+            if (!$isCsv && !in_array($fileExtension, ['xlsx', 'xls'])) {
+                return $this->error('只支持 Excel 或 CSV 文件格式');
             }
 
-            // 验证文件大小（最大 10MB）
-            $maxSize = 10 * 1024 * 1024; // 10MB
+            // 验证文件大小（最大 128MB）
+            $maxSize = 128 * 1024 * 1024;
             if ($file->getSize() > $maxSize) {
-                return $this->error('文件大小不能超过 10MB');
+                return $this->error('文件大小不能超过 128MB');
             }
 
-            if (!$year) {
-                return $this->error('请指定导入年份');
-            }
-
-            // 将年份转换为整数类型
             $year = (int) $year;
 
-            // 开启事务
-            Db::beginTransaction();
-            try {
-                // 如果是全量导入，先删除该年份的所有数据
-                if ($importType === 'full') {
-                    InsuranceData::where('year', $year)->delete();
-                }
+            // 初始化档次配置缓存
+            InsuranceLevelConfigCache::loadConfigsForYear($year);
 
-                // 初始化档次配置缓存
-                InsuranceLevelConfigCache::loadConfigsForYear($year);
+            if ($importType === 'full') {
+                InsuranceData::where('year', $year)->delete();
+            }
 
-                // 读取Excel文件
-                try {
-                    $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
-                    $reader->setReadDataOnly(true);
-                    $spreadsheet = $reader->load($file->getRealPath());
-                    $worksheet = $spreadsheet->getActiveSheet();
-                } catch (\Exception $e) {
-                    return $this->error('Excel文件读取失败：' . $e->getMessage());
-                }
+            $columnMap = [];
+            $headers = [];
+            $filePath = $file->getRealPath();
 
-                // 获取表头（从第3行开始，因为前两行是标题和说明）
+            if ($isCsv) {
+                $csvReader = new \App\Service\CsvReaderService();
+                $headers = $csvReader->getHeaders($filePath);
+                $columnMap = $this->getFieldMapping($headers);
+            } else {
+                $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+                $reader->setReadDataOnly(true);
+                $spreadsheet = $reader->load($filePath);
+                $worksheet = $spreadsheet->getActiveSheet();
+
+                // 获取表头（从第3行开始）
                 $headerRow = $worksheet->getRowIterator(3)->current();
                 $cellIterator = $headerRow->getCellIterator();
                 $cellIterator->setIterateOnlyExistingCells(true);
-
-                $headers = [];
                 $column = 'A';
                 foreach ($cellIterator as $cell) {
                     $value = $cell->getValue();
@@ -1364,50 +1305,55 @@ class InsuranceDataController extends AbstractController
                     }
                     $column++;
                 }
-
-                // 获取字段映射
                 $columnMap = $this->getFieldMapping($headers);
-
-                // 验证必要字段是否都存在
-                $requiredFields = ['name', 'id_number', 'street_town', 'payment_category', 'payment_amount'];
-                $missingFields = [];
-                foreach ($requiredFields as $field) {
-                    if ($columnMap[$field] === null) {
-                        $missingFields[] = $field;
-                    }
-                }
-
-                if (!empty($missingFields)) {
-                    $fieldNames = [
-                        'name' => '姓名',
-                        'id_number' => '身份证号',
-                        'street_town' => '街道乡镇',
-                        'payment_category' => '代缴类别',
-                        'payment_amount' => '代缴金额'
-                    ];
-                    $missingFieldNames = array_map(function ($field) use ($fieldNames) {
-                        return $fieldNames[$field];
-                    }, $missingFields);
-
-                    return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
-                }
-
-                $highestRow = $worksheet->getHighestRow();
-                $totalRows = $highestRow - 3; // 减去标题行、说明行和表头行
-
-                // 处理数据
-                $result = $this->processBatchWithCoroutine($worksheet, 4, $highestRow, $columnMap, $year, $importType);
-
-                Db::commit();
-
-                return $this->success($result, "导入完成，成功{$result['imported_count']}条，跳过{$result['skipped_count']}条");
-
-            } catch (\Exception $e) {
-                Db::rollBack();
-                return $this->error('导入失败：' . $e->getMessage());
             }
+
+            if (empty($columnMap['id_number'])) {
+                return $this->error('文件缺少必要字段：身份证号');
+            }
+
+            // 保存文件供异步 Job 处理
+            $uploadDir = BASE_PATH . '/storage/uploads/';
+            if (!is_dir($uploadDir))
+                mkdir($uploadDir, 0755, true);
+            $newFileName = 'insurance_stream_import_' . time() . '_' . uniqid() . '.csv';
+            $finalPath = $uploadDir . $newFileName;
+
+            if (method_exists($file, 'moveTo')) {
+                $file->moveTo($finalPath);
+            } else {
+                file_put_contents($finalPath, file_get_contents($filePath));
+            }
+
+            // 投递异步任务
+            $userId = (int) $this->request->getAttribute('userId', 0);
+            $username = (string) $this->request->getAttribute('username', 'System');
+
+            $lockKey = sprintf('task:lock:%d:importInsuranceData', $userId);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '参保数据导入_',
+                $userId,
+                $username,
+                \App\Job\InsuranceDataImportJob::class,
+                [
+                    [], // 基础参数
+                    $finalPath,
+                    (int) $year,
+                    (string) $importType,
+                    $columnMap
+                ],
+                $lockKey
+            );
+
+            if ($uuid === false) {
+                return $this->error('导入任务正在执行中，请在任务中心查看进度');
+            }
+
+            return $this->success([
+                'uuid' => $uuid
+            ], '导入任务已提交，请在任务中心查看进度');
         } catch (\Exception $e) {
-            return $this->error('导入数据时发生错误：' . $e->getMessage());
+            return $this->error('导入失败：' . $e->getMessage());
         }
     }
 
@@ -1494,24 +1440,11 @@ class InsuranceDataController extends AbstractController
 
             $year = $request->input('year', date('Y'));
 
-            // 读取Excel文件
-            $spreadsheet = IOFactory::load($file->getPath() . '/' . $file->getFilename());
-            $worksheet = $spreadsheet->getActiveSheet();
-            $data = $worksheet->toArray();
+            // 使用 CsvReaderService 读取数据
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
+            $headers = $csvReader->getHeaders($tempFile);
 
-            // 获取表头
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true);
-            $headers = [];
-            $column = 'A';
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) {
-                    $headers[$column] = trim((string) $value);
-                }
-                $column++;
-            }
             // 获取字段映射 
             $columnMap = $this->getFieldMapping($headers);
 
@@ -1530,128 +1463,46 @@ class InsuranceDataController extends AbstractController
                     'street_town_name' => '认定地'
                 ];
                 $missingFieldNames = array_map(function ($field) use ($fieldNames) {
-                    return $fieldNames[$field];
+                    return $fieldNames[$field] ?? $field;
                 }, $missingFields);
-                return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
+                return $this->error('CSV文件缺少必要字段：' . implode('、', $missingFieldNames));
             }
 
+            // 保存文件供异步 Job 处理
+            $uploadDir = BASE_PATH . '/storage/uploads/';
+            if (!is_dir($uploadDir))
+                mkdir($uploadDir, 0755, true);
+            $newFileName = 'insurance_street_town_' . time() . '_' . uniqid() . '.csv';
+            $finalPath = $uploadDir . $newFileName;
+            $file->moveTo($finalPath);
 
-            // 查询category_conversions表中所有数据，使用自己的Model
-            $categoryConversions = \App\Model\CategoryConversion::query()->get()->toArray();
+            // 投递异步任务
+            $userId = (int) $this->request->getAttribute('userId', 0);
+            $username = (string) $this->request->getAttribute('username', 'System');
 
-            // 移除表头
-            array_shift($data);
+            $lockKey = sprintf('task:lock:%d:importStreetTown', $userId);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '区划身份匹配_',
+                $userId,
+                $username,
+                \App\Job\InsuranceDataUpdateJob::class,
+                [
+                    [], // 基础参数
+                    $finalPath,
+                    (int) $year,
+                    $columnMap,
+                    'street_town'
+                ],
+                $lockKey
+            );
 
-
-            $assistanceSuccessCount = 0;
-            $streetTownSuccessCount = 0;
-            $assistanceFailCount = 0;
-            $streetTownFailCount = 0;
-            $failCount = 0;
-            $errors = [];
-            $totalRows = count($data);
-
-            foreach ($data as $index => $row) {
-                try {
-                    // 根据字段映射自动获取对应列的数据
-                    $idCol = $columnMap['id_number'];
-                    $assistanceIdentityCol = $columnMap['assistance_identity'];
-                    $streetTownNameCol = $columnMap['street_town_name'];
-                    $idNumber = $worksheet->getCell($idCol . $index)->getValue();
-                    $assistanceIdentity = $worksheet->getCell($assistanceIdentityCol . $index)->getValue();
-                    $streetTownName = $worksheet->getCell($streetTownNameCol . $index)->getValue();
-
-
-                    if (empty($idNumber)) {
-                        $failCount++;
-                        $errors[] = "第" . ($index + 2) . "行：身份证号为空，已跳过";
-                        continue;
-                    }
-
-                    // 查找对应的参保数据
-                    $insuranceData = InsuranceData::where('id_number', $idNumber)
-                        ->where('year', $year)
-                        ->first();
-
-                    if (!$insuranceData) {
-                        $errors[] = "第" . ($index + 2) . "行：未找到身份证号为 {$idNumber} 的参保数据";
-                        $failCount++;
-                        continue;
-                    }
-
-                    // 根据医疗救助匹配身份
-                    if (!empty($assistanceIdentity)) {
-                        // 判断$assistanceIdentity是否在$categoryConversions的任一项中
-                        $isMatched = false;
-                        foreach ($categoryConversions as $conversion) {
-                            if (
-                                (isset($conversion['name']) && $conversion['name'] == $assistanceIdentity) ||
-                                (isset($conversion['tax_standard']) && $conversion['tax_standard'] == $assistanceIdentity)
-                                /*||
-                                (isset($conversion['medical_export_standard']) && $conversion['medical_export_standard'] == $assistanceIdentity) ||
-                                (isset($conversion['national_dict_name']) && $conversion['national_dict_name'] == $assistanceIdentity)
-                                 */
-                            ) {
-                                $isMatched = true;
-                                break;
-                            }
-                        }
-                        if ($isMatched) {
-                            $insuranceData->assistance_identity_match_status = 'matched';
-                        } else {
-                            $insuranceData->assistance_identity_match_status = 'unmatched';
-                        }
-
-                        $insuranceData->assistance_identity = $assistanceIdentity;
-                        $insuranceData->save();
-                        $assistanceSuccessCount++;
-
-                    } else {
-                        $errors[] = "第" . ($index + 2) . "行：资助身份为空, 已跳过";
-                        $assistanceFailCount++;
-                    }
-
-                    // 根据认定区匹配档次
-                    if (!empty($streetTownName) && $streetTownName == "江津区") {
-                        $insuranceData->street_town_name = $streetTownName;
-                        $insuranceData->street_town_match_status = 'matched';
-                        $insuranceData->save();
-                        $streetTownSuccessCount++;
-                    } else {
-                        $insuranceData->street_town_name = $streetTownName;
-                        $insuranceData->street_town_match_status = 'unmatched';
-                        $insuranceData->save();
-                        $errors[] = "第" . ($index + 2) . "行：认定区不匹配";
-                        $streetTownFailCount++;
-                    }
-
-                    if (
-                        $insuranceData->street_town_match_status == 'matched' &&
-                        $insuranceData->assistance_identity_match_status == 'matched' &&
-                        $insuranceData->level_match_status == 'matched'
-                    ) {
-                        $insuranceData->match_status = 'matched';
-                        $insuranceData->save();
-                    } else {
-                        $insuranceData->match_status = 'unmatched';
-                        $insuranceData->save();
-                        $failCount++;
-                    }
-                } catch (\Exception $e) {
-                    $errors[] = "第" . ($index + 2) . "行：处理失败 - " . $e->getMessage();
-                    $failCount++;
-                }
+            if ($uuid === false) {
+                return $this->error('匹配任务正在执行中，请在任务中心查看进度');
             }
 
             return $this->success([
-                'assistance_success_count' => $assistanceSuccessCount,
-                'street_town_success_count' => $streetTownSuccessCount,
-                'assistance_fail_count' => $assistanceFailCount,
-                'street_town_fail_count' => $streetTownFailCount,
-                'fail_count' => $failCount,
-                'total_rows' => $totalRows,
-                'errors' => $errors
-            ], "总匹配{$totalRows}条，已匹配上{$assistanceSuccessCount}条，已忽略{$assistanceFailCount}条");
+                'uuid' => $uuid
+            ], '匹配任务已提交，请在任务中心查看进度');
         } catch (\Exception $e) {
             return $this->error('导入失败：' . $e->getMessage());
         }
@@ -1672,25 +1523,12 @@ class InsuranceDataController extends AbstractController
 
             $year = $request->input('year', date('Y'));
 
-            // 读取Excel文件
-            $spreadsheet = IOFactory::load($file->getPath() . '/' . $file->getFilename());
-            $worksheet = $spreadsheet->getActiveSheet();
-            $data = $worksheet->toArray();
+            // 使用 CsvReaderService 读取数据
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
+            $headers = $csvReader->getHeaders($tempFile);
 
-            // 获取表头
-            $headerRow = $worksheet->getRowIterator(1)->current();
-            $cellIterator = $headerRow->getCellIterator();
-            $cellIterator->setIterateOnlyExistingCells(true);
-            $headers = [];
-            $column = 'A';
-            foreach ($cellIterator as $cell) {
-                $value = $cell->getValue();
-                if (!empty($value)) {
-                    $headers[$column] = trim((string) $value);
-                }
-                $column++;
-            }
-            // 获取字段映射 
+            // 获取字段映射
             $columnMap = $this->getFieldMapping($headers);
             // 验证必要字段是否都存在
             $requiredFields = ['id_number', 'personal_amount'];
@@ -1706,103 +1544,46 @@ class InsuranceDataController extends AbstractController
                     'personal_amount' => '个人实缴金额'
                 ];
                 $missingFieldNames = array_map(function ($field) use ($fieldNames) {
-                    return $fieldNames[$field];
+                    return $fieldNames[$field] ?? $field;
                 }, $missingFields);
-                return $this->error('Excel文件缺少必要字段：' . implode('、', $missingFieldNames));
+                return $this->error('CSV文件缺少必要字段：' . implode('、', $missingFieldNames));
             }
 
-            $highestRow = $worksheet->getHighestRow();
+            // 保存文件供异步 Job 处理
+            $uploadDir = BASE_PATH . '/storage/uploads/';
+            if (!is_dir($uploadDir))
+                mkdir($uploadDir, 0755, true);
+            $newFileName = 'insurance_level_match_' . time() . '_' . uniqid() . '.csv';
+            $finalPath = $uploadDir . $newFileName;
+            $file->moveTo($finalPath);
 
-            // 移除表头
-            array_shift($data);
+            // 投递异步任务
+            $userId = (int) $this->request->getAttribute('userId', 0);
+            $username = (string) $this->request->getAttribute('username', 'System');
 
-            $successCount = 0;
-            $failCount = 0;
-            $errors = [];
-            $totalRows = count($data);
+            $lockKey = sprintf('task:lock:%d:importLevelMatch', $userId);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '档次金额匹配_',
+                $userId,
+                $username,
+                \App\Job\InsuranceDataUpdateJob::class,
+                [
+                    [], // 基础参数
+                    $finalPath,
+                    (int) $year,
+                    $columnMap,
+                    'level_match'
+                ],
+                $lockKey
+            );
 
-            // 获取参保档次配置
-            $levelConfigs = InsuranceLevelConfig::where('year', $year)
-                ->get()
-                ->groupBy('payment_category')
-                ->toArray();
-
-
-            foreach ($data as $index => $row) {
-                try {
-                    // 根据字段映射自动获取对应列的数据
-                    $idCol = $columnMap['id_number'];
-                    $personalAmountCol = $columnMap['personal_amount'];
-                    $idNumber = $worksheet->getCell($idCol . $index)->getValue();
-                    $personalPayment = $worksheet->getCell($personalAmountCol . $index)->getValue();
-
-                    if (empty($idNumber)) {
-                        $failCount++;
-                        $errors[] = "第" . ($index + 2) . "行：身份证号为空，已跳过";
-                        continue;
-                    }
-
-                    // 查找对应的参保数据
-                    $insuranceData = InsuranceData::where('id_number', $idNumber)
-                        ->where('year', $year)
-                        ->first();
-
-                    if (!$insuranceData) {
-                        $errors[] = "第" . ($index + 2) . "行：未找到身份证号为 {$idNumber} 的参保数据";
-                        $failCount++;
-                        continue;
-                    }
-
-                    // 根据代缴类别和个人实缴金额匹配档次
-                    $paymentCategory = $insuranceData->payment_category;
-                    $matchedLevel = null;
-
-                    if (isset($levelConfigs[$paymentCategory])) {
-                        foreach ($levelConfigs[$paymentCategory] as $config) {
-                            if ($personalPayment == $config['personal_payment']) {
-                                $matchedLevel = $config['level'];
-                                break;
-                            }
-                        }
-                    }
-
-                    if ($matchedLevel === null) {
-                        $errors[] = "第" . ($index + 2) . "行：无法匹配档次，代缴类别：{$paymentCategory}，个人实缴金额：{$personalPayment}";
-                        $failCount++;
-                        continue;
-                    }
-
-                    // 更新参保数据
-                    $insuranceData->level = $matchedLevel;
-                    $insuranceData->level_match_status = 'matched';
-                    $insuranceData->personal_amount = floatval($personalPayment);
-                    $insuranceData->save();
-
-
-
-                    if (
-                        $insuranceData->street_town_match_status == 'matched' &&
-                        $insuranceData->assistance_identity_match_status == 'matched' &&
-                        $insuranceData->level_match_status == 'matched'
-                    ) {
-                        $insuranceData->match_status = 'matched';
-                        $insuranceData->save();
-                        continue;
-                    }
-
-                    $successCount++;
-                } catch (\Exception $e) {
-                    $errors[] = "第" . ($index + 2) . "行：处理失败 - " . $e->getMessage();
-                    $failCount++;
-                }
+            if ($uuid === false) {
+                return $this->error('匹配任务正在执行中，请在任务中心查看进度');
             }
 
             return $this->success([
-                'success_count' => $successCount,
-                'fail_count' => $failCount,
-                'total_rows' => $totalRows,
-                'errors' => $errors
-            ], "总匹配{$totalRows}条，已匹配上{$successCount}条，已忽略{$failCount}条");
+                'uuid' => $uuid
+            ], '匹配任务已提交，请在任务中心查看进度');
         } catch (\Exception $e) {
             return $this->error('导入失败：' . $e->getMessage());
         }

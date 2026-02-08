@@ -94,7 +94,7 @@ class MedicalRecordExportJob extends AbstractJob
             }
 
             // CSV 文件名
-            $filename = "就诊记录_导出_{$this->uuid}.csv";
+            $filename = "救助报销_就诊记录_导出_{$this->uuid}.csv";
             $fullPath = $runtimePath . $filename;
 
             // 创建 CSV Writer

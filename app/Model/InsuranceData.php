@@ -63,14 +63,14 @@ class InsuranceData extends Model
     {
         // 从年份管理表获取所有活跃年份
         $managedYears = \App\Model\InsuranceYear::getAllActiveYears();
-        
+
         // 从数据表获取实际有数据的年份
         $dataYears = self::distinct()->pluck('year')->sort()->values()->toArray();
-        
+
         // 合并两个数组并去重，优先保留管理表的年份
         $allYears = array_unique(array_merge($managedYears, $dataYears));
         sort($allYears);
-        
+
         return $allYears;
     }
 
@@ -165,10 +165,10 @@ class InsuranceData extends Model
                 $query->where('match_status', $filters['match_status']);
             } elseif ($filters['match_status'] === 'unmatched_data') {
                 // 筛选既不是matched也不是unmatched的数据（空值或null）
-                $query->where(function($q) {
+                $query->where(function ($q) {
                     $q->whereNull('match_status')
-                      ->orWhere('match_status', '')
-                      ->orWhereNotIn('match_status', ['matched', 'unmatched']);
+                        ->orWhere('match_status', '')
+                        ->orWhereNotIn('match_status', ['matched', 'unmatched']);
                 });
             }
         }
@@ -218,8 +218,8 @@ class InsuranceData extends Model
             $unmatchedDataCount = (clone $baseQuery)
                 ->where(function ($query) {
                     $query->whereNull('match_status')
-                          ->orWhere('match_status', '')
-                          ->orWhereNotIn('match_status', ['matched', 'unmatched']);
+                        ->orWhere('match_status', '')
+                        ->orWhereNotIn('match_status', ['matched', 'unmatched']);
                 })
                 ->count();
 
@@ -256,4 +256,24 @@ class InsuranceData extends Model
             'payment_formatted' => number_format(floatval($totalPayment), 2) . ' 元',
         ];
     }
-} 
+    /**
+     * 计算综合匹配状态 (仅返回字符串，不执行 save)
+     */
+    public function calculateOverallMatchStatus(): string
+    {
+        $isLevelMatched = $this->level_match_status === 'matched';
+        $isAssistanceMatched = $this->assistance_identity_match_status === 'matched';
+        $isStreetMatched = $this->street_town_match_status === 'matched';
+
+        return ($isLevelMatched && $isAssistanceMatched && $isStreetMatched) ? 'matched' : 'unmatched';
+    }
+
+    /**
+     * 更新综合匹配状态并保存
+     */
+    public function updateOverallMatchStatus(): bool
+    {
+        $this->match_status = $this->calculateOverallMatchStatus();
+        return $this->save();
+    }
+}

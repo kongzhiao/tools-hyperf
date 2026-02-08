@@ -39,13 +39,12 @@ class CategoryConversion extends Model
     }
 
     /**
-     * 根据任意值查找对应的税务代缴数据口径
+     * 根据任意值查找对应的税务代缴数据口径 (支持三个维度的匹配)
      */
     public static function findByAnyValue(string $value): ?self
     {
-        return self::where('medical_export_standard', $value)
-            ->orWhere('national_dict_name', $value)
-            ->first();
+        // 优先使用高性能 Service 缓存
+        return \App\Service\CategoryConversionCache::findByAnyValue($value);
     }
 
     /**
@@ -63,4 +62,4 @@ class CategoryConversion extends Model
     {
         return self::where('tax_standard', $taxStandard)->get()->toArray();
     }
-} 
+}

@@ -361,7 +361,7 @@ class SettlementConfigController extends AbstractController
             var_dump($actualHeaders);
 
             if ($actualHeaders !== $expectedHeaders) {
-                return $this->error('文件格式不正确，请使用正确的模板 ，确认表头：' . implode(',', $expectedHeaders));
+                return $this->error('文件格式不正确，请使用正确的模板，确认表头：' . implode(',', $expectedHeaders));
             }
 
             // 验证数据
@@ -397,13 +397,19 @@ class SettlementConfigController extends AbstractController
     }
 
     /**
-     * 导入配置
+     * 导入配置（同步处理，使用 CsvReaderService）
      */
     public function import(RequestInterface $request, ResponseInterface $response)
     {
         $file = $request->file('file');
         if (!$file || !$file->isValid()) {
-            return $this->error('请上传有效的文件');
+            return $this->error('请上传有效的 CSV 文件');
+        }
+
+        // 验证文件类型
+        $extension = strtolower($file->getExtension());
+        if ($extension !== 'csv') {
+            return $this->error('仅支持 CSV 格式文件');
         }
 
         $year = (int) $request->input('year');
@@ -417,62 +423,95 @@ class SettlementConfigController extends AbstractController
         }
 
         try {
-            $spreadsheet = IOFactory::load($file->getRealPath());
-            $sheet = $spreadsheet->getActiveSheet();
-            $data = $sheet->toArray();
-
-            // 验证表头
-            $expectedHeaders = ['优抚类别', '优抚住院医疗补助金额（人/元/年）', '备注'];
-            $actualHeaders = $data[0];
-            if ($actualHeaders !== $expectedHeaders) {
-                return $this->error('文件格式不正确，请使用正确的模板 ,确实表头：' . implode(',', $actualHeaders));
-            }
+            $csvReader = new \App\Service\CsvReaderService();
+            $tempFile = $file->getPathname();
 
             // 如果是覆盖模式，先删除原有数据
             if ($mode === 'overwrite') {
                 SettlementConfig::where('year', $year)->delete();
             }
 
-            // 处理数据
-            $importData = [];
-            for ($i = 1; $i < count($data); $i++) {
-                $row = $data[$i];
+            $result = [
+                'imported' => 0,
+                'skipped' => 0,
+                'errors' => []
+            ];
 
-                // 跳过空行
-                if (empty(array_filter($row))) {
-                    continue;
-                }
+            // 表头字段映射
+            $mappings = [
+                'category' => ['优抚类别', '类别'],
+                'amount' => ['优抚住院医疗补助金额（人/元/年）', '补助金额', '金额'],
+                'remark' => ['备注']
+            ];
 
-                // 验证必填字段
-                if (empty($row[0]) || empty($row[1])) {
-                    return $this->error("第" . ($i + 1) . "行数据格式不正确，优抚类别：" . $row[0] . "，优抚住院医疗补助金额（人/元/年）：" . $row[1]);
-                }
+            // 逐行处理数据
+            $csvReader->read(
+                $tempFile,
+                function ($rowData, $rowIndex, $headers) use (&$result, $mappings, $year) {
+                    try {
+                        // 提取数据
+                        $data = ['year' => $year];
+                        foreach ($mappings as $field => $possibleHeaders) {
+                            foreach ($rowData as $csvHeader => $value) {
+                                $csvHeaderTrimmed = trim((string) $csvHeader);
+                                foreach ($possibleHeaders as $expectedHeader) {
+                                    if (
+                                        $csvHeaderTrimmed === $expectedHeader ||
+                                        mb_strpos($csvHeaderTrimmed, $expectedHeader) !== false ||
+                                        mb_strpos($expectedHeader, $csvHeaderTrimmed) !== false
+                                    ) {
+                                        if ($value !== null && $value !== '') {
+                                            $data[$field] = trim((string) $value);
+                                        }
+                                        break 2;
+                                    }
+                                }
+                            }
+                        }
 
-                $importData[] = [
-                    'year' => $year,
-                    'category' => trim($row[0]),
-                    'amount' => (float) $row[1],
-                    'remark' => $row[2] ?? '',
-                ];
-            }
+                        // 验证必填字段
+                        if (empty($data['category'])) {
+                            throw new \Exception('优抚类别不能为空');
+                        }
+                        if (!isset($data['amount']) || !is_numeric($data['amount'])) {
+                            throw new \Exception('补助金额格式不正确');
+                        }
 
-            if (empty($importData)) {
-                return $this->error('文件中没有有效数据');
-            }
+                        // 转换数值类型
+                        $data['amount'] = (float) $data['amount'];
 
-            // 批量插入数据
-            foreach ($importData as $data) {
-                // 检查是否存在相同配置
-                $exists = SettlementConfig::where('year', $data['year'])
-                    ->where('category', $data['category'])
-                    ->exists();
+                        // 检查是否已存在
+                        $exists = SettlementConfig::where('year', $year)
+                            ->where('category', $data['category'])
+                            ->exists();
 
-                if (!$exists) {
-                    SettlementConfig::create($data);
-                }
-            }
+                        if ($exists) {
+                            $result['skipped']++;
+                        } else {
+                            SettlementConfig::create($data);
+                            $result['imported']++;
+                        }
 
-            return $this->success(['imported_count' => count($importData)], '导入成功');
+                    } catch (\Throwable $e) {
+                        $result['errors'][] = "第" . ($rowIndex + 1) . "行：" . $e->getMessage();
+                    }
+                },
+                true,
+                null
+            );
+
+            return $this->success([
+                'imported' => $result['imported'],
+                'skipped' => $result['skipped'],
+                'error_count' => count($result['errors']),
+                'errors' => array_slice($result['errors'], 0, 10),
+                'message' => sprintf(
+                    '导入完成：成功 %d 条，跳过 %d 条，失败 %d 条',
+                    $result['imported'],
+                    $result['skipped'],
+                    count($result['errors'])
+                )
+            ]);
         } catch (\Exception $e) {
             return $this->error('导入失败：' . $e->getMessage());
         }
