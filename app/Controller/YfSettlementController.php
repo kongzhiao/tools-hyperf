@@ -239,4 +239,34 @@ class YfSettlementController extends AbstractController
 
         return $this->success(['uuid' => $uuid], '导出任务已提交，请在任务中心查看进度');
     }
+
+    /**
+     * 删除单条结算记录
+     */
+    public function destroy(int $id)
+    {
+        $settlement = YfSettlement::find($id);
+        if (!$settlement) {
+            return $this->error('记录不存在');
+        }
+
+        $settlement->delete();
+
+        return $this->success(null, '删除成功');
+    }
+
+    /**
+     * 批量删除结算记录
+     */
+    public function batchDestroy(RequestInterface $request)
+    {
+        $ids = $request->input('ids');
+        if (empty($ids) || !is_array($ids)) {
+            return $this->error('请选择有效的记录');
+        }
+
+        $count = YfSettlement::destroy($ids);
+
+        return $this->success(['count' => $count], '成功删除 ' . $count . ' 条记录');
+    }
 }

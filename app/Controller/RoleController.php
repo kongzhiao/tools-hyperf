@@ -7,6 +7,8 @@ use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Annotation\RequestMapping;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Psr\Container\ContainerInterface;
+use Hyperf\Redis\Redis;
+use Hyperf\Context\ApplicationContext;
 
 /**
  * @Controller(prefix="/roles")
@@ -25,60 +27,62 @@ class RoleController extends AbstractController
     public function index()
     {
         $roles = Role::where('id', '!=', 1)->get();
-        
+
         // 为每个角色构建权限树形结构
         foreach ($roles as $role) {
             // 获取角色的权限ID列表 - 使用关系查询
             $rolePermissions = $role->permissions;
             $rolePermissionIds = $rolePermissions->pluck('id')->toArray();
-            
+
             if (!empty($rolePermissionIds)) {
                 // 获取所有权限并构建树形结构
                 $allPermissions = Permission::with('children')->orderBy('sort')->get();
                 $tree = Permission::buildTree($allPermissions->toArray());
-                
-                // 构建完整的权限树状结构
-                $buildPermissionTree = function($permissions) use ($rolePermissionIds, &$buildPermissionTree) {
-                    $tree = [];
-                    foreach ($permissions as $permission) {
-                        $permissionNode = $permission;
-                        
-                        // 如果有子权限，递归处理
-                        if (isset($permission['children']) && is_array($permission['children'])) {
-                            $children = $buildPermissionTree($permission['children']);
-                            $permissionNode['children'] = $children;
-                        } else {
-                            $permissionNode['children'] = [];
-                        }
-                        
-                        // 检查当前权限是否有权限
-                        $hasPermission = in_array($permission['id'], $rolePermissionIds);
-                        
-                        // 检查子权限中是否有权限
-                        $hasChildPermission = false;
-                        if (isset($permission['children']) && is_array($permission['children'])) {
-                            foreach ($permission['children'] as $child) {
-                                if (in_array($child['id'], $rolePermissionIds)) {
-                                    $hasChildPermission = true;
-                                    break;
-                                }
+
+                // 定义一个递归函数，检查某个权限及其所有后代中是否有任何一个被选中
+                $hasAnyDescendantPermission = function ($permission, $rolePermissionIds) use (&$hasAnyDescendantPermission) {
+                    // 检查当前节点
+                    if (in_array($permission['id'], $rolePermissionIds)) {
+                        return true;
+                    }
+                    // 检查所有子节点
+                    if (isset($permission['children']) && is_array($permission['children'])) {
+                        foreach ($permission['children'] as $child) {
+                            if ($hasAnyDescendantPermission($child, $rolePermissionIds)) {
+                                return true;
                             }
                         }
-                        
-                        // 如果当前权限有权限，或者子权限中有权限，就包含这个节点
-                        if ($hasPermission || $hasChildPermission) {
+                    }
+                    return false;
+                };
+
+                // 构建完整的权限树状结构
+                $buildPermissionTree = function ($permissions) use ($rolePermissionIds, &$buildPermissionTree, $hasAnyDescendantPermission) {
+                    $tree = [];
+                    foreach ($permissions as $permission) {
+                        // 只要当前节点或其子孙节点中有被选中的，就保留该分支
+                        if ($hasAnyDescendantPermission($permission, $rolePermissionIds)) {
+                            $permissionNode = $permission;
+
+                            // 递归处理子节点
+                            if (isset($permission['children']) && is_array($permission['children'])) {
+                                $permissionNode['children'] = $buildPermissionTree($permission['children']);
+                            } else {
+                                $permissionNode['children'] = [];
+                            }
+
                             $tree[] = $permissionNode;
                         }
                     }
                     return $tree;
                 };
-                
+
                 $role->permissions = $buildPermissionTree($tree);
             } else {
                 $role->permissions = [];
             }
         }
-        
+
         return $this->response->json([
             'code' => 0,
             'msg' => '获取成功',
@@ -99,7 +103,7 @@ class RoleController extends AbstractController
     public function getPermissions($id)
     {
         $role = Role::find($id);
-        
+
         if (!$role) {
             return $this->response->json([
                 'code' => 404,
@@ -109,13 +113,13 @@ class RoleController extends AbstractController
 
         // 获取角色的权限ID列表
         $rolePermissionIds = $role->permissions()->pluck('permissions.id')->toArray();
-        
+
         // 获取所有权限并构建树形结构
         $allPermissions = Permission::with('children')->orderBy('sort')->get();
         $tree = Permission::buildTree($allPermissions->toArray());
-        
+
         // 标记角色拥有的权限
-        $markRolePermissions = function(&$permissions) use ($rolePermissionIds, &$markRolePermissions) {
+        $markRolePermissions = function (&$permissions) use ($rolePermissionIds, &$markRolePermissions) {
             foreach ($permissions as &$permission) {
                 $permission['has_permission'] = in_array($permission['id'], $rolePermissionIds);
                 if (isset($permission['children']) && is_array($permission['children'])) {
@@ -124,7 +128,7 @@ class RoleController extends AbstractController
             }
         };
         $markRolePermissions($tree);
-        
+
         return $this->response->json([
             'code' => 0,
             'msg' => '获取成功',
@@ -249,49 +253,24 @@ class RoleController extends AbstractController
     {
         $permissionIds = $request->input('permission_ids', []);
         $role = Role::findOrFail($id);
-        
-        // 获取所有权限的树形结构
-        $allPermissions = Permission::with('children')->orderBy('sort')->get();
-        $tree = Permission::buildTree($allPermissions->toArray());
-        
-        // 递归获取所有子权限ID
-        $getAllChildIds = function($permissionId, $permissions) use (&$getAllChildIds) {
-            $childIds = [];
-            foreach ($permissions as $permission) {
-                if ($permission['id'] == $permissionId) {
-                    if (isset($permission['children']) && is_array($permission['children'])) {
-                        foreach ($permission['children'] as $child) {
-                            $childIds[] = $child['id'];
-                            // 递归获取更深层的子权限
-                            $grandChildIds = $getAllChildIds($child['id'], $permissions);
-                            $childIds = array_merge($childIds, $grandChildIds);
-                        }
-                    }
-                    break;
-                }
-                // 如果在当前层级没找到，递归查找子层级
-                if (isset($permission['children']) && is_array($permission['children'])) {
-                    $foundInChildren = $getAllChildIds($permissionId, $permission['children']);
-                    if (!empty($foundInChildren)) {
-                        return $foundInChildren;
-                    }
-                }
+
+        // 移除自动将父节点权限扩展到所有子节点的逻辑
+        // 因为前端通过 Tree 组件提交的 ID 列表已经包含了级联关系（或未级联的精确选择）
+        // 这里直接同步，以支持精细化排除某个子操作。
+
+        $role->permissions()->sync($permissionIds);
+
+        // 核心：清除所有拥有该角色的用户的 Redis 缓存，实现权限即时生效
+        try {
+            $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
+            $userIds = $role->users()->pluck('users.id')->toArray();
+            foreach ($userIds as $userId) {
+                $redis->del('user:cache:' . $userId);
             }
-            return $childIds;
-        };
-        
-        // 扩展权限ID列表，包含所有子权限
-        $expandedPermissionIds = [];
-        foreach ($permissionIds as $permissionId) {
-            $expandedPermissionIds[] = $permissionId;
-            $childIds = $getAllChildIds($permissionId, $tree);
-            $expandedPermissionIds = array_merge($expandedPermissionIds, $childIds);
+        } catch (\Exception $e) {
+            error_log('Redis clear failed in RoleController::assignPermissions: ' . $e->getMessage());
         }
-        
-        // 去重
-        $expandedPermissionIds = array_unique($expandedPermissionIds);
-        
-        $role->permissions()->sync($expandedPermissionIds);
+
         return ['message' => '分配成功'];
     }
 }

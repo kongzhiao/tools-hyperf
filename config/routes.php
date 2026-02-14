@@ -207,7 +207,6 @@ Router::addGroup('/api', function () {
         Router::post('/import-excel', [App\Controller\MedicalAssistanceController::class, 'importExcel']);
     });
 
-    // 优抚联网结算明细
     Router::addGroup('/yf-settlements', function () {
         Router::get('', [App\Controller\YfSettlementController::class, 'index']);
         Router::get('/statistics', [App\Controller\YfSettlementController::class, 'getStatistics']);
@@ -215,8 +214,10 @@ Router::addGroup('/api', function () {
         Router::get('/export', [App\Controller\YfSettlementController::class, 'export']);
         Router::get('/export-ledger', [App\Controller\YfSettlementController::class, 'exportLedger']);
         Router::post('/batch-pay', [App\Controller\YfSettlementController::class, 'batchMarkPay']);
+        Router::post('/batch-delete', [App\Controller\YfSettlementController::class, 'batchDestroy']);
         Router::post('/recalculate', [App\Controller\YfSettlementController::class, 'recalculate']);
         Router::put('/{id:\d+}/pay', [App\Controller\YfSettlementController::class, 'markPay']);
+        Router::delete('/{id:\d+}', [App\Controller\YfSettlementController::class, 'destroy']);
     });
 
     // 优抚类别额度配置
