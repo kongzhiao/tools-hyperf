@@ -46,7 +46,7 @@ RUN chmod -R 755 /opt/www \
     && chown -R 777 /etc/php82/conf.d
 
 # 保留原暴露端口（不变）
-EXPOSE 9501
+EXPOSE 9502
 
 # 保留原启动命令（挂载代码后生效）
 CMD ["php", "/opt/www/bin/hyperf.php", "start"]
