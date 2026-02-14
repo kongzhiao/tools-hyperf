@@ -154,7 +154,12 @@ class CsvReaderService
 
                 // 处理表头
                 if ($hasHeader && $rowIndex === 0) {
-                    $headers = array_map('trim', $rowData);
+                    $headers = array_map(function ($cell) {
+                        $value = is_string($cell) ? $cell : (string) $cell;
+                        // 去除不可见字符，包括 BOM
+                        $value = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
+                        return trim($value);
+                    }, $rowData);
                     $rowIndex++;
                     continue;
                 }
@@ -258,7 +263,12 @@ class CsvReaderService
 
                 // 处理表头
                 if ($hasHeader && $rowIndex === 0) {
-                    $headers = array_map('trim', $rowData);
+                    $headers = array_map(function ($cell) {
+                        $value = is_string($cell) ? $cell : (string) $cell;
+                        // 去除不可见字符，包括 BOM
+                        $value = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
+                        return trim($value);
+                    }, $rowData);
                     $rowIndex++;
                     continue;
                 }

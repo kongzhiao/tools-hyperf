@@ -207,6 +207,31 @@ Router::addGroup('/api', function () {
         Router::post('/import-excel', [App\Controller\MedicalAssistanceController::class, 'importExcel']);
     });
 
+    // 优抚联网结算明细
+    Router::addGroup('/yf-settlements', function () {
+        Router::get('', [App\Controller\YfSettlementController::class, 'index']);
+        Router::get('/statistics', [App\Controller\YfSettlementController::class, 'getStatistics']);
+        Router::post('/import', [App\Controller\YfSettlementController::class, 'import']);
+        Router::get('/export', [App\Controller\YfSettlementController::class, 'export']);
+        Router::get('/export-ledger', [App\Controller\YfSettlementController::class, 'exportLedger']);
+        Router::post('/batch-pay', [App\Controller\YfSettlementController::class, 'batchMarkPay']);
+        Router::post('/recalculate', [App\Controller\YfSettlementController::class, 'recalculate']);
+        Router::put('/{id:\d+}/pay', [App\Controller\YfSettlementController::class, 'markPay']);
+    });
+
+    // 优抚类别额度配置
+    Router::addGroup('/yf-category-quotas', function () {
+        Router::get('', [App\Controller\YfCategoryQuotaController::class, 'index']);
+        Router::post('', [App\Controller\YfCategoryQuotaController::class, 'store']);
+        Router::get('/years', [App\Controller\YfCategoryQuotaController::class, 'getYears']);
+        Router::get('/categories', [App\Controller\YfCategoryQuotaController::class, 'getCategoriesByYear']);
+        Router::post('/clone', [App\Controller\YfCategoryQuotaController::class, 'cloneYear']);
+        Router::post('/import', [App\Controller\YfCategoryQuotaController::class, 'import']);
+        Router::get('/template/download', [App\Controller\YfCategoryQuotaController::class, 'downloadTemplate']);
+        Router::put('/{id:\d+}', [App\Controller\YfCategoryQuotaController::class, 'update']);
+        Router::delete('/{id:\d+}', [App\Controller\YfCategoryQuotaController::class, 'destroy']);
+    });
+
     // 优抚救助
     Router::addGroup('/settlement-config', function () {
         Router::get('', [App\Controller\SettlementConfigController::class, 'index']);
