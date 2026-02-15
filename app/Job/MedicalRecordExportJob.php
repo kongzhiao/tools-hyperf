@@ -152,14 +152,14 @@ class MedicalRecordExportJob extends AbstractJob
                 }
             }
 
-            // 关闭 writer
             $writer->close();
 
-            // 计算文件大小
+            // 存储相对于 BASE_PATH 的路径
+            $relPath = str_replace(BASE_PATH . '/', '', $fullPath);
             $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 2);
 
             // 更新任务完成状态
-            $this->finishTask("/export/{$uid}/" . $filename, $fileSizeMb);
+            $this->finishTask($relPath, $fileSizeMb);
 
             $logger->info("Task {$this->uuid} Export Success: {$fullPath} (Size: {$fileSizeMb}MB, Records: {$processedCount})");
 

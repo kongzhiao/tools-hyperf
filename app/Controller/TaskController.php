@@ -55,7 +55,7 @@ class TaskController extends AbstractController
                     'title' => $task->title,
                     'progress' => (float) $task->progress,
                     'status' => Task::STATUS_MAP[$task->status] ?? 'processing',
-                    'file_url' => $task->file_url,
+                    // 'file_url' => $task->file_url,
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
                     'created_at' => $task->created_at?->toDateTimeString(),
@@ -134,7 +134,7 @@ class TaskController extends AbstractController
                     'title' => $task->title,
                     'progress' => (float) $task->progress,
                     'status' => Task::STATUS_MAP[$task->status] ?? 'processing',
-                    'file_url' => $task->file_url,
+                    // 'file_url' => $task->file_url, // 为了安全，隐藏真实路径，改用 UUID 下载
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
                     'created_at' => $task->created_at?->toDateTimeString(),

@@ -106,9 +106,9 @@ class YfSettlementLedgerExportJob extends AbstractJob
 
             $writer->close();
 
-            $downloadUrl = '/storage/exports/' . $filename;
+            $relPath = str_replace(BASE_PATH . '/', '', $storagePath);
             $fileSize = round(filesize($storagePath) / 1024 / 1024, 2);
-            $this->finishTask($downloadUrl, $fileSize);
+            $this->finishTask($relPath, $fileSize);
 
         } catch (\Throwable $e) {
             $this->failTask($e);

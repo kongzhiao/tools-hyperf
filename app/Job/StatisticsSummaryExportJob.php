@@ -169,14 +169,14 @@ class StatisticsSummaryExportJob extends AbstractJob
                 }
             }
 
-            // 关闭 writer，完成文件写入
             $writer->close();
 
-            // 计算文件大小
+            // 存储相对于 BASE_PATH 的全路径，更加通用
+            $relPath = str_replace(BASE_PATH . '/', '', $fullPath);
             $fileSizeMb = round(filesize($fullPath) / (1024 * 1024), 2);
 
             // 更新任务完成状态
-            $this->finishTask("/export/{$this->params['uid']}/" . $filename, $fileSizeMb);
+            $this->finishTask($relPath, $fileSizeMb);
 
             $logger->info("Task {$this->uuid} Export Success: {$fullPath} (Size: {$fileSizeMb}MB, Records: {$processedCount})");
 

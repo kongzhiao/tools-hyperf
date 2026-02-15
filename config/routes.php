@@ -32,6 +32,8 @@ Router::addGroup('/api', function () {
     // 认证路由
     Router::post('/login', [App\Controller\AuthController::class, 'login']);
     Router::post('/logout', [App\Controller\AuthController::class, 'logout']);
+    // 下载中转
+    Router::get('/download', [App\Controller\DownloadController::class, 'download']);
 });
 
 // ==================== 需要认证的通用业务路由组 ====================

@@ -147,9 +147,10 @@ class YfSettlementExportJob extends AbstractJob
 
             $writer->close();
 
-            $downloadUrl = '/storage/exports/' . $filename;
+            // 存储相对于 BASE_PATH 的路径，增加安全性并减小数据库存储体积
+            $relPath = str_replace(BASE_PATH . '/', '', $storagePath);
             $fileSize = round(filesize($storagePath) / 1024 / 1024, 2);
-            $this->finishTask($downloadUrl, $fileSize);
+            $this->finishTask($relPath, $fileSize);
 
         } catch (\Throwable $e) {
             $this->failTask($e);
