@@ -14,9 +14,16 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 class PermissionController extends AbstractController
 {
     /** @RequestMapping(path="", methods="get") */
-    public function index()
+    public function index(RequestInterface $request)
     {
-        $permissions = Permission::with('children')->where('id', '!=', 1)->orderBy('sort')->get();
+        $query = Permission::with('children')->where('id', '!=', 1)->orderBy('sort');
+        
+        // 非超管过滤状态为0的权限
+        if ($this->getCurrentUserId($request) !== 1) {
+            $query->where('status', 1);
+        }
+        
+        $permissions = $query->get();
         $tree = Permission::buildTree($permissions->toArray());
         
         return $this->response->json([
@@ -40,6 +47,7 @@ class PermissionController extends AbstractController
             'component' => $data['component'] ?? null,
             'icon' => $data['icon'] ?? null,
             'sort' => $data['sort'] ?? 0,
+            'status' => $data['status'] ?? 0,
         ]);
 
         return $this->response->json([
@@ -91,6 +99,7 @@ class PermissionController extends AbstractController
             'component' => $data['component'] ?? null,
             'icon' => $data['icon'] ?? null,
             'sort' => $data['sort'] ?? 0,
+            'status' => $data['status'] ?? 0,
         ]);
 
         return $this->response->json([
@@ -130,9 +139,16 @@ class PermissionController extends AbstractController
     }
 
     /** @RequestMapping(path="/menus", methods="get") */
-    public function getMenus()
+    public function getMenus(RequestInterface $request)
     {
-        $menus = Permission::getMenus();
+        $query = Permission::where('type', 'menu')->orderBy('sort');
+        
+        // 非超管过滤状态为0的权限
+        if ($this->getCurrentUserId($request) !== 1) {
+            $query->where('status', 1);
+        }
+        
+        $menus = $query->get();
         $tree = Permission::buildTree($menus->toArray());
         
         return $this->response->json([
@@ -143,9 +159,16 @@ class PermissionController extends AbstractController
     }
 
     /** @RequestMapping(path="/operations", methods="get") */
-    public function getOperations()
+    public function getOperations(RequestInterface $request)
     {
-        $operations = Permission::getOperations();
+        $query = Permission::where('type', 'operation')->orderBy('sort');
+        
+        // 非超管过滤状态为0的权限
+        if ($this->getCurrentUserId($request) !== 1) {
+            $query->where('status', 1);
+        }
+        
+        $operations = $query->get();
         
         return $this->response->json([
             'code' => 0,
@@ -183,9 +206,9 @@ class PermissionController extends AbstractController
 
             // 获取用户权限
             $userPermissions = $user->getPermissions();
-            
+
             // 获取用户可访问的菜单
-            $menus = Permission::getUserMenus($userPermissions);
+            $menus = Permission::getUserMenus($userPermissions, $user->id == 1);
 
             return $this->response->json([
                 'code' => 0,
@@ -347,5 +370,26 @@ class PermissionController extends AbstractController
         }
 
         return $descriptions[$permissionName] ?? $permissionName;
+    }
+
+    /**
+     * 获取当前用户ID
+     */
+    private function getCurrentUserId(RequestInterface $request): ?int
+    {
+        $token = $request->getHeaderLine('Authorization');
+        $token = str_replace('Bearer ', '', $token);
+
+        if (!$token) {
+            return null;
+        }
+
+        try {
+            $jwtSecret = env('JWT_SECRET', 'your-secret-key');
+            $payload = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($jwtSecret, 'HS256'));
+            return (int) $payload->user_id;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 }

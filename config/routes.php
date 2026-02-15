@@ -37,6 +37,7 @@ Router::addGroup('/api', function () {
 // ==================== 需要认证的通用业务路由组 ====================
 Router::addGroup('/api', function () {
     Router::get('/user/info', [App\Controller\AuthController::class, 'info']);
+    Router::post('/user/change-password', [App\Controller\AuthController::class, 'changePassword']);
 
     // 任务管理路由
     Router::get('/tasks', [App\Controller\TaskController::class, 'index']);

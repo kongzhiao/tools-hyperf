@@ -17,12 +17,14 @@ class Permission extends Model
         'path',
         'component',
         'icon',
-        'sort'
+        'sort',
+        'status'
     ];
 
     protected array $casts = [
         'parent_id' => 'integer',
-        'sort' => 'integer'
+        'sort' => 'integer',
+        'status' => 'integer'
     ];
 
     // 获取子权限
@@ -72,9 +74,13 @@ class Permission extends Model
     }
 
     // 获取用户可访问的菜单
-    public static function getUserMenus($userPermissions)
+    public static function getUserMenus($userPermissions, $isAdmin = false)
     {
-        $menus = self::where('type', 'menu')->with('children')->get();
+        $query = self::where('type', 'menu')->with('children');
+        if (!$isAdmin) {
+            $query->where('status', 1);
+        }
+        $menus = $query->get();
         $accessibleMenus = [];
 
         foreach ($menus as $menu) {

@@ -112,6 +112,77 @@ class AuthController extends AbstractController
     }
 
     /**
+     * 修改密码
+     * @PostMapping(path="/user/change-password")
+     */
+    public function changePassword(RequestInterface $request)
+    {
+        $userId = $this->getCurrentUserId($request);
+        if (!$userId) {
+            return $this->response->json([
+                'code' => 401,
+                'msg' => '未登录'
+            ]);
+        }
+
+        $oldPassword = $request->input('old_password');
+        $newPassword = $request->input('new_password');
+
+        if (!$oldPassword || !$newPassword) {
+            return $this->response->json([
+                'code' => 400,
+                'msg' => '原密码和新密码不能为空'
+            ]);
+        }
+
+        $user = User::find($userId);
+        if (!$user || !password_verify((string) $oldPassword, $user->password)) {
+            return $this->response->json([
+                'code' => 400,
+                'msg' => '原密码不正确'
+            ]);
+        }
+
+        // 更新密码
+        $user->password = password_hash((string) $newPassword, PASSWORD_DEFAULT);
+        $user->save();
+
+        // 清除缓存
+        try {
+            $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
+            $redis->del('user:cache:' . $userId);
+        } catch (\Exception $e) {
+            error_log('Redis clear failed in changePassword: ' . $e->getMessage());
+        }
+
+        return $this->response->json([
+            'code' => 0,
+            'msg' => '密码修改成功'
+        ]);
+    }
+
+    /**
+     * 获取当前用户ID (从JWT中解析)
+     */
+    private function getCurrentUserId(RequestInterface $request): ?int
+    {
+        $token = $request->getHeaderLine('Authorization');
+        $token = str_replace('Bearer ', '', $token);
+
+        if (!$token) {
+            return null;
+        }
+
+        try {
+            $jwtSecret = env('JWT_SECRET', 'your-secret-key');
+            $payload = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($jwtSecret, 'HS256'));
+            return (int) $payload->user_id;
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
      * 用户登出
      * @PostMapping(path="/logout")
      */

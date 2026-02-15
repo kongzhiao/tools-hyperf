@@ -48,7 +48,9 @@ class User extends Model
         $permissions = [];
         foreach ($this->roles as $role) {
             foreach ($role->permissions as $permission) {
-                $permissions[] = $permission->name;
+                if ($permission->status == 1) {
+                    $permissions[] = $permission->name;
+                }
             }
         }
         return array_unique($permissions);
