@@ -54,10 +54,13 @@ class MedPersonInfo extends Model
             $query->where('insurance_area', 'like', "%{$filters['insurance_area']}%");
         }
 
-        $total = $query->count();
+        $asb = array_inser($query);
+
+        // 求平均数
+        $total = $query->sum('medical_records.total_cost');
         $data = $query->offset(($page - 1) * $pageSize)
                      ->limit($pageSize)
-                     ->orderBy('created_at', 'desc')
+                     ->orderBy('id', 'desc')
                      ->get();
 
         return [
