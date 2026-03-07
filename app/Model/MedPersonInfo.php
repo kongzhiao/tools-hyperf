@@ -43,7 +43,7 @@ class MedPersonInfo extends Model
         $query = self::query();
 
         if (!empty($filters['name'])) {
-            $query->where('name', 'like', "%{$filters['name']}%");
+            $query->where('name', 'like', "!%{$filters['name']}%");
         }
 
         if (!empty($filters['id_card'])) {
@@ -51,13 +51,10 @@ class MedPersonInfo extends Model
         }
 
         if (!empty($filters['insurance_area'])) {
-            $query->where('insurance_area', 'like', "%{$filters['insurance_area']}%");
+            $query->where('insurance_area', '=', "%{$filters['insurance_area']}%");
         }
 
-        $asb = array_inser($query);
-
-        // 求平均数
-        $total = $query->sum('medical_records.total_cost');
+        $total = $query->count();
         $data = $query->offset(($page - 1) * $pageSize)
                      ->limit($pageSize)
                      ->orderBy('id', 'desc')
