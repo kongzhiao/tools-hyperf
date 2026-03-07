@@ -337,7 +337,7 @@ class MedicalAssistanceController extends AbstractController
         // 获取该患者的所有就诊记录（所有状态都可以选择）
         $records = MedMedicalRecord::where('person_id', $patient->id)
             ->with('personInfo')
-            ->orderBy('admission_date', 'desc')
+            ->orderBy('id', 'desc')
             ->get();
 
         return $this->success([
@@ -1318,8 +1318,6 @@ class MedicalAssistanceController extends AbstractController
         }
     }
 
-
-
     /**
      * 提取患者数据
      */
@@ -1668,6 +1666,53 @@ class MedicalAssistanceController extends AbstractController
         // 自动调整列宽
         foreach (range('A', $sheet->getHighestColumn()) as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
+        }
+    }
+
+    /**
+     * 导入受理记录（异步任务）
+     * @RequestMapping(path="/reimbursements/import", methods="post")
+     */
+    public function importReimbursements(RequestInterface $request)
+    {
+        try {
+            $uid = (int) $request->getAttribute('userId', 0);
+            $username = $request->getAttribute('username', 'Unknown');
+            
+            $file = $request->file('file');
+            if (!$file || !$file->isValid()) {
+                return $this->error('请上传有效的CSV文件');
+            }
+
+            $tempDir = BASE_PATH . '/runtime/upload/' . $uid;
+            if (!is_dir($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+            
+            $tempFile = $tempDir . '/' . uniqid() . '.csv';
+            $file->moveTo($tempFile);
+
+            // 投递异步任务
+            $lockKey = sprintf('task:lock:%d:importReimbursements', $uid);
+            $uuid = \App\Service\TaskService::instance()->dispatchTask(
+                '救助报销_受理记录_导入_',
+                $uid,
+                $username,
+                \App\Job\ReimbursementImportJob::class,
+                [['uid' => $uid], '', $tempFile], // 注意参数顺序要匹配 Job 构造函数
+                $lockKey
+            );
+
+            if ($uuid === false) {
+                @unlink($tempFile);
+                return $this->error('导入任务正在执行中，请稍后再试');
+            }
+
+            return $this->success(['uuid' => $uuid], '导入任务已提交，请在任务中心查看进度');
+
+        } catch (\Exception $e) {
+            $this->logger->error('导入受理记录提交失败: ' . $e->getMessage());
+            return $this->error('导入任务提交失败: ' . $e->getMessage());
         }
     }
 }
