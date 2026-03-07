@@ -53,9 +53,9 @@ class MedicalAssistanceImportJob extends AbstractJob
             $recordMappings = [
                 'hospital_name' => ['就诊医疗机构名称', '医疗机构名称', '医院名称'],
                 'visit_type' => ['医保就诊类别', '就诊类别', '医保类别'],
-                'admission_date' => ['入院时间', '入院日期'],
-                'discharge_date' => ['出院时间', '出院日期'],
-                'settlement_date' => ['结算时间', '结算日期'],
+                'admission_date' => ['入院时间', '入院日期', '就诊日期', '开始时间'],
+                'discharge_date' => ['出院时间', '出院日期', '结束时间'],
+                'settlement_date' => ['结算时间', '结算日期', '本次结算时间', '医疗费结算日期', '费用结算日期'],
                 'total_cost' => ['总费用', '医疗总费用'],
                 'policy_covered_cost' => ['医保政策范围内费用', '政策范围内费用'],
                 'pool_reimbursement_amount' => ['统筹报销金额', '统筹基金支付'],
@@ -122,8 +122,7 @@ class MedicalAssistanceImportJob extends AbstractJob
                         $this->updateProgress($this->uuid, min($progress, 99));
                     }
                 },
-                true,
-                null
+                true
             );
 
             // 清理文件
@@ -191,13 +190,16 @@ class MedicalAssistanceImportJob extends AbstractJob
 
         foreach ($mappings as $field => $possibleHeaders) {
             foreach ($possibleHeaders as $header) {
-                if (isset($rowData[$header])) {
+                if (isset($rowData[$header]) && $rowData[$header] !== '') {
                     $value = trim((string) $rowData[$header]);
 
                     if (in_array($field, $amountFields)) {
                         $data[$field] = CsvReaderService::parseAmount($value);
                     } elseif (in_array($field, $dateFields)) {
-                        $data[$field] = $this->parseDate($value);
+                        $parsedDate = $this->parseDate($value);
+                        if ($parsedDate) {
+                            $data[$field] = $parsedDate;
+                        }
                     } else {
                         $data[$field] = $value;
                     }
@@ -229,16 +231,24 @@ class MedicalAssistanceImportJob extends AbstractJob
             'Y-m-d H:i:s',
             'Y-m-d',
             'Y/m/d',
+            'Ymd',
+            'Y.m.d',
             'Y年m月d日',
             'd/m/Y',
             'm/d/Y'
         ];
 
         foreach ($formats as $format) {
-            $date = \DateTime::createFromFormat($format, $value);
+            $date = \DateTime::createFromFormat($format, (string) $value);
             if ($date !== false) {
                 return $date->format('Y-m-d H:i:s');
             }
+        }
+
+        // 尝试使用 strtotime 作为兜底
+        $timestamp = strtotime((string) $value);
+        if ($timestamp !== false) {
+            return date('Y-m-d H:i:s', $timestamp);
         }
 
         return null;
