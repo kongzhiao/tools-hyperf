@@ -19,14 +19,17 @@ class User extends Model
      *
      * @var array
      */
-    protected array $fillable = ['username', 'password', 'nickname'];
+    protected array $fillable = ['username', 'password', 'nickname', 'town_id'];
     
     /**
      * The attributes that should be cast to native types.
      *
      * @var array
      */
-    protected array $casts = [];
+    protected array $casts = [
+        'id' => 'integer',
+        'town_id' => 'integer',
+    ];
     
     /**
      * 用户角色关联
@@ -34,6 +37,14 @@ class User extends Model
     public function roles()
     {
         return $this->belongsToMany(Role::class, 'role_user');
+    }
+
+    /**
+     * 所属镇街。为空表示不按镇街限制数据范围。
+     */
+    public function town()
+    {
+        return $this->belongsTo(Town::class, 'town_id');
     }
     
     /**
@@ -48,7 +59,7 @@ class User extends Model
         $permissions = [];
         foreach ($this->roles as $role) {
             foreach ($role->permissions as $permission) {
-                if ($permission->status == 1) {
+                if (($permission->status ?? 1) == 1) {
                     $permissions[] = $permission->name;
                 }
             }
@@ -65,6 +76,8 @@ class User extends Model
             'id' => $this->id,
             'username' => $this->username,
             'nickname' => $this->nickname,
+            'town_id' => $this->town_id,
+            'town_name' => $this->town ? $this->town->name : null,
             'permissions' => $this->getPermissions(),
         ];
     }

@@ -55,6 +55,14 @@ Router::addGroup('/api', function () {
     Router::delete('/users/{id}', [App\Controller\UserController::class, 'destroy']);
     Router::post('/users/{id}/roles', [App\Controller\UserController::class, 'assignRoles']);
 
+    // 镇街管理
+    Router::get('/towns', [App\Controller\TownController::class, 'index']);
+    Router::post('/towns', [App\Controller\TownController::class, 'store']);
+    Router::get('/towns/options', [App\Controller\TownController::class, 'options']);
+    Router::post('/towns/import', [App\Controller\TownController::class, 'import']);
+    Router::put('/towns/{id:\d+}', [App\Controller\TownController::class, 'update']);
+    Router::delete('/towns/{id:\d+}', [App\Controller\TownController::class, 'destroy']);
+
     // 角色管理路由
     Router::get('/roles', [App\Controller\RoleController::class, 'index']);
     Router::post('/roles', [App\Controller\RoleController::class, 'store']);
@@ -234,6 +242,17 @@ Router::addGroup('/api', function () {
         Router::get('/template/download', [App\Controller\YfCategoryQuotaController::class, 'downloadTemplate']);
         Router::put('/{id:\d+}', [App\Controller\YfCategoryQuotaController::class, 'update']);
         Router::delete('/{id:\d+}', [App\Controller\YfCategoryQuotaController::class, 'destroy']);
+    });
+
+    // 未救助明细台账
+    Router::addGroup('/unrescued', function () {
+        Router::addGroup('/disease-configs', function () {
+            Router::get('', [App\Controller\Unrescued\DiseaseConfigController::class, 'index']);
+            Router::post('', [App\Controller\Unrescued\DiseaseConfigController::class, 'store']);
+            Router::post('/import', [App\Controller\Unrescued\DiseaseConfigController::class, 'import']);
+            Router::put('/{id:\d+}', [App\Controller\Unrescued\DiseaseConfigController::class, 'update']);
+            Router::delete('/{id:\d+}', [App\Controller\Unrescued\DiseaseConfigController::class, 'destroy']);
+        });
     });
 
     // 优抚救助

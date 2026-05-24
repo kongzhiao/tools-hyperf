@@ -98,6 +98,16 @@ class InitMenuPermissionsCommand extends HyperfCommand
                 'icon' => 'MedicineBoxOutlined',
                 'sort' => 7,
             ],
+            [
+                'name' => '未救助台账',
+                'description' => '未救助台账',
+                'type' => 'menu',
+                'parent_id' => 0,
+                'path' => '/unrescued',
+                'component' => null,
+                'icon' => 'FileSearchOutlined',
+                'sort' => 8,
+            ],
             
             // 救助报销子菜单
             [
@@ -161,6 +171,38 @@ class InitMenuPermissionsCommand extends HyperfCommand
                 'component' => '@/pages/Permission',
                 'icon' => 'KeyOutlined',
                 'sort' => 3,
+            ],
+            [
+                'name' => '镇街管理',
+                'description' => '镇街管理',
+                'type' => 'menu',
+                'parent_id' => 0,
+                'path' => '/user-management/towns',
+                'component' => '@/pages/Town',
+                'icon' => 'EnvironmentOutlined',
+                'sort' => 4,
+            ],
+
+            // 未救助台账子菜单
+            [
+                'name' => '未救助明细',
+                'description' => '未救助明细',
+                'type' => 'menu',
+                'parent_id' => 0,
+                'path' => '/unrescued/records',
+                'component' => '@/pages/Unrescued/Records',
+                'icon' => 'FileTextOutlined',
+                'sort' => 1,
+            ],
+            [
+                'name' => '重大疾病编码',
+                'description' => '重大疾病编码',
+                'type' => 'menu',
+                'parent_id' => 0,
+                'path' => '/unrescued/disease-configs',
+                'component' => '@/pages/Unrescued/DiseaseConfigs',
+                'icon' => 'MedicineBoxOutlined',
+                'sort' => 2,
             ],
 
             // 业务配置子菜单
@@ -242,6 +284,11 @@ class InitMenuPermissionsCommand extends HyperfCommand
             '账户管理' => '用户管理',
             '角色管理' => '用户管理',
             '权限管理' => '用户管理',
+            '镇街管理' => '用户管理',
+
+            // 未救助台账子菜单
+            '未救助明细' => '未救助台账',
+            '重大疾病编码' => '未救助台账',
 
             // 业务配置子菜单
             '类别转换配置' => '业务配置',
@@ -287,6 +334,13 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '权限管理:创建', 'description' => '创建权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 11],
             ['name' => '权限管理:编辑', 'description' => '编辑权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 12],
             ['name' => '权限管理:删除', 'description' => '删除权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 13],
+
+            // 镇街管理操作权限
+            ['name' => '镇街管理:查看', 'description' => '查看镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 14],
+            ['name' => '镇街管理:创建', 'description' => '创建镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 15],
+            ['name' => '镇街管理:编辑', 'description' => '编辑镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 16],
+            ['name' => '镇街管理:删除', 'description' => '删除镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 17],
+            ['name' => '镇街管理:导入', 'description' => '导入镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 18],
 
             // 类别转换配置操作权限
             ['name' => '类别转换配置:查看', 'description' => '查看类别转换配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 16],
@@ -353,6 +407,14 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '受理记录:编辑', 'description' => '编辑受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 59],
             ['name' => '受理记录:删除', 'description' => '删除受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 60],
             ['name' => '受理记录:导出', 'description' => '导出受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 61],
+
+            // 未救助台账操作权限
+            ['name' => '未救助明细:查看', 'description' => '查看未救助明细', 'type' => 'operation', 'parent_id' => 0, 'sort' => 70],
+            ['name' => '重大疾病编码:查看', 'description' => '查看重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 71],
+            ['name' => '重大疾病编码:创建', 'description' => '创建重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 72],
+            ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 73],
+            ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 74],
+            ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 75],
         ];
 
         foreach ($operationPermissions as $permission) {
@@ -381,6 +443,13 @@ class InitMenuPermissionsCommand extends HyperfCommand
             '权限管理:创建' => '权限管理',
             '权限管理:编辑' => '权限管理',
             '权限管理:删除' => '权限管理',
+
+            // 镇街管理相关操作权限 -> 镇街管理
+            '镇街管理:查看' => '镇街管理',
+            '镇街管理:创建' => '镇街管理',
+            '镇街管理:编辑' => '镇街管理',
+            '镇街管理:删除' => '镇街管理',
+            '镇街管理:导入' => '镇街管理',
 
             // 权限验证工具相关操作权限 -> 权限验证工具
             '权限验证工具:查看' => '权限验证工具',
@@ -457,6 +526,14 @@ class InitMenuPermissionsCommand extends HyperfCommand
             '受理记录:编辑' => '受理记录',
             '受理记录:删除' => '受理记录',
             '受理记录:导出' => '受理记录',
+
+            // 未救助台账相关操作权限
+            '未救助明细:查看' => '未救助明细',
+            '重大疾病编码:查看' => '重大疾病编码',
+            '重大疾病编码:创建' => '重大疾病编码',
+            '重大疾病编码:编辑' => '重大疾病编码',
+            '重大疾病编码:删除' => '重大疾病编码',
+            '重大疾病编码:导入' => '重大疾病编码',
         ];
 
         foreach ($operationParentMappings as $operationName => $parentMenuName) {
@@ -476,7 +553,8 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $this->output->writeln('├── 用户管理');
         $this->output->writeln('│   ├── 账户管理');
         $this->output->writeln('│   ├── 角色管理');
-        $this->output->writeln('│   └── 权限管理');
+        $this->output->writeln('│   ├── 权限管理');
+        $this->output->writeln('│   └── 镇街管理');
         $this->output->writeln('├── 业务配置');
         $this->output->writeln('│   ├── 类别转换配置');
         $this->output->writeln('│   └── 参保档次配置');
@@ -486,9 +564,12 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $this->output->writeln('│   ├── 税务数据汇总');
         $this->output->writeln('│   └── 参保数据汇总');
         $this->output->writeln('├── 统计汇总');
-        $this->output->writeln('└── 救助报销');
-        $this->output->writeln('    ├── 受理记录');
-        $this->output->writeln('    ├── 就诊记录');
-        $this->output->writeln('    └── 患者管理');
+        $this->output->writeln('├── 救助报销');
+        $this->output->writeln('│   ├── 受理记录');
+        $this->output->writeln('│   ├── 就诊记录');
+        $this->output->writeln('│   └── 患者管理');
+        $this->output->writeln('└── 未救助台账');
+        $this->output->writeln('    ├── 未救助明细');
+        $this->output->writeln('    └── 重大疾病编码');
     }
 } 

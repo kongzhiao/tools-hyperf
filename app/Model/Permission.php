@@ -42,7 +42,7 @@ class Permission extends Model
     // 获取角色
     public function roles()
     {
-        return $this->belongsToMany(Role::class, 'permission_role', 'permission_id', 'role_id');
+        return $this->belongsToMany(Role::class, 'role_permissions', 'permission_id', 'role_id');
     }
 
     // 构建树形结构

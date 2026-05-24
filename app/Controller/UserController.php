@@ -35,7 +35,7 @@ class UserController extends AbstractController
         $limit = (int) $request->input('limit', 10);
         $search = $request->input('search', '');
 
-        $query = User::query()->with('roles')
+        $query = User::query()->with(['roles', 'town'])
             ->where('id', '!=', 1);
 
         if ($search) {
@@ -87,6 +87,8 @@ class UserController extends AbstractController
         // 加密密码
         $data['password'] = password_hash($data['password'], PASSWORD_DEFAULT);
 
+        $data['town_id'] = empty($data['town_id']) ? null : (int) $data['town_id'];
+
         $user = User::create($data);
 
         return $this->response->json([
@@ -102,7 +104,7 @@ class UserController extends AbstractController
      */
     public function show($id)
     {
-        $user = User::query()->with('roles')->find($id);
+        $user = User::query()->with(['roles', 'town'])->find($id);
 
         if (!$user) {
             return $this->response->json([
@@ -134,6 +136,7 @@ class UserController extends AbstractController
         }
 
         $data = $request->all();
+        $data['town_id'] = empty($data['town_id']) ? null : (int) $data['town_id'];
 
         // 如果更新密码，需要加密
         if (!empty($data['password'])) {
