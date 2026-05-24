@@ -1,0 +1,20 @@
+kind: source
+name: local-mysql
+type: mysql
+host: 127.0.0.1
+port: 3306
+database: tools_yf
+user: root
+password: 123456
+queryTimeout: 30s
+---
+kind: tool
+name: execute_sql
+type: mysql-execute-sql
+source: local-mysql
+description: Execute SQL against the tools_yf MySQL database. Use SELECT, SHOW, DESC, EXPLAIN by default. Do not run UPDATE, DELETE, INSERT, DROP, ALTER unless the user explicitly asks.
+---
+kind: toolset
+name: default
+tools:
+  - execute_sql
