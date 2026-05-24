@@ -36,7 +36,7 @@ class TownController extends AbstractController
         $name = trim((string) $request->input('name', ''));
         $status = $request->input('status');
 
-        $query = Town::query();
+        $query = Town::query()->withCount('users');
         if ($name !== '') {
             $query->where('name', 'like', "%{$name}%");
         }

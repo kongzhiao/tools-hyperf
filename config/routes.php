@@ -63,6 +63,9 @@ Router::addGroup('/api', function () {
     Router::put('/towns/{id:\d+}', [App\Controller\TownController::class, 'update']);
     Router::delete('/towns/{id:\d+}', [App\Controller\TownController::class, 'destroy']);
 
+    // 通用业务筛选选项
+    Router::get('/business-filter-options', [App\Controller\BusinessFilterOptionController::class, 'index']);
+
     // 角色管理路由
     Router::get('/roles', [App\Controller\RoleController::class, 'index']);
     Router::post('/roles', [App\Controller\RoleController::class, 'store']);
@@ -246,6 +249,23 @@ Router::addGroup('/api', function () {
 
     // 未救助明细台账
     Router::addGroup('/unrescued', function () {
+        Router::addGroup('/records', function () {
+            Router::get('', [App\Controller\Unrescued\RecordController::class, 'index']);
+            Router::get('/statistics', [App\Controller\Unrescued\RecordController::class, 'statistics']);
+            Router::post('/import-attachment1', [App\Controller\Unrescued\RecordController::class, 'importAttachment1']);
+            Router::post('/import-attachment2', [App\Controller\Unrescued\RecordController::class, 'importAttachment2']);
+            Router::get('/wash-config', [App\Controller\Unrescued\RecordController::class, 'washConfig']);
+            Router::get('/wash-options', [App\Controller\Unrescued\RecordController::class, 'washOptions']);
+            Router::post('/wash-config', [App\Controller\Unrescued\RecordController::class, 'saveWashConfig']);
+            Router::post('/wash/execute', [App\Controller\Unrescued\RecordController::class, 'executeWash']);
+            Router::post('/distribute', [App\Controller\Unrescued\RecordController::class, 'distribute']);
+            Router::post('/receive', [App\Controller\Unrescued\RecordController::class, 'receive']);
+            Router::post('/notify', [App\Controller\Unrescued\RecordController::class, 'notify']);
+            Router::post('/accounts', [App\Controller\Unrescued\RecordController::class, 'accounts']);
+            Router::post('/reimbursement', [App\Controller\Unrescued\RecordController::class, 'reimbursement']);
+            Router::post('/export', [App\Controller\Unrescued\RecordController::class, 'export']);
+            Router::get('/{id:\d+}', [App\Controller\Unrescued\RecordController::class, 'show']);
+        });
         Router::addGroup('/disease-configs', function () {
             Router::get('', [App\Controller\Unrescued\DiseaseConfigController::class, 'index']);
             Router::post('', [App\Controller\Unrescued\DiseaseConfigController::class, 'store']);

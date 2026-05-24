@@ -12,16 +12,19 @@ class CreateUnrescuedWashLogsTable extends Migration
     {
         Schema::create('unrescued_wash_logs', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('record_id')->comment('未救助明细ID');
-            $table->unsignedBigInteger('rule_id')->nullable()->comment('清洗规则ID');
-            $table->string('rule_name', 128)->nullable()->comment('规则名称');
-            $table->string('wash_reason', 255)->comment('剔除原因');
-            $table->unsignedBigInteger('operator_id')->nullable()->comment('操作人ID');
-            $table->string('operator_name', 64)->nullable()->comment('操作人');
+            $table->string('settlement_period', 20)->default('')->comment('清算期');
+            $table->unsignedBigInteger('config_id')->default(0)->comment('使用的清洗配置ID');
+            $table->string('batch_no', 50)->default('')->comment('清洗批次');
+            $table->integer('total_count')->default(0)->comment('参与清洗数量');
+            $table->integer('excluded_count')->default(0)->comment('剔除数量');
+            $table->integer('kept_count')->default(0)->comment('保留数量');
+            $table->json('summary')->nullable()->comment('按规则统计的命中结果');
+            $table->unsignedBigInteger('created_by')->default(0)->comment('操作用户ID');
             $table->timestamps();
+            $table->softDeletes();
 
-            $table->index('record_id', 'idx_unrescued_wash_logs_record_id');
-            $table->index('rule_id', 'idx_unrescued_wash_logs_rule_id');
+            $table->index(['settlement_period', 'batch_no'], 'idx_period_batch');
+            $table->index('config_id', 'idx_config_id');
         });
     }
 

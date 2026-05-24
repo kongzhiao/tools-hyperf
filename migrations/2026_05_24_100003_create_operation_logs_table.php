@@ -10,6 +10,10 @@ class CreateOperationLogsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('operation_logs')) {
+            return;
+        }
+
         Schema::create('operation_logs', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id')->nullable()->comment('操作人ID');
@@ -29,6 +33,7 @@ class CreateOperationLogsTable extends Migration
             $table->index(['module', 'action'], 'idx_operation_logs_module_action');
             $table->index('user_id', 'idx_operation_logs_user_id');
             $table->index('created_at', 'idx_operation_logs_created_at');
+            $table->comment('操作日志表');
         });
     }
 

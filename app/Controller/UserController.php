@@ -33,14 +33,34 @@ class UserController extends AbstractController
     {
         $page = (int) $request->input('page', 1);
         $limit = (int) $request->input('limit', 10);
-        $search = $request->input('search', '');
+        $search = trim((string) $request->input('search', $request->input('keyword', '')));
+        $roleId = $request->input('role_id');
+        $townId = $request->input('town_id');
 
         $query = User::query()->with(['roles', 'town'])
             ->where('id', '!=', 1);
 
         if ($search) {
-            $query->where('username', 'like', "%{$search}%")
-                ->orWhere('nickname', 'like', "%{$search}%");
+            $query->where(function ($subQuery) use ($search) {
+                $subQuery->where('username', 'like', "%{$search}%")
+                    ->orWhere('nickname', 'like', "%{$search}%");
+            });
+        }
+
+        if ($roleId !== null && $roleId !== '') {
+            $query->whereHas('roles', function ($subQuery) use ($roleId) {
+                $subQuery->where('roles.id', (int) $roleId);
+            });
+        }
+
+        if ($townId !== null && $townId !== '') {
+            if ((string) $townId === '0') {
+                $query->where(function ($subQuery) {
+                    $subQuery->whereNull('town_id')->orWhere('town_id', 0);
+                });
+            } else {
+                $query->where('town_id', (int) $townId);
+            }
         }
 
         $total = $query->count();

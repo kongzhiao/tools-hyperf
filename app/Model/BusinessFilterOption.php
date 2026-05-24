@@ -6,17 +6,20 @@ namespace App\Model;
 
 use Hyperf\Database\Model\SoftDeletes;
 
-class Town extends Model
+class BusinessFilterOption extends Model
 {
     use SoftDeletes;
 
-    protected ?string $table = 'towns';
+    protected ?string $table = 'business_filter_options';
 
     protected array $fillable = [
-        'name',
-        'code',
+        'module',
+        'type',
+        'value',
+        'label',
         'status',
         'sort',
+        'source_batch',
         'remark',
     ];
 
@@ -25,9 +28,4 @@ class Town extends Model
         'status' => 'integer',
         'sort' => 'integer',
     ];
-
-    public function users()
-    {
-        return $this->hasMany(User::class, 'town_id');
-    }
 }

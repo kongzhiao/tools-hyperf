@@ -10,6 +10,10 @@ class CreateTownsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('towns')) {
+            return;
+        }
+
         Schema::create('towns', function (Blueprint $table) {
             $table->id();
             $table->string('name', 64)->comment('镇街名称');
@@ -22,6 +26,7 @@ class CreateTownsTable extends Migration
 
             $table->index('name', 'idx_towns_name');
             $table->index('status', 'idx_towns_status');
+            $table->comment('镇街表');
         });
     }
 

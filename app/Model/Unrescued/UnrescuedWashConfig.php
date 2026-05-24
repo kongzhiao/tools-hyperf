@@ -14,18 +14,17 @@ class UnrescuedWashConfig extends Model
     protected ?string $table = 'unrescued_wash_configs';
 
     protected array $fillable = [
-        'rule_name',
-        'rule_type',
-        'conditions',
-        'status',
-        'sort',
-        'remark',
+        'version',
+        'name',
+        'data',
+        'is_active',
+        'created_by',
     ];
 
     protected array $casts = [
         'id' => 'integer',
-        'conditions' => 'array',
-        'status' => 'integer',
-        'sort' => 'integer',
+        'data' => 'array',
+        'is_active' => 'integer',
+        'created_by' => 'integer',
     ];
 }

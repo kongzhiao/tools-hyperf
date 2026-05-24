@@ -14,30 +14,21 @@ class UnrescuedSupplementRecord extends Model
 
     protected ?string $table = 'unrescued_supplement_records';
 
-    protected array $fillable = [
-        'record_id',
-        'settlement_period',
-        'name',
-        'id_card',
-        'town_id',
-        'town_name',
-        'should_amount',
-        'actual_amount',
-        'type',
-        'status',
-        'handled_at',
-        'remark',
-    ];
+    protected array $guarded = [];
 
     protected array $casts = [
         'id' => 'integer',
-        'record_id' => 'integer',
         'town_id' => 'integer',
-        'should_amount' => 'decimal:2',
-        'actual_amount' => 'decimal:2',
-        'type' => 'integer',
-        'status' => 'integer',
-        'handled_at' => 'datetime',
+        'total_fee' => 'decimal:2',
+        'policy_fee' => 'decimal:2',
+        'pool_fund_pay' => 'decimal:2',
+        'large_amount_pay' => 'decimal:2',
+        'serious_illness_pay' => 'decimal:2',
+        'medical_assistance_pay' => 'decimal:2',
+        'yukuaibao_pay' => 'decimal:2',
+        'personal_account_pay' => 'decimal:2',
+        'personal_cash_pay' => 'decimal:2',
+        'calc_medical_assistance_amount' => 'decimal:2',
     ];
 
     public function town()

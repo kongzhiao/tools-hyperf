@@ -410,11 +410,18 @@ class InitMenuPermissionsCommand extends HyperfCommand
 
             // 未救助台账操作权限
             ['name' => '未救助明细:查看', 'description' => '查看未救助明细', 'type' => 'operation', 'parent_id' => 0, 'sort' => 70],
-            ['name' => '重大疾病编码:查看', 'description' => '查看重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 71],
-            ['name' => '重大疾病编码:创建', 'description' => '创建重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 72],
-            ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 73],
-            ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 74],
-            ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 75],
+            ['name' => '未救助明细:导入', 'description' => '导入未救助明细', 'type' => 'operation', 'parent_id' => 0, 'sort' => 71],
+            ['name' => '未救助明细:清洗', 'description' => '执行清洗', 'type' => 'operation', 'parent_id' => 0, 'sort' => 72],
+            ['name' => '未救助明细:下放', 'description' => '下放镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 73],
+            ['name' => '未救助明细:通知', 'description' => '标记通知', 'type' => 'operation', 'parent_id' => 0, 'sort' => 74],
+            ['name' => '未救助明细:账户回填', 'description' => '账户回填', 'type' => 'operation', 'parent_id' => 0, 'sort' => 75],
+            ['name' => '未救助明细:报销标记', 'description' => '报销标记', 'type' => 'operation', 'parent_id' => 0, 'sort' => 76],
+            ['name' => '未救助明细:导出', 'description' => '导出未救助台账', 'type' => 'operation', 'parent_id' => 0, 'sort' => 77],
+            ['name' => '重大疾病编码:查看', 'description' => '查看重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 78],
+            ['name' => '重大疾病编码:创建', 'description' => '创建重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 79],
+            ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 80],
+            ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 81],
+            ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 82],
         ];
 
         foreach ($operationPermissions as $permission) {
@@ -529,6 +536,13 @@ class InitMenuPermissionsCommand extends HyperfCommand
 
             // 未救助台账相关操作权限
             '未救助明细:查看' => '未救助明细',
+            '未救助明细:导入' => '未救助明细',
+            '未救助明细:清洗' => '未救助明细',
+            '未救助明细:下放' => '未救助明细',
+            '未救助明细:通知' => '未救助明细',
+            '未救助明细:账户回填' => '未救助明细',
+            '未救助明细:报销标记' => '未救助明细',
+            '未救助明细:导出' => '未救助明细',
             '重大疾病编码:查看' => '重大疾病编码',
             '重大疾病编码:创建' => '重大疾病编码',
             '重大疾病编码:编辑' => '重大疾病编码',
