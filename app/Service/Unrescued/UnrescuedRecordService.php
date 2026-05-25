@@ -17,6 +17,11 @@ class UnrescuedRecordService
     public const STATUS_DISTRIBUTED = '已下放';
     public const STATUS_RECEIVED = '已接收';
     public const STATUS_NOTIFIED = '已通知';
+    public const TOWN_VISIBLE_STATUSES = [
+        self::STATUS_DISTRIBUTED,
+        self::STATUS_RECEIVED,
+        self::STATUS_NOTIFIED,
+    ];
 
     public const REIMBURSEMENT_UNPAID = '未报销';
     public const REIMBURSEMENT_PAID = '已报销';
@@ -170,7 +175,35 @@ class UnrescuedRecordService
             ->orWhere('code', $townName)
             ->first();
 
-        return $town ? (int) $town->id : 0;
+        if ($town) {
+            return (int) $town->id;
+        }
+
+        $normalizedInput = $this->normalizeTownName($townName);
+        if ($normalizedInput === '') {
+            return 0;
+        }
+
+        $towns = Town::query()
+            ->select(['id', 'name', 'code'])
+            ->get();
+
+        foreach ($towns as $item) {
+            $normalizedName = $this->normalizeTownName((string) $item->name);
+            $normalizedCode = $this->normalizeTownName((string) $item->code);
+            if ($normalizedInput === $normalizedName || ($normalizedCode !== '' && $normalizedInput === $normalizedCode)) {
+                return (int) $item->id;
+            }
+        }
+
+        return 0;
+    }
+
+    private function normalizeTownName(string $name): string
+    {
+        $name = preg_replace('/\s+/u', '', trim($name)) ?: '';
+        $name = str_replace(['镇人民政府', '街道办事处', '街道办', '办事处'], '', $name);
+        return preg_replace('/(镇|乡|街道)$/u', '', $name) ?: $name;
     }
 
     public function applyFilters($query, array $filters): void
@@ -204,7 +237,8 @@ class UnrescuedRecordService
     public function applyTownScope($query, int $userTownId): void
     {
         if ($userTownId > 0) {
-            $query->where('town_id', $userTownId);
+            $query->where('town_id', $userTownId)
+                ->whereIn('status', self::TOWN_VISIBLE_STATUSES);
         }
     }
 
@@ -217,7 +251,7 @@ class UnrescuedRecordService
                 'field' => 'medical_category',
                 'action' => 'keep',
                 'operator' => 'in',
-                'values' => ['普通住院', '住院双通道外购药', '儿童两病住院'],
+                'values' => [],
                 'remark' => '门诊救助',
                 'enabled' => false,
             ],
@@ -227,7 +261,7 @@ class UnrescuedRecordService
                 'field' => 'hospital_name',
                 'action' => 'exclude',
                 'operator' => 'contains',
-                'values' => ['诊所', '药店', '卫生室'],
+                'values' => [],
                 'remark' => '对象类别不符',
                 'enabled' => false,
             ],
@@ -297,7 +331,7 @@ class UnrescuedRecordService
                 'field' => 'priority_identity',
                 'action' => 'exclude',
                 'operator' => 'contains',
-                'values' => ['返贫致贫人口', '低保边缘家庭成员', '因病致贫重病患者', '脱贫不稳定户', '边缘易致贫户', '突发严重困难户'],
+                'values' => [],
                 'remark' => '对象类别不符',
                 'enabled' => false,
             ],

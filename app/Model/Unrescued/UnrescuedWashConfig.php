@@ -16,6 +16,7 @@ class UnrescuedWashConfig extends Model
     protected array $fillable = [
         'version',
         'name',
+        'rule_name',
         'data',
         'is_active',
         'created_by',

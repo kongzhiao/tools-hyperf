@@ -10,6 +10,10 @@ class CreateBusinessFilterOptionsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('business_filter_options')) {
+            return;
+        }
+
         Schema::create('business_filter_options', function (Blueprint $table) {
             $table->id();
             $table->string('module', 100)->default('')->comment('业务模块，如unrescued');
@@ -25,6 +29,7 @@ class CreateBusinessFilterOptionsTable extends Migration
 
             $table->index(['module', 'type', 'value'], 'idx_module_type_value');
             $table->index(['module', 'type', 'status'], 'idx_module_type_status');
+            $table->comment('业务筛选表');
         });
     }
 

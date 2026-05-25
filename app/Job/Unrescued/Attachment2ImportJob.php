@@ -61,16 +61,16 @@ class Attachment2ImportJob extends AbstractJob
                 $processed++;
                 $transactionStarted = false;
                 try {
-                    $idCard = $service->pickValue($row, ['身份证号', '身份证', 'id_card']);
+                    $idCard = $service->pickValue($row, ['身份证号', '身份证号码', '身份证件号码', '公民身份号码', '身份证', 'id_card']);
                     if ($idCard === '') {
                         $result['skipped']++;
                         return;
                     }
 
                     $name = $service->pickValue($row, ['姓名', 'name']);
-                    $streetTown = $service->pickValue($row, ['镇街', '街镇', 'street_town']);
-                    $village = $service->pickValue($row, ['村社', '社区', 'village']);
-                    $identity = $service->pickValue($row, ['优先身份', '对象类别', '身份', 'priority_identity']);
+                    $streetTown = $service->pickValue($row, ['镇街', '镇（街）', '镇(街)', '街镇', '街道乡镇', '镇街名称', '乡镇街道', 'street_town']);
+                    $village = $service->pickValue($row, ['村社', '村（居）', '村(居)', '社区', '村社区', '村居', 'village']);
+                    $identity = $service->pickValue($row, ['优先身份', '医疗救助身份', '救助身份', '对象类别', '对象身份', '身份', '身份类别', '特殊人员身份类别', '特殊人员身份', '人员类别', 'priority_identity']);
                     $townId = $service->resolveTownId($streetTown);
                     $filterOptionService->saveOption('unrescued', 'priority_identity', $identity, $sourceBatch);
 

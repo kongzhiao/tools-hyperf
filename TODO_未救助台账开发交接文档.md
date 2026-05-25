@@ -448,7 +448,7 @@
 - 未救助明细中，镇街账号只能看到自己的镇街选项，镇街筛选不可修改；前后端均按 `users.town_id` 做数据隔离。
 - 镇街账号权限收紧：前端隐藏导入、清洗、下放、导出、报销标记；后端同步拦截这些操作。镇街账号仅保留确认接收、标记已通知、回填银行账户能力。
 - 清洗规则交互升级为固定规则项配置：每条规则显示启用、规则项、保留/剔除、条件、剔除备注；医疗类别和身份选项由当前已导入未救助明细去重生成。
-- 新增后端接口 `/api/unrescued/records/wash-options`，返回已导入数据中的医疗类别、身份类别去重选项。
+- 新增后端接口 `/api/unrescued/records/wash-options`，返回业务筛选表中的医疗类别、身份类别去重选项。
 - 清洗规则 JSON 结构升级为 `action + operator + values/value/compare_field + remark`，仍保存到现有 `unrescued_wash_configs` 版本表；后续如客户确认“全局筛选规则表”还要跨模块复用，可再抽象成独立全局规则表。
 
 本轮补充修正记录：
@@ -458,7 +458,9 @@
 - 新增模型 `BusinessFilterOption`、服务 `BusinessFilterOptionService`、通用接口 `/api/business-filter-options?module=xxx&type=xxx`。
 - 附件1导入时会把医疗类别写入 `business_filter_options`：`module=unrescued`、`type=medical_category`。
 - 附件2导入时会把优先身份/对象类别写入 `business_filter_options`：`module=unrescued`、`type=priority_identity`。
-- 未救助清洗规则选项接口 `/api/unrescued/records/wash-options` 改为优先读取 `business_filter_options`，并兼容回查主表已有数据。
+- 未救助清洗规则选项接口 `/api/unrescued/records/wash-options` 改为只读取 `business_filter_options`，不再 fallback 主表数据；如果表里为空，前端医疗类别/身份条件值也应为空并提示先导入数据。
+- 默认清洗规则中的医疗类别、身份、医药机构关键字不再写死默认 `values`；医疗类别/身份前端会按 `business_filter_options` 返回选项过滤已选值，历史配置里残留但业务筛选表不存在的值不会再显示，保存后会被清掉。
+- 修复旧库 `unrescued_wash_configs.rule_name` 非空无默认值导致保存清洗规则失败的问题：`UnrescuedWashConfig` 模型允许 `rule_name`，保存/默认创建同时写入 `name` 和 `rule_name`；新增迁移 `2026_05_25_231200_patch_unrescued_wash_config_rule_name.php`，用于给旧表 `rule_name` 补默认值并同步 `name/rule_name`。
 - 修复已有旧版清洗 JSON 导致前端看不到固定规则项的问题：读取活动清洗配置时会按默认 9 条固定规则补齐并规范化，确保始终显示医疗类别、医药机构名称、统筹报销金额、大额报销、大病报销、已使用普通住院救助金额、已使用重特大疾病救助金额、已使用大额费用住院救助、身份规则。
 - 新增迁移 `2026_05_24_100011_create_business_filter_options_table.php`，执行迁移后新表才会生效。
 
@@ -471,8 +473,52 @@
 - 默认清洗规则固定项均为未启用状态；未启用任何规则时，“执行 清洗规则”按钮禁用，hover 提示“请配置并启用至少一条清洗规则”。
 - 后端执行清洗时也会校验至少启用一条规则，避免绕过前端直接执行空规则。
 
+阶段八迁移与权限初始化核对记录：
+
+- 已将 `InitMenuPermissionsCommand` 从 `Permission::truncate()` 改为按权限 `name` 非破坏性 upsert：保留现有 `permissions.id` 和 `role_permissions` 授权关系，仅新增或更新菜单/操作权限定义。
+- `init:menu-permissions` 现在会输出菜单权限/操作权限的新增与更新数量，不再清空生产权限表。
+- 已将 `permissions.status` 迁移改为幂等：若 `permissions` 表不存在则跳过；若 `status` 字段已存在则不重复添加；若 `idx_permissions_status` 索引已存在则不重复创建。根目录 `migrations/` 与 `database/migrations/` 已同步。
+- 已执行单文件与全量 PHP 语法检查：
+  - `php -l app/Command/InitMenuPermissionsCommand.php`
+  - `php -l migrations/2026_05_24_100009_add_status_to_permissions_table.php`
+  - `php -l database/migrations/2026_05_24_100009_add_status_to_permissions_table.php`
+  - `find app config migrations database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l`
+  均通过。
+- 已尝试进入阶段八本机联调，但当前 CLI PHP 仍为 `8.1.31`，执行 `php bin/hyperf.php list` 时 Composer 直接拦截：项目依赖要求 PHP `>=8.2.0`。因此本机暂不能执行 `migrate`、`init:menu-permissions`、导入导出任务联调。需要先切换 PHP 8.2+。
+
+阶段八页面问题修正记录：
+
+- 未救助明细的镇街显示改为优先显示附件2沉淀的 `street_town`，为空时回退显示 `town_id` 对应的 `towns.name`；镇街账号筛选项增加当前账号镇街兜底，避免基础选项未加载时显示成数字 ID。
+- 未救助明细的身份显示改为标签+悬浮完整文本，身份筛选改为下拉选择，选项来自清洗规则选项接口和当前列表已有身份。
+- 镇街账号数据可见范围已收紧为仅 `已下放`、`已接收`、`已通知` 三种状态；前端镇街账号状态筛选也只显示这三个选项。
+- 镇街账号访问当前清算期存在 `已下放` 数据时仍自动弹窗强制确认接收，弹窗不提供取消/关闭入口；确认后将 `已下放` 标记为 `已接收` 并刷新列表。
+- 镇街账号绕过前端直接调用接口时，也不能对 `已下放` 且未接收的数据直接标记通知或回填账户，必须先确认接收。
+- 镇街账号接收后可对 `已接收/已通知` 记录补填银行账户资料；仅 `已接收` 可标记为 `已通知`；新增撤销通知能力，可将 `已通知` 回退为 `已接收` 并清空 `notified_at`。
+- 未救助明细前端已将镇街账号的可操作入口显性化：顶部支持批量“补填 银行账户 / 标记 已通知 / 撤销 通知”，列表右侧固定“操作”列支持单条“补填资料 / 已通知 / 撤销”，不再完全依赖权限点展示，镇街账号按业务角色直接可见。
+- 单条补填资料会自动带入当前记录已有开户行、户名、账号；户名为空时默认带入姓名，方便镇街账号补录。
+- 未救助明细、重大疾病编码、镇街管理中的长文本列已统一改为左侧复制按钮 + `Typography.Text` 省略展示，鼠标 hover 显示完整内容；覆盖姓名、身份证号、镇街/村社、身份、医疗类别、医药机构、银行账户、备注、病种编码/名称、镇街名称等主要文本列。
+- 未救助统计接口新增 `received`、`notified` 计数；镇街账号访问未救助明细时，顶部统计卡片只展示“已接收”和“已通知”，不再展示管理员视角的当前记录、已匹配对象、拟通知、待接收、已剔除、已报销等统计。
+- 未救助明细操作区已按“导入 / 数据处理 / 记录操作 / 导出”分组，使用左侧色条区分操作类型，避免按钮密集堆叠。
+- 未救助明细操作区继续优化为紧凑工具条：左侧保留导入、下放、清洗等主流程按钮；右侧将通知、撤销、账户回填、报销标记收进“批量操作”下拉，将四类导出收进“导出”下拉，减少页面按钮堆叠。
+- “下放 镇街数据”不再依赖筛选区先选镇街；点击按钮后弹窗选择下放镇街，并按当前清算期执行下放。
+- 下放状态流已增加保护：只会将所选清算期和镇街下状态为 `拟通知` 的未剔除数据更新为 `已下放`；已处于 `已下放`、`已接收`、`已通知` 的数据不会被重复下放回退状态，接口会返回 `skipped_workflow_rows`，前端提示未重复处理数量。
+- 清洗规则配置默认只读，右上角点击“编辑”后才允许修改；编辑态按钮切换为“保存 / 取消”，取消会回滚到最近一次已保存规则；编辑期间禁用“执行 清洗规则”，避免未保存配置和后端实际执行配置不一致。
+- 清洗规则中的医疗类别、身份选项继续读取 `business_filter_options` 业务筛选表；医药机构名称条件值改为 tags 输入，输入关键字后回车生成可删除的块，不再要求用顿号手工分割。
+- `business_filter_options` 的根目录迁移与 `database/migrations` 迁移已保持一致，均增加 `Schema::hasTable('business_filter_options')` 幂等保护。
+- 附件1/附件2导入增强表头兼容：身份证支持“身份证号码/身份证件号码/公民身份号码”，附件2镇街支持“镇（街）/街道乡镇/镇街名称”等，身份支持“医疗救助身份/救助身份/特殊人员身份类别/人员类别”等。
+- 镇街匹配增强：精确匹配失败时会去掉“镇/乡/街道/办事处”等常见后缀再匹配，降低导入附件2后 `town_id=0` 导致镇街账号看不到数据的概率。
+- 重大疾病编码页面已补齐工具栏卡片、表格卡片、横向滚动、按钮文案，整体样式与未救助明细/镇街管理更一致。
+- 已执行相关后端 PHP 语法检查通过；前端 `pnpm -s tsc --noEmit | rg 'Unrescued|unrescued|DiseaseConfigs|Records/index|Town/index|services/unrescued'` 无未救助/镇街相关错误。全量 `pnpm -s tsc --noEmit` 仍失败，但报错来自既有页面 `SettlementConfig`、`InsuranceData`、`ImageOptimizationTest`、`Ocr`、`Table`。
+- 已启动前端 dev server 到 `http://localhost:8001` 验证可编译启动；本次 in-app browser 返回 `Browser is not available: iab`，未能截图检查页面视觉，随后已停止 dev server。
+
 ## 10. 下次对话启动提示
 
 下次可以直接说：
 
-> 请阅读 `docs/project1.md`、`TODO_未救助台账开发交接文档.md`、`docs/未救助明细台账_md/业务逻辑与流程图.md`、`docs/未救助明细台账_md/数据库表设计规范.md`，按已确认口径继续未救助明细台账模块开发。阶段一至阶段七主体代码已完成：镇街/用户归属、重大疾病编码、附件1/2导入、主表列表、清洗、下放接收通知、账户回填、报销标记、四类导出均已有实现。请先核对迁移和权限初始化方式，注意当前 `init:menu-permissions` 会清空 `permissions`，生产环境需先改成非破坏性 upsert 或在测试库验证；然后进入阶段八整体联调：用样例 CSV 跑通附件3配置、附件1/2导入、清洗、下放、镇街接收/通知/账户回填、报销标记、四类导出，并补齐发现的问题、权限点、二次确认、操作日志和文档。
+> 请阅读 `docs/project1.md`、`TODO_未救助台账开发交接文档.md`、`docs/未救助明细台账_md/业务逻辑与流程图.md`、`docs/未救助明细台账_md/数据库表设计规范.md`，按已确认口径继续未救助明细台账模块阶段八整体联调。阶段一至阶段七主体代码已完成，`init:menu-permissions` 已改为非破坏性 upsert，`permissions.status` 迁移已做幂等保护；未救助明细镇街/身份显示、附件1/2导入表头兼容、镇街后缀匹配、重大疾病编码页面样式、镇街账号行内补填/通知/撤销操作入口、镇街账号顶部仅展示已接收/已通知统计、长文本左侧复制按钮和 hover 完整提示、操作区紧凑工具条、下放弹窗选择镇街、重复下放不回退已下放/已接收/已通知状态、清洗规则只读/编辑态和医药机构 tags 关键字输入也已做修正。当前本机阻塞是 CLI PHP 为 8.1.31，而项目依赖要求 PHP >=8.2.0；请先确认或切换 PHP 8.2+，再执行迁移、非破坏性权限初始化，并用样例 CSV 跑通附件3配置、附件1/2导入、清洗、下放、镇街接收/通知/账户回填、报销标记、四类导出，补齐发现的问题、权限点、二次确认、操作日志和文档。
+
+
+保存清洗规则依然报错：{
+    "code": 401,
+    "msg": "SQLSTATE[HY000]: General error: 1364 Field 'rule_type' doesn't have a default value (SQL: insert into `unrescued_wash_configs` (`version`, `name`, `rule_name`, `data`, `is_active`, `created_by`, `updated_at`, `created_at`) values ('20260525231734', '未救助清洗规则', '未救助清洗规则', '[{\"code\":\"medical_category_keep\",\"name\":\"\\u533b\\u7597\\u7c7b\\u522b\",\"field\":\"medical_category\",\"action\":\"keep\",\"operator\":\"in\",\"values\":[],\"remark\":\"\\u95e8\\u8bca\\u6551\\u52a9\",\"enabled\":false},{\"code\":\"hospital_keyword_exclude\",\"name\":\"\\u533b\\u836f\\u673a\\u6784\\u540d\\u79f0\",\"field\":\"hospital_name\",\"action\":\"exclude\",\"operator\":\"contains\",\"values\":[],\"remark\":\"\\u5bf9\\u8c61\\u7c7b\\u522b\\u4e0d\\u7b26\",\"enabled\":true},{\"code\":\"pool_equals_policy\",\"name\":\"\\u7edf\\u7b79\\u62a5\\u9500\\u91d1\\u989d\",\"field\":\"pool_fund_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":true},{\"code\":\"large_equals_policy\",\"name\":\"\\u5927\\u989d\\u62a5\\u9500\",\"field\":\"large_amount_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":false},{\"code\":\"serious_equals_policy\",\"name\":\"\\u5927\\u75c5\\u62a5\\u9500\",\"field\":\"serious_illness_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":false},{\"code\":\"normal_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u666e\\u901a\\u4f4f\\u9662\\u6551\\u52a9\\u91d1\\u989d\",\"field\":\"used_normal_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"6000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"major_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u91cd\\u7279\\u5927\\u75be\\u75c5\\u6551\\u52a9\\u91d1\\u989d\",\"field\":\"used_major_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"100000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"large_fee_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u5927\\u989d\\u8d39\\u7528\\u4f4f\\u9662\\u6551\\u52a9\",\"field\":\"used_large_fee_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"60000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"identity_exclude\",\"name\":\"\\u8eab\\u4efd\",\"field\":\"priority_identity\",\"action\":\"exclude\",\"operator\":\"contains\",\"values\":[],\"remark\":\"\\u5bf9\\u8c61\\u7c7b\\u522b\\u4e0d\\u7b26\",\"enabled\":false}]', 1, 1, '2026-05-25 23:17:34', '2026-05-25 23:17:34'))"
+}

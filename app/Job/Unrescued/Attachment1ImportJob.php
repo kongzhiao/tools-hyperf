@@ -72,7 +72,7 @@ class Attachment1ImportJob extends AbstractJob
                         'sequence_no' => $sequenceNo,
                         'source_batch' => $sourceBatch,
                         'name' => $service->pickValue($row, ['姓名', 'name']) ?: null,
-                        'id_card' => $service->pickValue($row, ['身份证号', '身份证', 'id_card']) ?: null,
+                        'id_card' => $service->pickValue($row, ['身份证号', '身份证号码', '身份证件号码', '公民身份号码', '身份证', 'id_card']) ?: null,
                         'medical_category' => $service->pickValue($row, ['医疗类别', 'medical_category']) ?: null,
                         'disease_code' => $service->pickValue($row, ['病种编码', 'disease_code']) ?: null,
                         'disease_name' => $service->pickValue($row, ['病种名称', 'disease_name']) ?: null,

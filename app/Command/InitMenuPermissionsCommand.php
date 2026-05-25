@@ -22,16 +22,13 @@ class InitMenuPermissionsCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('初始化菜单权限数据');
+        $this->setDescription('初始化菜单权限数据（非破坏性 upsert，不清空现有权限和角色授权）');
     }
 
     public function handle()
     {
         $this->output->writeln('开始初始化菜单权限...');
-
-        // 清空现有权限数据
-        Permission::truncate();
-        $this->output->writeln('已清空现有权限数据');
+        $this->output->writeln('使用非破坏性 upsert：保留现有权限 ID 与角色授权关系，仅新增或更新菜单/操作定义');
 
         // 定义菜单权限数据 - 重新设计结构
         $menuPermissions = [
@@ -270,12 +267,16 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ],
         ];
 
-        // 创建权限记录
+        // 创建或更新权限记录，保留已有 ID，避免破坏 role_permissions 关联。
         $createdPermissions = [];
+        $createdMenuCount = 0;
+        $updatedMenuCount = 0;
         foreach ($menuPermissions as $permission) {
-            $created = Permission::create($permission);
+            [$created, $isCreated] = $this->upsertPermission($permission);
             $createdPermissions[$created->name] = $created->id;
-            $this->output->writeln("创建权限: {$permission['description']} ({$permission['name']})");
+            $isCreated ? $createdMenuCount++ : $updatedMenuCount++;
+            $action = $isCreated ? '创建' : '更新';
+            $this->output->writeln("{$action}权限: {$permission['description']} ({$permission['name']})");
         }
 
         // 更新子菜单的parent_id
@@ -424,10 +425,14 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 82],
         ];
 
+        $createdOperationCount = 0;
+        $updatedOperationCount = 0;
         foreach ($operationPermissions as $permission) {
-            $created = Permission::create($permission);
+            [$created, $isCreated] = $this->upsertPermission($permission);
             $createdPermissions[$created->name] = $created->id;
-            $this->output->writeln("创建操作权限: {$permission['description']} ({$permission['name']})");
+            $isCreated ? $createdOperationCount++ : $updatedOperationCount++;
+            $action = $isCreated ? '创建' : '更新';
+            $this->output->writeln("{$action}操作权限: {$permission['description']} ({$permission['name']})");
         }
 
         // 更新操作权限的parent_id，将它们归属到对应的菜单权限
@@ -559,7 +564,8 @@ class InitMenuPermissionsCommand extends HyperfCommand
         }
 
         $this->output->writeln('菜单权限初始化完成！');
-        $this->output->writeln('总计创建了 ' . count($menuPermissions) . ' 个菜单权限和 ' . count($operationPermissions) . ' 个操作权限');
+        $this->output->writeln("菜单权限：新增 {$createdMenuCount} 个，更新 {$updatedMenuCount} 个");
+        $this->output->writeln("操作权限：新增 {$createdOperationCount} 个，更新 {$updatedOperationCount} 个");
         
         $this->output->writeln('');
         $this->output->writeln('新的菜单结构：');
@@ -585,5 +591,31 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $this->output->writeln('└── 未救助台账');
         $this->output->writeln('    ├── 未救助明细');
         $this->output->writeln('    └── 重大疾病编码');
+    }
+
+    private function upsertPermission(array $permission): array
+    {
+        $data = [
+            'description' => $permission['description'] ?? '',
+            'type' => $permission['type'] ?? 'operation',
+            'parent_id' => $permission['parent_id'] ?? 0,
+            'path' => $permission['path'] ?? null,
+            'component' => $permission['component'] ?? null,
+            'icon' => $permission['icon'] ?? null,
+            'sort' => $permission['sort'] ?? 0,
+            'status' => $permission['status'] ?? 1,
+        ];
+
+        $model = Permission::where('name', $permission['name'])->orderBy('id')->first();
+        if ($model) {
+            $model->fill($data);
+            $model->save();
+            return [$model, false];
+        }
+
+        $model = new Permission(array_merge(['name' => $permission['name']], $data));
+        $model->save();
+
+        return [$model, true];
     }
 } 

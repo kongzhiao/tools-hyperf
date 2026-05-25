@@ -48,6 +48,7 @@ class PatchUnrescuedStageFourToSevenFields extends Migration
             Schema::table('unrescued_wash_configs', function (Blueprint $table) {
                 $this->addColumnIfMissing($table, 'version', fn () => $table->string('version', 50)->default('')->comment('规则版本号'));
                 $this->addColumnIfMissing($table, 'name', fn () => $table->string('name', 100)->default('')->comment('配置名称'));
+                $this->addColumnIfMissing($table, 'rule_name', fn () => $table->string('rule_name', 100)->default('')->comment('配置名称/兼容旧字段'));
                 $this->addColumnIfMissing($table, 'data', fn () => $table->json('data')->nullable()->comment('清洗规则JSON'));
                 $this->addColumnIfMissing($table, 'is_active', fn () => $table->tinyInteger('is_active')->default(1)->comment('是否启用'));
                 $this->addColumnIfMissing($table, 'created_by', fn () => $table->unsignedBigInteger('created_by')->default(0)->comment('创建用户ID'));

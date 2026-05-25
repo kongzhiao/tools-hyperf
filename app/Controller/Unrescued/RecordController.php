@@ -80,6 +80,8 @@ class RecordController extends AbstractController
         ])->count();
         $paid = (clone $base)->where('reimbursement_status', UnrescuedRecordService::REIMBURSEMENT_PAID)->count();
         $pendingReceive = (clone $base)->where('status', UnrescuedRecordService::STATUS_DISTRIBUTED)->count();
+        $received = (clone $base)->where('status', UnrescuedRecordService::STATUS_RECEIVED)->count();
+        $notified = (clone $base)->where('status', UnrescuedRecordService::STATUS_NOTIFIED)->count();
         $matchedObject = (clone $base)->where(function ($query) {
             $query->whereNotNull('priority_identity')
                 ->orWhereNotNull('street_town')
@@ -107,6 +109,8 @@ class RecordController extends AbstractController
             'distributed',
             'paid',
             'pendingReceive',
+            'received',
+            'notified',
             'matchedObject',
             'exportAttachment1Count',
             'exportAttachment2Count',
@@ -151,38 +155,12 @@ class RecordController extends AbstractController
      */
     public function washOptions(RequestInterface $request)
     {
-        $query = UnrescuedRecord::query();
-        $this->recordService->applyTownScope($query, $this->currentTownId($request));
-        $period = $this->recordService->normalizePeriod((string) $request->input('settlement_period', ''));
-        if ($period !== '') {
-            $query->where('settlement_period', $period);
-        }
-
-        $medicalCategories = (clone $query)
-            ->whereNotNull('medical_category')
-            ->distinct()
-            ->orderBy('medical_category')
-            ->pluck('medical_category')
-            ->filter()
-            ->values();
-
-        $configuredMedicalCategories = array_column($this->filterOptionService->listOptions('unrescued', 'medical_category'), 'value');
-        $medicalCategories = array_values(array_unique(array_filter(array_merge($configuredMedicalCategories, $medicalCategories->toArray()))));
-
-        $identities = (clone $query)
-            ->whereNotNull('priority_identity')
-            ->distinct()
-            ->orderBy('priority_identity')
-            ->pluck('priority_identity')
-            ->filter()
-            ->values();
-
-        $configuredIdentities = array_column($this->filterOptionService->listOptions('unrescued', 'priority_identity'), 'value');
-        $identities = array_values(array_unique(array_filter(array_merge($configuredIdentities, $identities->toArray()))));
+        $medicalCategories = array_column($this->filterOptionService->listOptions('unrescued', 'medical_category'), 'value');
+        $identities = array_column($this->filterOptionService->listOptions('unrescued', 'priority_identity'), 'value');
 
         return $this->success([
-            'medical_categories' => $medicalCategories,
-            'identities' => $identities,
+            'medical_categories' => array_values(array_unique(array_filter($medicalCategories))),
+            'identities' => array_values(array_unique(array_filter($identities))),
         ], '获取成功');
     }
 
@@ -200,10 +178,13 @@ class RecordController extends AbstractController
             return $this->error('清洗规则格式不正确', 400);
         }
 
+        $name = trim((string) $request->input('name', '未救助默认清洗规则'));
+
         UnrescuedWashConfig::query()->where('is_active', 1)->update(['is_active' => 0]);
         $config = UnrescuedWashConfig::create([
             'version' => date('YmdHis'),
-            'name' => trim((string) $request->input('name', '未救助默认清洗规则')),
+            'name' => $name,
+            'rule_name' => $name,
             'data' => $rules,
             'is_active' => 1,
             'created_by' => (int) $request->getAttribute('userId', 0),
@@ -311,18 +292,28 @@ class RecordController extends AbstractController
             return $this->error('清算期和镇街不能为空', 400);
         }
 
-        $affected = UnrescuedRecord::query()
+        $baseQuery = UnrescuedRecord::query()
             ->where('settlement_period', $period)
             ->where('town_id', $townId)
-            ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
+            ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES);
+
+        $skippedWorkflowRows = (clone $baseQuery)
+            ->whereIn('status', UnrescuedRecordService::TOWN_VISIBLE_STATUSES)
+            ->count();
+
+        $affected = (clone $baseQuery)
+            ->where('status', UnrescuedRecordService::STATUS_TO_NOTICE)
             ->update([
                 'status' => UnrescuedRecordService::STATUS_DISTRIBUTED,
                 'distributed_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
             ]);
 
-        $this->operationLogService->record('未救助明细', '下放', 'unrescued_records', "{$period}:{$townId}", '下放镇街数据', compact('period', 'townId', 'affected'));
-        return $this->success(['affected_rows' => $affected], '下放成功');
+        $this->operationLogService->record('未救助明细', '下放', 'unrescued_records', "{$period}:{$townId}", '下放镇街数据', compact('period', 'townId', 'affected', 'skippedWorkflowRows'));
+        return $this->success([
+            'affected_rows' => $affected,
+            'skipped_workflow_rows' => $skippedWorkflowRows,
+        ], '下放成功');
     }
 
     /**
@@ -361,7 +352,23 @@ class RecordController extends AbstractController
         return $this->batchUpdateRecords($request, [
             'status' => UnrescuedRecordService::STATUS_NOTIFIED,
             'notified_at' => date('Y-m-d H:i:s'),
-        ], '标记通知', '标记已通知');
+        ], '标记通知', '标记已通知', [
+            UnrescuedRecordService::STATUS_RECEIVED,
+            UnrescuedRecordService::STATUS_NOTIFIED,
+        ]);
+    }
+
+    /**
+     * @RequestMapping(path="/unnotify", methods="post")
+     */
+    public function unnotify(RequestInterface $request)
+    {
+        return $this->batchUpdateRecords($request, [
+            'status' => UnrescuedRecordService::STATUS_RECEIVED,
+            'notified_at' => null,
+        ], '撤销通知', '已撤销通知', [
+            UnrescuedRecordService::STATUS_NOTIFIED,
+        ]);
     }
 
     /**
@@ -373,7 +380,10 @@ class RecordController extends AbstractController
             'bank_name' => trim((string) $request->input('bank_name', '')) ?: null,
             'bank_account_name' => trim((string) $request->input('bank_account_name', '')) ?: null,
             'bank_account_no' => trim((string) $request->input('bank_account_no', '')) ?: null,
-        ], '回填账户', '账户回填成功');
+        ], '回填账户', '账户回填成功', [
+            UnrescuedRecordService::STATUS_RECEIVED,
+            UnrescuedRecordService::STATUS_NOTIFIED,
+        ]);
     }
 
     /**
@@ -495,7 +505,7 @@ class RecordController extends AbstractController
         return $this->success(['uuid' => $uuid], '导入任务已提交，请在任务中心查看进度');
     }
 
-    private function batchUpdateRecords(RequestInterface $request, array $data, string $action, string $message)
+    private function batchUpdateRecords(RequestInterface $request, array $data, string $action, string $message, ?array $allowedStatuses = null)
     {
         $ids = $request->input('ids', []);
         if (!is_array($ids) || empty($ids)) {
@@ -503,7 +513,11 @@ class RecordController extends AbstractController
         }
 
         $query = UnrescuedRecord::query()->whereIn('id', $ids);
-        $this->recordService->applyTownScope($query, $this->currentTownId($request));
+        $townId = $this->currentTownId($request);
+        $this->recordService->applyTownScope($query, $townId);
+        if ($allowedStatuses !== null) {
+            $query->whereIn('status', $allowedStatuses);
+        }
         $data['updated_at'] = date('Y-m-d H:i:s');
         $affected = $query->update($data);
 
@@ -525,6 +539,7 @@ class RecordController extends AbstractController
         return UnrescuedWashConfig::create([
             'version' => 'default_' . date('YmdHis'),
             'name' => '未救助默认清洗规则',
+            'rule_name' => '未救助默认清洗规则',
             'data' => $this->recordService->defaultWashRules(),
             'is_active' => 1,
             'created_by' => 0,

@@ -261,6 +261,7 @@ Router::addGroup('/api', function () {
             Router::post('/distribute', [App\Controller\Unrescued\RecordController::class, 'distribute']);
             Router::post('/receive', [App\Controller\Unrescued\RecordController::class, 'receive']);
             Router::post('/notify', [App\Controller\Unrescued\RecordController::class, 'notify']);
+            Router::post('/unnotify', [App\Controller\Unrescued\RecordController::class, 'unnotify']);
             Router::post('/accounts', [App\Controller\Unrescued\RecordController::class, 'accounts']);
             Router::post('/reimbursement', [App\Controller\Unrescued\RecordController::class, 'reimbursement']);
             Router::post('/export', [App\Controller\Unrescued\RecordController::class, 'export']);
