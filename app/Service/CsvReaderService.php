@@ -136,8 +136,8 @@ class CsvReaderService
         $errorCount = 0;
         $errors = [];
 
-        // 先统计总行数用于进度计算
-        $totalRows = $this->countRows($actualPath);
+        // 只有使用进度回调时才额外统计总行数，避免大文件被重复完整扫描。
+        $totalRows = $progressCallback !== null ? $this->countRows($actualPath) : 0;
 
         foreach ($reader->getSheetIterator() as $sheet) {
             foreach ($sheet->getRowIterator() as $row) {

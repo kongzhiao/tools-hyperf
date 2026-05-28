@@ -47,6 +47,15 @@ class Attachment1ImportJob extends AbstractJob
             $totalCount = max($csvReader->countRows($this->tempFile) - 1, 1);
             $processed = 0;
             $result = ['created' => 0, 'updated' => 0, 'skipped' => 0, 'errors' => []];
+            $pendingRows = [];
+            $medicalCategoryValues = [];
+            $chunkSize = 500;
+            $logger->info('Unrescued attachment1 import start.', [
+                'uuid' => $this->uuid,
+                'settlement_period' => $settlementPeriod,
+                'total_count' => $totalCount,
+                'source_file' => $this->params['source_file'] ?? '',
+            ]);
 
             $csvReader->read($this->tempFile, function (array $row, int $rowIndex) use (
                 $service,
@@ -56,10 +65,11 @@ class Attachment1ImportJob extends AbstractJob
                 $totalCount,
                 &$result,
                 $logger,
-                $filterOptionService
+                &$pendingRows,
+                &$medicalCategoryValues,
+                $chunkSize
             ) {
                 $processed++;
-                $transactionStarted = false;
                 try {
                     $sequenceNo = $service->pickValue($row, ['序号', 'sequence_no']);
                     if ($sequenceNo === '') {
@@ -94,53 +104,235 @@ class Attachment1ImportJob extends AbstractJob
                         'used_large_fee_rescue' => $service->parseAmount($service->pickValue($row, ['已使用大额费用住院救助', 'used_large_fee_rescue'])),
                     ];
                     $data['calc_reimbursement_amount'] = $service->calcReimbursementAmount($data);
-                    $filterOptionService->saveOption('unrescued', 'medical_category', $data['medical_category'], $sourceBatch);
-
-                    $transactionStarted = true;
-                    Db::beginTransaction();
-                    $record = UnrescuedRecord::query()
-                        ->where('settlement_period', $settlementPeriod)
-                        ->where('sequence_no', $sequenceNo)
-                        ->first();
-
-                    if ($record) {
-                        if (!$service->shouldKeepWorkflowStatus((string) $record->status)) {
-                            $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
-                        }
-                        $record->update($data);
-                        $result['updated']++;
-                    } else {
-                        $data['town_id'] = 0;
-                        $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
-                        $data['reimbursement_status'] = UnrescuedRecordService::REIMBURSEMENT_UNPAID;
-                        $data['exclude_status'] = UnrescuedRecordService::EXCLUDE_NO;
-                        UnrescuedRecord::create($data);
-                        $result['created']++;
+                    if ($data['medical_category'] !== null && $data['medical_category'] !== '') {
+                        $medicalCategoryValues[$data['medical_category']] = true;
                     }
-                    Db::commit();
+
+                    $pendingRows[] = [
+                        'row_number' => $rowIndex + 1,
+                        'sequence_no' => $sequenceNo,
+                        'data' => $data,
+                    ];
+
+                    if (count($pendingRows) >= $chunkSize) {
+                        $this->flushRows($pendingRows, $settlementPeriod, $result, $logger, $service);
+                        $pendingRows = [];
+                    }
                 } catch (\Throwable $e) {
-                    if ($transactionStarted) {
-                        Db::rollBack();
-                    }
                     if (count($result['errors']) < 50) {
                         $result['errors'][] = '第' . ($rowIndex + 1) . '行: ' . $e->getMessage();
                     }
                     $logger->warning('Unrescued attachment1 import row failed: ' . $e->getMessage());
                 }
 
-                if ($processed % 100 === 0) {
-                    $this->updateProgress($this->uuid, min(($processed / $totalCount) * 100, 99.9));
+                if ($processed % 1000 === 0) {
+                    $progress = min(($processed / $totalCount) * 100, 99.9);
+                    $this->updateProgress($this->uuid, $progress);
+                    $logger->info('Unrescued attachment1 import progress.', [
+                        'uuid' => $this->uuid,
+                        'processed' => $processed,
+                        'total_count' => $totalCount,
+                        'progress' => round($progress, 2),
+                    ]);
                 }
             });
 
+            $this->flushRows($pendingRows, $settlementPeriod, $result, $logger, $service);
+            foreach (array_keys($medicalCategoryValues) as $medicalCategory) {
+                $filterOptionService->saveOption('unrescued', 'medical_category', $medicalCategory, $sourceBatch);
+            }
+
+            $logger->info('Unrescued attachment1 import progress.', [
+                'uuid' => $this->uuid,
+                'processed' => $processed,
+                'total_count' => $totalCount,
+                'progress' => 100.00,
+            ]);
+            $logger->info('Unrescued attachment1 import success.', [
+                'uuid' => $this->uuid,
+                'settlement_period' => $settlementPeriod,
+                'result' => $result,
+            ]);
             $this->finishImportTask('未救助台账_附件1导入_', $result);
         } catch (\Throwable $e) {
+            $logger->error('Unrescued attachment1 import failed: ' . $e->getMessage(), [
+                'uuid' => $this->uuid,
+                'params' => $this->params,
+            ]);
             $this->failTask($e, '附件1导入失败');
         } finally {
             if (file_exists($this->tempFile)) {
                 @unlink($this->tempFile);
             }
             $this->releaseLock();
+        }
+    }
+
+    private function flushRows(array $rows, string $settlementPeriod, array &$result, $logger, UnrescuedRecordService $service): void
+    {
+        if (empty($rows)) {
+            return;
+        }
+
+        $uniqueRows = [];
+        foreach ($rows as $row) {
+            $uniqueRows[$row['sequence_no']] = $row;
+        }
+
+        $sequenceNos = array_keys($uniqueRows);
+        $existingRows = UnrescuedRecord::query()
+            ->select(['id', 'sequence_no', 'status'])
+            ->where('settlement_period', $settlementPeriod)
+            ->whereIn('sequence_no', $sequenceNos)
+            ->orderBy('id')
+            ->get();
+
+        $existingMap = [];
+        foreach ($existingRows as $record) {
+            $sequenceNo = (string) $record->sequence_no;
+            if (!isset($existingMap[$sequenceNo])) {
+                $existingMap[$sequenceNo] = $record;
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $insertRows = [];
+        $updateRows = [];
+
+        foreach ($uniqueRows as $sequenceNo => $row) {
+            $data = $row['data'];
+            $existing = $existingMap[$sequenceNo] ?? null;
+
+            if ($existing) {
+                $data['status'] = $service->shouldKeepWorkflowStatus((string) $existing->status)
+                    ? (string) $existing->status
+                    : $service->decideStatus($data['calc_reimbursement_amount']);
+                $updateRows[] = [
+                    'id' => (int) $existing->id,
+                    'data' => $data,
+                ];
+                continue;
+            }
+
+            $data['town_id'] = 0;
+            $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
+            $data['reimbursement_status'] = UnrescuedRecordService::REIMBURSEMENT_UNPAID;
+            $data['exclude_status'] = UnrescuedRecordService::EXCLUDE_NO;
+            $data['created_at'] = $now;
+            $data['updated_at'] = $now;
+            $insertRows[] = $data;
+        }
+
+        try {
+            Db::beginTransaction();
+
+            if (!empty($insertRows)) {
+                foreach (array_chunk($insertRows, 500) as $chunk) {
+                    Db::table('unrescued_records')->insert($chunk);
+                }
+                $result['created'] += count($insertRows);
+            }
+
+            if (!empty($updateRows)) {
+                foreach (array_chunk($updateRows, 200) as $chunk) {
+                    $this->batchUpdate($chunk, $now);
+                    $result['updated'] += count($chunk);
+                }
+            }
+
+            Db::commit();
+        } catch (\Throwable $e) {
+            Db::rollBack();
+            $this->fallbackSaveRows($uniqueRows, $existingMap, $settlementPeriod, $result, $logger, $service);
+        }
+    }
+
+    private function batchUpdate(array $rows, string $now): void
+    {
+        $columns = [
+            'source_batch',
+            'name',
+            'id_card',
+            'medical_category',
+            'disease_code',
+            'disease_name',
+            'cert_location',
+            'hospital_name',
+            'hospital_code',
+            'in_out_city',
+            'admission_date',
+            'discharge_date',
+            'settlement_time',
+            'total_fee',
+            'policy_fee',
+            'pool_fund_pay',
+            'large_amount_pay',
+            'serious_illness_pay',
+            'used_outpatient_rescue',
+            'used_normal_rescue',
+            'used_major_rescue',
+            'used_large_fee_rescue',
+            'calc_reimbursement_amount',
+            'status',
+        ];
+
+        $bindings = [];
+        $sets = [];
+        foreach ($columns as $column) {
+            $caseSql = "`{$column}` = CASE `id`";
+            foreach ($rows as $row) {
+                $caseSql .= ' WHEN ? THEN ?';
+                $bindings[] = $row['id'];
+                $bindings[] = $row['data'][$column] ?? null;
+            }
+            $caseSql .= " ELSE `{$column}` END";
+            $sets[] = $caseSql;
+        }
+
+        $sets[] = '`updated_at` = ?';
+        $bindings[] = $now;
+
+        $ids = array_column($rows, 'id');
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $bindings = array_merge($bindings, $ids);
+
+        Db::update(
+            'UPDATE `unrescued_records` SET ' . implode(', ', $sets) . " WHERE `id` IN ({$placeholders})",
+            $bindings
+        );
+    }
+
+    private function fallbackSaveRows(array $rows, array $existingMap, string $settlementPeriod, array &$result, $logger, UnrescuedRecordService $service): void
+    {
+        foreach ($rows as $sequenceNo => $row) {
+            try {
+                $data = $row['data'];
+                $existing = $existingMap[$sequenceNo] ?? null;
+
+                if ($existing) {
+                    if (!$service->shouldKeepWorkflowStatus((string) $existing->status)) {
+                        $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
+                    }
+                    UnrescuedRecord::query()->where('id', (int) $existing->id)->update($data);
+                    $result['updated']++;
+                    continue;
+                }
+
+                $data['town_id'] = 0;
+                $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
+                $data['reimbursement_status'] = UnrescuedRecordService::REIMBURSEMENT_UNPAID;
+                $data['exclude_status'] = UnrescuedRecordService::EXCLUDE_NO;
+                UnrescuedRecord::create($data);
+                $result['created']++;
+            } catch (\Throwable $e) {
+                if (count($result['errors']) < 50) {
+                    $result['errors'][] = '第' . $row['row_number'] . '行: ' . $e->getMessage();
+                }
+                $logger->warning('Unrescued attachment1 import row failed: ' . $e->getMessage(), [
+                    'settlement_period' => $settlementPeriod,
+                    'sequence_no' => $sequenceNo,
+                ]);
+            }
         }
     }
 

@@ -43,6 +43,11 @@ class DiseaseConfigImportJob extends AbstractJob
                 'errors' => [],
             ];
             $sourceBatch = date('YmdHis');
+            $logger->info('Unrescued disease config import start.', [
+                'uuid' => $this->uuid,
+                'total_count' => $totalCount,
+                'source_file' => $this->params['source_file'] ?? '',
+            ]);
 
             $csvReader->read($this->tempFile, function (array $row, int $rowIndex) use (&$processed, $totalCount, &$result, $sourceBatch, $logger) {
                 $processed++;
@@ -92,12 +97,33 @@ class DiseaseConfigImportJob extends AbstractJob
                 }
 
                 if ($processed % 100 === 0) {
-                    $this->updateProgress($this->uuid, min(($processed / $totalCount) * 100, 99.9));
+                    $progress = min(($processed / $totalCount) * 100, 99.9);
+                    $this->updateProgress($this->uuid, $progress);
+                    $logger->info('Unrescued disease config import progress.', [
+                        'uuid' => $this->uuid,
+                        'processed' => $processed,
+                        'total_count' => $totalCount,
+                        'progress' => round($progress, 2),
+                    ]);
                 }
             });
 
+            $logger->info('Unrescued disease config import progress.', [
+                'uuid' => $this->uuid,
+                'processed' => $processed,
+                'total_count' => $totalCount,
+                'progress' => 100.00,
+            ]);
+            $logger->info('Unrescued disease config import success.', [
+                'uuid' => $this->uuid,
+                'result' => $result,
+            ]);
             $this->finishImportTask($result);
         } catch (\Throwable $e) {
+            $logger->error('Unrescued disease config import failed: ' . $e->getMessage(), [
+                'uuid' => $this->uuid,
+                'params' => $this->params,
+            ]);
             $this->failTask($e, '重大疾病编码导入失败');
         } finally {
             if (file_exists($this->tempFile)) {

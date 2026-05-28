@@ -1,524 +1,379 @@
-# 未救助明细台账开发交接文档
-
-> 更新时间：2026-05-24  
-> 本文档用于会话中断后快速恢复上下文。  
-> 本轮要求：忽略旧开发上下文，重新阅读前后端、当前数据库、配置和新模块需求；不参考 `database/migrations` 目录。
-
-## 1. 已完成的重新梳理
+# 未救助台账功能开发交接文档
 
-已重新阅读并整理：
+更新时间：2026-05-28
 
-- 后端项目 `tools-hyperf-yf`
-- 前端项目 `tools-react-yf`
-- 当前 MySQL 实库 `tools_yf`
-- SQL dump：`database/hyperfp10916.sql`、`database/hyperfp10916final.sql`
-- 后端配置：数据库、Redis、JWT、异步队列、路由
-- 前端配置：Umi 路由、动态菜单、权限 access
-- 现有业务模块：用户角色权限、参保台账、医疗救助受理、统计汇总、优抚联网结算、任务中心
-- 新模块需求文档：`docs/未救助明细台账_md` 下所有导入、导出、业务逻辑、数据库设计文件
+## 一、当前功能范围
 
-梳理结果已写入：
+本次新增“未救助台账”业务，覆盖未救助明细导入、救助对象名单匹配、清洗规则配置与执行、镇街下放/接收/通知、账户回填、报销标记、统计筛选、导出和重大疾病编码配置。
 
-- `docs/project1.md`：现有平台架构、业务功能、数据模型总览
-- `docs/未救助明细台账_md/业务逻辑与流程图.md`：新模块业务闭环、状态机、清洗规则、流程图
-- `docs/未救助明细台账_md/数据库表设计规范.md`：新模块建议表结构
+当前业务主入口：
 
-## 2. 现有平台结论
+- 前端页面：`tools-react-yf/src/pages/Unrescued/Records/index.tsx`
+- 前端接口：`tools-react-yf/src/services/unrescued.ts`
+- 后端控制器：`app/Controller/Unrescued/RecordController.php`
+- 后端业务服务：`app/Service/Unrescued/UnrescuedRecordService.php`
+- 运行日志：`runtime/logs/hyperf.log`
 
-平台为 React/Umi 前端 + Hyperf 后端 + MySQL + Redis 队列。
+## 二、迁移文件整理结果
 
-现有后端模块：
+本次业务相关 migration 已整理为一次到位版本，生产首次执行时只需要保留以下文件：
 
-- 认证与 RBAC：`users`、`roles`、`permissions`、`role_user`、`role_permissions`
-- 参保数据核实：`insurance_data`、`insurance_level_configs`、`insurance_years`、`category_conversions`
-- 医疗救助受理：`med_person_info`、`med_medical_record`、`med_reimbursement_detail`
-- 统计汇总：`projects`、`statistics_data`、`statistics_summery`
-- 优抚联网结算：`yf_settlements`、`yf_category_quotas`
-- 任务中心：`task`
+- `2026_05_24_100001_create_towns_table.php`：镇街表。
+- `2026_05_24_100002_add_town_id_to_users_table.php`：用户绑定镇街。
+- `2026_05_24_100003_create_operation_logs_table.php`：操作日志表。
+- `2026_05_24_100004_create_unrescued_records_table.php`：未救助主表。
+- `2026_05_24_100005_create_unrescued_disease_configs_table.php`：重大疾病编码配置表。
+- `2026_05_24_100006_create_unrescued_wash_configs_table.php`：清洗规则配置表。
+- `2026_05_24_100007_create_unrescued_wash_logs_table.php`：清洗执行日志表。
+- `2026_05_24_100008_create_unrescued_supplement_records_table.php`：应退应补排查记录表。
+- `2026_05_24_100009_add_status_to_permissions_table.php`：权限表补状态字段。
+- `2026_05_24_100010_seed_unrescued_permissions.php`：未救助菜单及按钮权限节点。
+- `2026_05_24_100011_create_business_filter_options_table.php`：业务筛选项缓存表。
 
-当前新模块“未救助明细台账”不应复用上述业务主表，只复用登录、权限、菜单、任务、导入导出底座。
+已经不需要保留的修正类 migration：
 
-## 3. 新模块业务理解
+- `2026_05_24_100010_patch_unrescued_stage_four_to_seven_fields.php`
+- `2026_05_25_231200_patch_unrescued_wash_config_rule_name.php`
+- `2026_05_27_100001_patch_unrescued_wash_config_rule_type.php`
 
-未救助明细台账按清算月份运行。
+注意：`unrescued_wash_configs` 当前不再使用 `rule_type` 字段。清洗规则按 `data` JSON 保存，名称字段为 `name` 和 `rule_name`。
 
-主链路：
+## 三、核心表说明
 
-1. 先导入或维护附件3“救助重大疾病编码”，完成重大疾病字典配置。
-2. 导入附件1“未救助明细”。
-3. 以 `清算期 + 序号` 新增或更新主表。
-4. 计算 `进入报销金额 = 医保政策范围费用 - 统筹报销金额 - 大额报销 - 大病报销`。
-5. 导入附件2“救助对象名单”，不单独落表。
-6. 以 `身份证号` 匹配当月主表同人多条记录，补全镇街、村社、优先身份；附件1姓名为空或为 `--` 时，用附件2姓名补充到主表 `name`。
-7. 按金额判定状态：`<=0` 无救助金额；`0-300` 不通知；`>300` 拟通知。
-8. 导出未报销台账前展示并执行最新 JSON 清洗规则。
-9. 被剔除记录写入剔除状态和备注，保留记录进入拟通知池。
-10. 管理员下放镇街。
-11. 镇街人员确认接收、线下通知、回填银行账户。
-12. 管理员导出台账，导出范围只需排除已剔除数据；线下打款后标记已报销。
+### 1. `unrescued_records`
 
-附件4链路：
+未救助明细主表，数据主要来自附件1，附件2导入后按清算期和身份证号匹配补充镇街、村社、身份类别等信息。
 
-- 不新增附件4导入模板。
-- 根据附件2导入后沉淀在主表中的对象信息匹配身份和镇街。
-- 保留普通住院，以及病种编码命中附件3的门诊慢特病。
-- 计算 `医保政策范围内费用 - 统筹报销金额 - 大额报销金额 - 大病报销金额 - 医疗救助金额 - 渝快保报销金额`。
-- 医疗救助金额、渝快保报销金额无值按 0。
-- 一人可多条，不按人累计或冲减。
-- 筛选形成附件4“医疗救助应补应退排查记录”。
+核心字段：
 
-## 4. 建议数据表
+- `settlement_period`：清算期，格式如 `202602`。
+- `sequence_no`：附件1序号，同一清算期内作为附件1更新匹配依据。
+- `name`、`id_card`：姓名、身份证号。
+- `medical_category`、`hospital_name`、`priority_identity`：医疗类别、机构名称、身份类别，已作为筛选和清洗条件。
+- `calc_reimbursement_amount`：进入报销金额，按政策范围费用扣减统筹、大额、大病报销计算。
+- `town_id`、`street_town`、`village`：附件2匹配后回填的镇街信息。
+- `status`：流程状态，包含 `待处理`、`无救助金额`、`不通知`、`拟通知`、`已下放`、`已接收`、`已通知`。
+- `exclude_status`：清洗剔除状态，包含 `未剔除`、`已剔除`。
+- `exclude_rule_code`：命中的清洗规则编码。
+- `reimbursement_status`：报销状态，包含 `未报销`、`已报销`。
+- `bank_name`、`bank_account_name`、`bank_account_no`：镇街回填账户信息。
 
-建议新增：
+主表已在建表 migration 中补齐索引：
 
-- `towns`：镇街组织。
-- `operation_logs`：全平台操作日志，未救助模块优先完整接入。
-- 扩展 `users.town_id`：镇街账号归属。
-- `unrescued_records`：附件1主表 + 附件2匹配 + 下放/通知/账户回填。
-- `unrescued_disease_configs`：附件3重大疾病编码。
-- `unrescued_wash_configs`：清洗规则 JSON 版本。
-- `unrescued_wash_logs`：清洗执行日志。
-- `unrescued_supplement_records`：附件4应补应退独立排查记录。
+- `idx_period_sequence(settlement_period, sequence_no)`
+- `idx_period_id_card(settlement_period, id_card)`
+- `idx_period_town_status(settlement_period, town_id, status)`
+- `idx_period_status(settlement_period, status)`
+- `idx_period_medical_category(settlement_period, medical_category)`
+- `idx_period_priority_identity(settlement_period, priority_identity)`
+- `idx_period_hospital_name(settlement_period, hospital_name)`
+- `idx_period_exclude_rule(settlement_period, exclude_rule_code)`
+- `idx_exclude_status(exclude_status)`
+- `idx_reimbursement_status(reimbursement_status)`
 
-具体字段见 `docs/未救助明细台账_md/数据库表设计规范.md`。
+如果本地或测试库已经提前建过表但没有这些索引，可手动执行：
 
-## 5. 已确认口径
+```sql
+ALTER TABLE `unrescued_records`
+  ADD INDEX `idx_period_medical_category` (`settlement_period`, `medical_category`),
+  ADD INDEX `idx_period_priority_identity` (`settlement_period`, `priority_identity`),
+  ADD INDEX `idx_period_hospital_name` (`settlement_period`, `hospital_name`),
+  ADD INDEX `idx_period_exclude_rule` (`settlement_period`, `exclude_rule_code`);
+```
 
-1. 附件1 `序号` 至少按导入年月唯一，甚至可能全局唯一；系统按 `settlement_period + sequence_no` 做业务匹配，由代码校验重复，不建唯一索引。
-2. 主状态统一为“拟通知”，不使用“待通知”。
-3. 不建立 `assistance_name` 字段。附件1姓名为空或为 `--` 时，用附件2姓名补充到主表 `name`。
-4. 附件2对象名单不单独落表。附件4的身份、镇街匹配也基于附件2导入后沉淀在主表中的对象信息。
-5. 新增 `towns` 和 `users.town_id`。镇街需要列表、新增、编辑、删除能力并纳入角色权限；用户管理中镇街为非必选。有镇街归属的账号做数据隔离，无镇街归属的区级/全局账号不隔离。
-6. 所有导入、导出均走任务中心，参考旧功能避免大文件 OOM。
-7. 每个导入功能都要配模板文件，命名类似 `导入-附件1：xxxxx模板.csv`。模板按旧功能习惯放在前端 `public/assets/templates`，由导入弹窗内下载；附件4本期不新增导入模板。
-8. 删除、标记、下放、导出等重要操作都需要二次确认。
-9. 前端 UI/UE 与已有业务功能保持一致，交互不清楚时先沟通。
-10. 新增全平台操作日志表 `operation_logs`，用于追踪用户操作、问题溯源；未救助模块优先完整接入。
-11. 附件3“救助重大疾病编码”应作为前置配置，先配置完成，再导入未救助明细。
-12. 新表、新字段都必须写入 migrations。
-13. 清洗规则表采用复数命名 `unrescued_wash_configs`。
-14. 导出附件2“医疗救助未报销台账”的范围为排除被剔除数据即可，不强制要求已通知或账户已回填。
-15. 附件3重大疾病编码不是严格唯一，同一个编码可能对应多个病种名称。配置表允许同编码多名称；导入时按 `disease_code + disease_name` 判断是否同一条配置；后续附件4筛选重大疾病时按启用的 `disease_code` 命中即可。
-16. 镇街管理只维护镇街基础数据，不根据镇街名称或拼音自动生成用户账号；镇街账号统一由管理员在账户管理中手动创建，并手动绑定镇街。
+### 2. `unrescued_wash_configs`
 
+保存清洗规则配置。默认规则在代码中生成，不再依赖额外 seed 数据。
 
+默认规则包括：
 
-## 6. 分阶段开发与验收计划
+- 医疗类别保留：`medical_category_keep`
+- 机构名称关键字剔除：`hospital_keyword_exclude`
+- 统筹报销等于政策范围费用：`pool_equals_policy`
+- 大额报销等于政策范围费用：`large_equals_policy`
+- 大病报销等于政策范围费用：`serious_equals_policy`
+- 普通住院救助额度已满：`normal_rescue_limit`
+- 重特大疾病救助额度已满：`major_rescue_limit`
+- 大额费用住院救助额度已满：`large_fee_rescue_limit`
+- 身份类别剔除：`identity_exclude`
 
-为避免一次性开发过大导致业务偏差，本模块按阶段推进。每完成一个阶段，先运行、查看、操作确认符合预期，再进入下一阶段。每个阶段结束都需要更新本交接文档，记录已完成内容、验收结果和遗留问题。
+### 3. `business_filter_options`
 
-### 阶段一：基础表结构、模型、权限与镇街底座
+用于缓存动态筛选项：
 
-目标：先把新模块可运行的底座搭好，但不急着做复杂业务流转。
+- 附件1导入后保存医疗类别：`business=unrescued`、`option_type=medical_category`
+- 附件2导入后保存身份类别：`business=unrescued`、`option_type=priority_identity`
 
-开发内容：
+## 四、权限与菜单
 
-- 创建 migrations：`towns`、`users.town_id`、`operation_logs`、`unrescued_records`、`unrescued_disease_configs`、`unrescued_wash_configs`、`unrescued_wash_logs`、`unrescued_supplement_records`。
-- 创建对应模型，未救助相关模型放入 `app/Model/Unrescued`。
-- 新增镇街管理后端接口：列表、新增、编辑、删除、启用/禁用、CSV 模板导入。
-- 用户管理后端支持 `town_id`，用户可选择镇街，非必选。
-- 初始化/补充菜单权限：镇街管理、未救助台账模块菜单和基础操作权限。
-- 新增操作日志基础服务 `operation_logs`，先打通写日志能力。
+菜单和按钮节点由 `2026_05_24_100010_seed_unrescued_permissions.php` 创建。
 
-用户可验收：
+主要节点：
 
-- 执行迁移后，数据库表和字段完整存在。
-- 后端接口可查询镇街列表，可新增/编辑/删除镇街。
-- 用户可绑定或不绑定镇街。
-- 菜单权限数据中能看到镇街管理和未救助模块入口。
+- 未救助台账
+- 未救助明细
+- 重大疾病编码
+- 未救助明细的导入、清洗、下放、通知、账户回填、报销标记、导出等按钮权限
 
-进入下一阶段条件：
+前端权限判断在 `tools-react-yf/src/access.ts` 中，关键 access 包括：
 
-- 表结构、权限、镇街归属口径无异议。
-- 区级账号和镇街账号的数据隔离规则确认无误。
+- `canAccessUnrescued`
+- `canReadUnrescuedRecords`
+- `canImportUnrescuedRecords`
+- `canWashUnrescuedRecords`
+- `canDistributeUnrescuedRecords`
+- `canNotifyUnrescuedRecords`
+- `canFillUnrescuedAccounts`
+- `canMarkUnrescuedReimbursement`
+- `canExportUnrescuedRecords`
 
-### 阶段二：前端基础页面与镇街/用户配置闭环
+镇街账号由用户 `town_id` 判断。镇街账号不能导入、执行清洗、配置清洗规则、下放、标记报销和导出。
 
-目标：让用户能在界面上看到模块入口，并完成镇街与用户归属配置。
+## 五、后端接口
 
-开发内容：
+接口前缀：`/api/unrescued/records`
 
-- 前端新增镇街管理页面，风格与现有用户/角色页面一致，导入交互采用旧功能弹窗布局。
-- 用户管理页面增加镇街选择项，非必选。
-- 前端新增未救助台账模块框架页面，包括列表页空态、筛选区、操作区、任务提示入口。
-- 接入权限控制和动态菜单。
-- 重要操作按钮预留二次确认交互样式。
+- `GET /`：未救助明细分页列表。
+- `GET /statistics`：统计数据。
+- `POST /import-attachment1`：导入附件1未救助明细，仅支持 CSV。
+- `POST /import-attachment2`：导入附件2救助对象名单，仅支持 CSV。
+- `GET /wash-config`：获取当前启用清洗规则。
+- `POST /wash-config`：保存清洗规则。
+- `GET /wash-options`：获取清洗和筛选下拉项。
+- `POST /wash/execute`：提交清洗任务。
+- `GET /wash/status`：查询当前清算期是否存在执行中的清洗任务。
+- `POST /distribute`：按清算期和镇街下放数据。
+- `POST /receive`：镇街确认接收。
+- `POST /notify`：标记已通知。
+- `POST /unnotify`：撤销通知。
+- `POST /accounts`：回填账户信息。
+- `POST /reimbursement`：标记报销状态。
+- `POST /export`：提交导出任务。
+- `GET /{id}`：查看单条记录。
 
-用户可验收：
+## 六、导入逻辑
 
-- 登录后按权限看到对应菜单。
-- 能在页面维护镇街。
-- 创建/编辑用户时能选择镇街。
-- 无镇街用户仍可作为全局账号使用，镇街用户显示归属镇街。
+### 1. 附件1导入
 
-进入下一阶段条件：
+任务类：`app/Job/Unrescued/Attachment1ImportJob.php`
 
-- 前端 UI/UE 与现有系统一致。
-- 镇街和用户配置流程符合客户预期。
+处理方式：
 
-### 阶段三：附件3重大疾病编码配置
+- 按用户上传的清算期导入。
+- 以 `settlement_period + sequence_no` 判断是否已存在。
+- 已存在则批量更新，未存在则批量插入。
+- 已进入镇街流程的状态不被附件1重新计算覆盖，即 `已下放`、`已接收`、`已通知` 会保留。
+- 新记录按进入报销金额自动判定：
+  - `<= 0`：`无救助金额`
+  - `<= 300`：`不通知`
+  - `> 300`：`拟通知`
+- 导入过程按批次处理，并写入任务进度和后端日志。
 
-目标：先完成前置配置，满足“附件3应在附件1前先配置”的业务要求。
+性能优化点：
 
-开发内容：
+- CSV 读取后按 500 行聚合写库。
+- 一次查询当前批次已存在序号。
+- 插入使用批量 insert。
+- 更新使用 CASE 批量 update，异常时回退到逐条保存。
+- 医疗类别筛选项在导入完成后去重保存。
 
-- 提供附件3导入模板 `导入-附件3：救助重大疾病编码模板.csv`，模板放在前端 assets，列表页不单独放模板下载按钮。
-- 后端实现附件3异步导入任务，按 `病种编码 + 病种名称` 更新或创建；同编码不同名称保留多条。
-- 提供重大疾病编码列表、搜索、启用/禁用、删除接口。
-- 前端实现重大疾病编码配置页面。
-- 导入、删除、启用/禁用写操作日志，重要操作二次确认。
+### 2. 附件2导入
 
-用户可验收：
+任务类：`app/Job/Unrescued/Attachment2ImportJob.php`
 
-- 能下载/查看导入模板。
-- 能导入附件3，任务中心显示进度。
-- 导入后能查询疾病编码和名称。
-- 相同 `病种编码 + 病种名称` 按更新处理；同编码不同名称保留多条。
+处理方式：
 
-进入下一阶段条件：
+- 按 `settlement_period + id_card` 匹配附件1主表。
+- 匹配成功后回填 `town_id`、`street_town`、`village`、`priority_identity`。
+- 镇街匹配支持镇街名称、编码及简单名称归一化。
+- 如果姓名为空，会用附件2姓名补齐主表姓名。
+- 匹配后重新计算待处理类状态，但不覆盖 `已下放`、`已接收`、`已通知`。
+- 身份类别筛选项在导入完成后去重保存。
 
-- 重大疾病字典导入和维护满足预期。
-- 后续附件4筛选依赖的编码口径确认无误。
+性能优化点：
 
-### 阶段四：附件1和附件2导入、主表列表与状态判定
+- 启动时一次性加载镇街映射。
+- 每 1000 行聚合处理。
+- 每批只按身份证集合查询一次匹配数量。
+- 任务进度和后端日志会持续记录。
 
-目标：打通未救助主数据导入和基础状态判定。
+## 七、清洗规则
 
-开发内容：
+清洗规则执行已改为异步任务。
 
-- 提供附件1导入模板 `导入-附件1：未救助明细模板.csv`。
-- 提供附件2导入模板 `导入-附件2：救助对象名单模板.csv`。
-- 后端实现附件1异步导入：按 `settlement_period + sequence_no` 新增或更新，计算进入报销金额。
-- 后端实现附件2异步导入：不单独落表，按当月身份证号更新主表多条记录，补全镇街、村社、优先身份；附件1姓名为空或 `--` 时补充姓名。
-- 实现状态判定：无救助金额、不通知、拟通知。
-- 实现主表列表、详情、筛选、统计卡片。
-- 接入操作日志。
+任务类：`app/Job/Unrescued/WashExecuteJob.php`
 
-用户可验收：
+执行逻辑：
 
-- 能选择清算期并导入附件1、附件2。
-- 任务中心可看到导入进度和结果。
-- 列表能看到导入数据、镇街身份补全结果、进入报销金额和状态。
-- 同一人同月多条记录均可被附件2补全。
-- `拟通知`、`不通知`、`无救助金额` 判定符合样例。
+- 按清算期执行，可选镇街范围。
+- 每 1000 条记录分批扫描。
+- 命中清洗规则的记录更新为 `已剔除`，并写入 `exclude_rule_code`、`remark`。
+- 未命中记录更新为 `未剔除`，并清空命中规则和备注。
+- 每批使用批量 update，减少逐条保存。
+- 执行完成后写入 `unrescued_wash_logs`，记录总数、剔除数、保留数和规则命中汇总。
 
-进入下一阶段条件：
+前端交互：
 
-- 附件1/2导入字段映射无误。
-- 金额计算和状态判定经样例核对无误。
+- 点击执行清洗前有二次确认。
+- 清洗任务提交后按钮不可重复点击。
+- 页面展示执行进度。
+- 页面刷新或切换回来后，会通过本地缓存的任务 uuid 和 `/wash/status` 恢复执行中状态。
+- 清洗执行中每 2 秒同步任务进度，同时刷新统计数据，让“已剔除”等统计肉眼可见变化。
+- 任务完成或失败后会清除本地任务缓存；任务中心和后端任务表仍保留历史。
 
-### 阶段五：清洗规则、预览与剔除闭环
+日志关键字：
 
-目标：实现可配置清洗规则和剔除结果追踪。
+- `Unrescued wash execute start.`
+- `Unrescued wash execute progress.`
+- `Unrescued wash execute success.`
+- `Unrescued wash execute failed`
 
-开发内容：
+## 八、筛选与统计
 
-- 初始化默认清洗规则，保存到 `unrescued_wash_configs`。
-- 前端提供规则预览，默认折叠，可展开查看。
-- 支持编辑清洗规则，每次保存生成新版本。
-- 执行清洗时记录 `unrescued_wash_logs`。
-- 命中规则的数据写入 `exclude_status = 已剔除`、`exclude_rule_code`、`remark`。
-- 支持重新执行清洗，避免重复污染备注。
-- 清洗确认、规则保存等重要操作二次确认并写操作日志。
+后端统一由 `UnrescuedRecordService::applyFilters()` 处理筛选。
 
-用户可验收：
+当前支持筛选：
 
-- 能查看默认规则。
-- 能编辑规则和备注。
-- 能执行清洗并看到剔除数量、保留数量。
-- 列表可筛选未剔除/已剔除，可查看剔除原因。
+- 清算期：`settlement_period`
+- 关键字：姓名、身份证号、序号
+- 镇街：`town_id`
+- 医疗类别：`medical_category`
+- 身份类别：`priority_identity`
+- 机构名称：`hospital_name`，模糊查询
+- 状态：`status`
+- 剔除状态：`exclude_status`
+- 命中规则：`exclude_rule_code`
+- 报销状态：`reimbursement_status`
 
-进入下一阶段条件：
+镇街账号数据范围：
 
-- 默认清洗规则和客户口径一致。
-- 清洗结果与样例人工判断一致。
+- 自动限制为当前用户绑定的 `town_id`。
+- 只可见 `已下放`、`已接收`、`已通知` 状态。
+- 顶部筛选只保留基础项：清算期、所属镇街、关键字、状态、查询、刷新、重置。
+- 所属镇街为当前人员绑定镇街，不可编辑。
 
-### 阶段六：下放、接收、通知、账户回填和报销标记
+普通管理账号：
 
-目标：打通区级到镇街的业务流转闭环。
+- 顶部默认展示常用筛选。
+- 更多筛选中包含镇街、机构名称、状态、剔除、命中规则、报销等条件。
+- 重置按钮会清除其他筛选，但不会清除清算期。
+- 清算期切换会立即刷新列表、统计、筛选项和清洗任务状态，并缓存到浏览器本地。
 
-开发内容：
+## 九、下放、接收、通知、账户、报销
 
-- 管理员按镇街下放数据，状态改为 `已下放`。
-- 镇街账号仅能查看本镇街数据。
-- 镇街首次查看下放数据时，可确认接收，状态改为 `已接收`。
-- 镇街可标记 `已通知`。
-- 镇街可回填开户行、户名、账号。
-- 管理员可标记未报销/已报销。
-- 下放、接收、通知、回填、报销标记均写操作日志，关键操作二次确认。
+### 1. 下放
 
-用户可验收：
+接口：`POST /api/unrescued/records/distribute`
 
-- 管理员能下放指定镇街数据。
-- 镇街账号登录后只能看到自己镇街数据。
-- 镇街可完成接收、通知、账户回填。
-- 管理员能看到状态变化并标记报销。
+后台按清算期和镇街下放：
 
-进入下一阶段条件：
+- 只处理该镇街下 `未剔除` 且 `拟通知` 的记录。
+- 更新为 `已下放` 并写入 `distributed_at`。
+- 没有匹配到镇街的记录不能下放。
 
-- 数据隔离无误。
-- 状态流转符合客户实际操作习惯。
+### 2. 接收
 
-### 阶段七：四类导出与任务中心闭环
+接口：`POST /api/unrescued/records/receive`
 
-目标：按附件格式输出业务成果，所有导出走任务中心。
+镇街账号进入页面后，如果当前清算期存在 `已下放` 待接收记录，会弹窗要求确认接收。确认后更新为 `已接收` 并写入 `received_at`。
 
-开发内容：
+### 3. 通知与撤销通知
 
-- 导出附件1：医疗救助未救助排查明细。
-- 导出附件2：医疗救助未报销台账，范围为排除已剔除数据即可。
-- 导出附件3：医疗救助未救助通知名单。
-- 导出附件4：医疗救助应补应退排查记录。
-- 导出全部走异步任务，生成 CSV 文件。
-- 导出前二次确认，导出行为写操作日志。
-- 文件字段顺序和附件文档保持一致。
+接口：
 
-用户可验收：
+- `POST /api/unrescued/records/notify`
+- `POST /api/unrescued/records/unnotify`
 
-- 每个导出按钮均提交任务，不阻塞页面。
-- 任务完成后可下载 CSV。
-- CSV 字段、顺序、金额、身份证格式符合附件样例。
-- 附件2仅排除已剔除数据，不强制已通知或账户已填。
+镇街可对 `已接收` 记录标记为 `已通知`，也可将 `已通知` 撤销回 `已接收`。
 
-进入下一阶段条件：
+### 4. 账户回填
 
-- 四类导出文件可被客户直接查看或交付。
-- 任务中心下载、过期和失败提示符合现有系统体验。
+接口：`POST /api/unrescued/records/accounts`
 
-### 阶段八：整体联调、权限补齐、文档和收尾
+允许对 `已接收`、`已通知` 记录回填开户行、户名、银行账号。
 
-目标：全链路走通，补齐体验细节和开发交接。
+### 5. 报销标记
 
-开发内容：
+接口：`POST /api/unrescued/records/reimbursement`
 
-- 从附件3配置到附件1/2导入、清洗、下放、通知、回填、导出跑完整链路。
-- 补齐权限点、前端按钮权限、空态、错误提示。
-- 检查所有重要操作二次确认。
-- 检查操作日志覆盖范围。
-- 补充基础测试或验证脚本。
-- 更新 `docs/project1.md`、业务逻辑文档、数据库表设计文档和本交接文档。
+仅管理账号可操作，用于标记 `已报销` 或恢复 `未报销`。
 
-用户可验收：
+## 十、导出口径
 
-- 区级账号完整跑通主流程。
-- 镇街账号完整跑通接收/通知/回填流程。
-- 任务中心导入导出稳定。
-- 权限隔离、数据隔离、操作日志符合预期。
+导出入口：`POST /api/unrescued/records/export`
 
-阶段完成标志：
+导出任务类：`app/Job/Unrescued/UnrescuedExportJob.php`
 
-- 未救助明细台账达到可演示、可试用状态。
-- 新会话可根据本交接文档继续后续优化或修复。
+导出类型：
 
-## 7. 当前开发进度记录
+- `attachment1`：医疗救助未救助排查明细。
+- `attachment2`：医疗救助未报销台账。
+- `attachment3`：医疗救助未救助通知名单。
+- `attachment4`：医疗救助应补应退排查记录。
 
-更新时间：2026-05-24
+当前口径：
 
-本轮按用户要求先完成阶段一至阶段三的主体开发，已落地内容如下：
+- 导出排查明细：导出当前筛选条件下的所有主表记录，首列已增加 `清算期`。
+- 导出未报销台账：导出当前筛选条件下所有 `未剔除` 记录。
+- 导出通知名单：导出当前筛选条件下所有 `未剔除` 记录。
+- 未匹配到镇街的记录也会导出，由人工后续处理；但这类记录不能下放给镇街。
+- 应退应补排查记录按应退应补表和筛选条件导出。
 
-阶段一已完成代码：
+注意：附件2和附件3导出不再强制要求已匹配救助对象或已匹配镇街，避免页面显示未剔除 273 条但导出只有 260 条的问题。
 
-- 新增 migrations：`towns`、`users.town_id`、`operation_logs`、`unrescued_records`、`unrescued_disease_configs`、`unrescued_wash_configs`、`unrescued_wash_logs`、`unrescued_supplement_records`。
-- 新增模型：`Town`、`OperationLog`、`app/Model/Unrescued/*`。
-- `User` 模型增加 `town_id`、`town` 关联，并在 JWT 用户信息中返回镇街信息。
-- 新增 `OperationLogService`，用于后续重要操作统一写入操作日志。
-- 新增 `TownController`，提供镇街列表、选项、新增、编辑、删除接口。
-- `UserController` 支持加载和保存 `town_id`。
-- `InitMenuPermissionsCommand` 增加镇街管理、未救助台账、未救助明细、重大疾病编码菜单及基础操作权限。
+日志关键字：
 
-阶段二已完成代码：
+- `Unrescued export submit start.`
+- `Unrescued export submit success.`
+- `Unrescued export start.`
+- `Unrescued export records counted.`
+- `Unrescued export progress.`
+- `Unrescued export success.`
+- `Unrescued export failed`
 
-- 前端新增 `src/pages/Town/index.tsx` 镇街管理页面。
-- 前端用户管理页增加“所属镇街”列和表单选择项。
-- 前端新增未救助台账菜单路由，包含 `未救助明细` 空态入口和 `重大疾病编码` 配置页。
-- 前端新增 `town.ts`、`unrescued.ts` 服务文件。
-- `access.ts` 增加镇街管理、未救助明细、重大疾病编码权限点。
-- `.umirc.ts` 增加镇街管理与未救助台账静态路由。
+## 十一、前端页面交互
 
-阶段三已完成代码：
+页面文件：`tools-react-yf/src/pages/Unrescued/Records/index.tsx`
 
-- 新增附件3模板：`tools-react-yf/public/assets/templates/unrescued/导入-附件3：救助重大疾病编码模板.csv`。
-- 新增镇街模板：`tools-react-yf/public/assets/templates/unrescued/镇街管理-镇街导入.csv`。
-- 新增 `DiseaseConfigController`，提供重大疾病编码列表、搜索、新增、编辑、删除、异步导入接口。
-- 新增 `DiseaseConfigImportJob`，通过任务中心异步导入 CSV，按 `disease_code + disease_name` 更新或创建；同编码不同名称保留多条。
-- 前端重大疾病编码页面支持搜索、新增、编辑、删除、CSV 导入提交；模板下载放入导入弹窗内部。
-- 镇街管理已新增 CSV 异步导入任务，模板下载同样放入导入弹窗内部。
+主要交互：
 
-本轮验证情况：
+- 清算期默认取浏览器本地缓存；没有缓存时取当前年月。
+- 用户手动切换清算期后会写入 localStorage，刷新页面仍保留上一次选择。
+- 切换清算期后立即重新加载列表、统计、清洗选项和清洗任务状态。
+- 支持导入附件1、附件2，并提供 CSV 模板下载入口。
+- 清洗规则支持查看、编辑、保存、执行。
+- 清洗执行中显示进度，不允许重复提交。
+- 筛选支持查询、刷新、重置，重置不会清除清算期。
+- 管理账号可使用更多筛选；镇街账号只保留基础筛选。
+- 镇街账号进入页面时，如果存在待接收记录，会提示确认接收。
 
-- 已执行后端 PHP 语法检查：`find app database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l`，结果通过。
-- 已执行前端全量 TypeScript 检查：`pnpm -s tsc --noEmit`，未通过，但报错来自项目既有页面 `SettlementConfig`、`InsuranceData`、`ImageOptimizationTest`、`Ocr`、`Table`，未出现本轮新增 `Town`、`Unrescued`、`town.ts`、`unrescued.ts` 相关错误。
-- 已尝试执行 `php bin/hyperf.php migrate:status`，当前命令行 PHP 为 8.1.31，而 Composer 依赖要求 PHP >= 8.2.0，因此无法在当前 CLI 环境执行迁移。需要切换 PHP 8.2+ 后再执行迁移。
-- 已补充根目录 `生产环境升级与兼容性说明.md`，记录本项目已在生产使用、升级需保护既有业务和数据、迁移/备份/回滚流程。
-- 已修复 `php bin/hyperf.php migrate` 默认找不到本次新迁移的问题：Hyperf 默认扫描根目录 `migrations/`，因此已将本次 8 个未救助模块增量迁移放入根目录 `migrations/`。`database/migrations/` 保留为历史/参考目录。
-- 已按产品交互要求调整导入：后续所有导入参考旧功能弹窗布局，列表页不单独放模板下载按钮；模板文件统一放前端 `public/assets/templates`。
-- 已给镇街管理、重大疾病编码列表增加“刷新”按钮，便于导入任务完成后手动刷新查看；后续所有带导入的列表页都按同样交互处理。
-- 已给镇街管理、重大疾病编码列表增加创建时间、更新时间显示。
-- 已优化镇街管理列表：排序值改为越大越靠前，避免默认 0 数据始终压在前面；镇街名称设置固定宽度；页面内增加轻量“显示字段”勾选配置，不单独抽组件。
-- 已确认当前代码中没有按镇街拼音自动创建用户的逻辑；已排查 `app`、`config`、`database`、`migrations`、初始化脚本、前端 `src/mock`/页面/服务、部署配置等路径。当前仅有两个用户创建入口：`UserController::store` 后台账户管理手动创建、`InitAdminCommand`/`init_admin.php` 初始化 admin。后续开发明确禁止镇街导入/镇街维护自动生成账号，账号只允许管理员手动创建。
-- 已排查 `zhangsansan` 看不到菜单问题：用户已绑定镇街和“镇街人员”角色，角色已有未救助相关权限；根因是生产库 `permissions` 表缺少代码已依赖的 `status` 字段，导致菜单/权限启用判断异常。已新增迁移 `2026_05_24_100009_add_status_to_permissions_table.php`，给 `permissions` 增加 `status` 默认 1；同时修正 `Permission::roles()` 关联表名为 `role_permissions`、`UserRole` 模型表名为 `role_user`，并让 `User::getPermissions()` 对旧数据缺失 status 做默认启用兼容。执行迁移后需要清理用户权限缓存或重新登录。
+## 十二、日志和排错
 
-下一步建议：
+导入、导出、清洗三个耗时链路均已记录开始、进度、成功、失败日志，便于通过 `runtime/logs/hyperf.log` 观察。
 
-- 先在 PHP 8.2+ 环境执行 `php bin/hyperf.php migrate --force`，再运行 `php bin/hyperf.php init:menu-permissions` 初始化菜单权限。
-- 用管理员账号登录，给角色勾选“镇街管理”和“未救助台账/重大疾病编码”权限。
-- 验收镇街管理、用户所属镇街、重大疾病编码新增/导入/删除流程。
-- 验收通过后进入阶段四：附件1和附件2导入、主表列表与状态判定。
+常用排查关键字：
 
-## 9. 阶段四至阶段七开发进度记录
+- 附件1导入：`Unrescued attachment1 import`
+- 附件2导入：`Unrescued attachment2 import`
+- 清洗执行：`Unrescued wash execute`
+- 导出：`Unrescued export`
+- 任务重复提交：`task:lock`
 
-更新时间：2026-05-24
+任务状态以任务中心为准。前端页面的进度展示来自任务进度接口和 `/wash/status` 的组合查询。
 
-本轮按用户要求继续完成阶段四至阶段七主体开发，已落地内容如下：
+## 十三、部署和本地执行注意
 
-阶段四已完成代码：
+1. 当前 vendor 要求 PHP `>= 8.2.0`。如果命令行 PHP 仍是 8.1，会导致 `php bin/hyperf.php migrate` 无法执行。
+2. 生产首次部署建议从干净业务库执行上述整理后的 migrations，不再执行已删除的 patch migration。
+3. 如果本地已经手动改过表结构，建议对照 `database/migrations/2026_05_24_100004_create_unrescued_records_table.php` 核对字段和索引。
+4. 如果权限菜单重新执行后没有出现，优先检查 `permissions` 表中 `2026_05_24_100010_seed_unrescued_permissions.php` 创建的未救助节点是否已插入，以及用户角色是否绑定了这些权限。
+5. 如果附件2匹配后 `town_id=0`，通常是附件2镇街名称与 `towns` 表名称或编码无法归一匹配，需要维护镇街基础数据或检查附件2镇街列名/内容。
 
-- 补齐 `unrescued_records` 阶段 4-7 字段口径：附件1字段、附件2匹配字段、状态、剔除、报销、下放/接收/通知、银行账户字段。
-- 新增兼容迁移 `2026_05_24_100010_patch_unrescued_stage_four_to_seven_fields.php`，用于已执行早期迁移的环境增量补字段并修正 `status` 字段类型。
-- 新增 `UnrescuedRecordService`，统一处理清算期、日期、金额、BCMath 计算、状态判定、镇街匹配和清洗规则。
-- 新增附件1异步导入任务 `Attachment1ImportJob`：按 `settlement_period + sequence_no` 新增/更新，计算 `进入报销金额`，并判定 `无救助金额/不通知/拟通知`。
-- 新增附件2异步导入任务 `Attachment2ImportJob`：不单独落表，按当月身份证号更新主表多条记录，补齐镇街、村社、优先身份；附件1姓名为空或 `--` 时回填姓名。
-- 新增主表接口：列表、详情、统计卡片、附件1/附件2导入。
-- 前端未救助明细页从空态改为可用列表，支持清算期、关键词、镇街、状态、剔除状态筛选和统计卡片。
-- 新增附件1、附件2 CSV 模板：
-  - `tools-react-yf/public/assets/templates/unrescued/导入-附件1：未救助明细模板.csv`
-  - `tools-react-yf/public/assets/templates/unrescued/导入-附件2：救助对象名单模板.csv`
+## 十四、已知业务口径
 
-阶段五已完成代码：
-
-- 初始化默认清洗规则，读取最新启用版本；没有配置时自动创建默认版本。
-- 提供清洗规则预览接口和前端折叠面板展示。
-- 支持保存当前清洗规则为新版本。
-- 支持按清算期/镇街执行清洗，写入 `exclude_status`、`exclude_rule_code`、`remark`。
-- 清洗执行写入 `unrescued_wash_logs`，记录批次、总数、剔除数、保留数和规则命中摘要。
-- 重新执行清洗会重新计算剔除状态，避免旧备注持续污染未命中记录。
-
-阶段六已完成代码：
-
-- 管理员按清算期和镇街下放数据，状态更新为 `已下放`。
-- 镇街账号列表查询、统计、导出、批量操作按 `users.town_id` 自动隔离。
-- 镇街可确认接收，状态更新为 `已接收`。
-- 镇街可批量标记 `已通知`。
-- 镇街可批量回填开户行、户名、账号。
-- 管理员可批量标记 `未报销/已报销`。
-- 下放、接收、通知、账户回填、报销标记均接入操作日志。
-
-阶段七已完成代码：
-
-- 新增异步导出任务 `UnrescuedExportJob`，所有导出提交任务中心并生成 CSV。
-- 支持导出附件1：医疗救助未救助排查明细。
-- 支持导出附件2：医疗救助未报销台账，范围为排除已剔除数据。
-- 支持导出附件3：医疗救助未救助通知名单，范围为排除已剔除数据。
-- 支持导出附件4：医疗救助应补应退排查记录，来源 `unrescued_supplement_records`。
-- CSV 身份证号/账号追加制表符保护格式，金额按两位小数输出。
-- 前端未救助明细页新增四类导出按钮，导出前提交异步任务。
-- `InitMenuPermissionsCommand` 补齐未救助明细导入、清洗、下放、通知、账户回填、报销标记、导出权限点。
-
-本轮验证情况：
-
-- 已执行后端 PHP 语法检查：`find app config migrations database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l`，结果通过。
-- 已执行前端全量 TypeScript 检查：`pnpm -s tsc --noEmit`，仍未通过，但报错来自既有页面 `SettlementConfig`、`InsuranceData`、`ImageOptimizationTest`、`Ocr`、`Table`；用 `rg 'Unrescued|unrescued'` 过滤后未出现本轮新增未救助页面和服务错误。
-- 当前 CLI PHP 仍是 8.1 环境，若 Composer 依赖要求 PHP >= 8.2，需要切换 PHP 8.2+ 后再执行迁移和 Hyperf 命令。
-
-下一步建议：
-
-- 切换 PHP 8.2+，执行 `php bin/hyperf.php migrate --force`。
-- 谨慎处理菜单权限初始化：当前 `php bin/hyperf.php init:menu-permissions` 会 `truncate permissions`，生产库直接执行可能导致既有角色权限关联失效。建议先在测试库验证，或先改造成非破坏性 upsert 初始化命令，再给相关角色补勾未救助明细阶段 4-7 操作权限。
-- 用样例 CSV 验收附件1/2导入、状态判定、附件2同人多条补全。
-- 执行清洗、下放、镇街接收、通知、账户回填、报销标记、四类导出，进入阶段八整体联调和体验补齐。
-
-阶段八前置体验调整记录：
-
-- 未救助明细关键词搜索改为仅按 `身份证号/姓名/序号` 模糊查询，不再混入医药机构。
-- 筛选区新增身份、报销状态筛选。
-- 镇街筛选仍读取 `towns` 数据表；附件2导入时如镇街名称未匹配到 `towns.name/code`，会保留原始 `street_town`，但 `town_id=0`，列表显示“未匹配”，该记录不能被镇街账号按 `town_id` 隔离查看，需先维护镇街基础数据或修正对象名单后重导。
-- 导入按钮文案调整为 `导入 未救助明细`、`导入 救助对象名单`，导入弹窗按重大疾病编码页面风格调整为说明、模板下载、拖拽上传。
-- 导出按钮文案调整为 `导出 排查明细`、`导出 未报销台账`、`导出 通知名单`、`导出 应退应补排查记录`。
-- 导出前端增加二次确认；后端导出接口同步校验当前筛选条件下是否存在可导出数据，无数据时直接返回原因。
-- 前端导出按钮根据当前筛选统计自动禁用：未导入未救助明细时不可导出排查明细；未导入救助对象名单或无未剔除数据时不可导出未报销台账/通知名单；无附件4排查记录时不可导出应退应补排查记录。
-- 顶部统计 UI 改为轻量数据卡片，替代原先裸 `Statistic` 排列。
-- 清洗规则区改为可编辑表格，按“规则条件 / 判断方式 / 条件值 / 操作动作”展示，可启停规则、编辑关键字/金额阈值/剔除备注，并保存为 JSON 版本。
-- 去掉手动“确认接收”按钮。镇街账号访问未救助明细页且当前清算期存在 `已下放` 数据时，自动弹窗提示并只提供“确认接收”按钮，确认后调用接收接口并标记为 `已接收`。
-- 操作按钮重新分组到统一操作卡片，减少横向堆叠。
-
-本轮继续调整记录：
-
-- 用户管理新增筛选：用户名/昵称、角色、镇街；支持从镇街管理点击账户数量跳转到用户管理并自动带入镇街筛选。
-- 镇街管理列表新增账户数量列，后端通过 `towns` 关联 `users` 返回 `users_count`。
-- 未救助明细中，镇街账号只能看到自己的镇街选项，镇街筛选不可修改；前后端均按 `users.town_id` 做数据隔离。
-- 镇街账号权限收紧：前端隐藏导入、清洗、下放、导出、报销标记；后端同步拦截这些操作。镇街账号仅保留确认接收、标记已通知、回填银行账户能力。
-- 清洗规则交互升级为固定规则项配置：每条规则显示启用、规则项、保留/剔除、条件、剔除备注；医疗类别和身份选项由当前已导入未救助明细去重生成。
-- 新增后端接口 `/api/unrescued/records/wash-options`，返回业务筛选表中的医疗类别、身份类别去重选项。
-- 清洗规则 JSON 结构升级为 `action + operator + values/value/compare_field + remark`，仍保存到现有 `unrescued_wash_configs` 版本表；后续如客户确认“全局筛选规则表”还要跨模块复用，可再抽象成独立全局规则表。
-
-本轮补充修正记录：
-
-- 修复镇街管理点击账户数量跳转用户管理后未稳定触发筛选请求的问题：用户管理页现在监听 URL query 的 `town_id`，并显式用解析后的筛选条件请求 `/api/users`。
-- 新增通用业务筛选选项表 `business_filter_options`，用 `module + type + value` 区分不同业务模块和筛选类型，不建唯一索引，代码按名称去重更新。
-- 新增模型 `BusinessFilterOption`、服务 `BusinessFilterOptionService`、通用接口 `/api/business-filter-options?module=xxx&type=xxx`。
-- 附件1导入时会把医疗类别写入 `business_filter_options`：`module=unrescued`、`type=medical_category`。
-- 附件2导入时会把优先身份/对象类别写入 `business_filter_options`：`module=unrescued`、`type=priority_identity`。
-- 未救助清洗规则选项接口 `/api/unrescued/records/wash-options` 改为只读取 `business_filter_options`，不再 fallback 主表数据；如果表里为空，前端医疗类别/身份条件值也应为空并提示先导入数据。
-- 默认清洗规则中的医疗类别、身份、医药机构关键字不再写死默认 `values`；医疗类别/身份前端会按 `business_filter_options` 返回选项过滤已选值，历史配置里残留但业务筛选表不存在的值不会再显示，保存后会被清掉。
-- 修复旧库 `unrescued_wash_configs.rule_name` 非空无默认值导致保存清洗规则失败的问题：`UnrescuedWashConfig` 模型允许 `rule_name`，保存/默认创建同时写入 `name` 和 `rule_name`；新增迁移 `2026_05_25_231200_patch_unrescued_wash_config_rule_name.php`，用于给旧表 `rule_name` 补默认值并同步 `name/rule_name`。
-- 修复已有旧版清洗 JSON 导致前端看不到固定规则项的问题：读取活动清洗配置时会按默认 9 条固定规则补齐并规范化，确保始终显示医疗类别、医药机构名称、统筹报销金额、大额报销、大病报销、已使用普通住院救助金额、已使用重特大疾病救助金额、已使用大额费用住院救助、身份规则。
-- 新增迁移 `2026_05_24_100011_create_business_filter_options_table.php`，执行迁移后新表才会生效。
-
-本轮再次调整记录：
-
-- 按产品意见从未救助主表迁移中去掉 `import_task_id`、`source_file`、`raw_data` 相关字段；当前迁移中实际存在的是 `source_file`、`raw_data`，已从根目录和 `database/migrations` 同步移除。
-- 同步移除附件1导入写入 `source_file`、`raw_data` 的代码，避免新库无字段时写入失败。
-- 未救助明细列表补充显示银行账户相关列：开户行、户名、账号录入。
-- 清洗规则配置改为默认折叠；展开后固定显示 9 个规则项，即使没有任何已导入数据也不会为空。
-- 默认清洗规则固定项均为未启用状态；未启用任何规则时，“执行 清洗规则”按钮禁用，hover 提示“请配置并启用至少一条清洗规则”。
-- 后端执行清洗时也会校验至少启用一条规则，避免绕过前端直接执行空规则。
-
-阶段八迁移与权限初始化核对记录：
-
-- 已将 `InitMenuPermissionsCommand` 从 `Permission::truncate()` 改为按权限 `name` 非破坏性 upsert：保留现有 `permissions.id` 和 `role_permissions` 授权关系，仅新增或更新菜单/操作权限定义。
-- `init:menu-permissions` 现在会输出菜单权限/操作权限的新增与更新数量，不再清空生产权限表。
-- 已将 `permissions.status` 迁移改为幂等：若 `permissions` 表不存在则跳过；若 `status` 字段已存在则不重复添加；若 `idx_permissions_status` 索引已存在则不重复创建。根目录 `migrations/` 与 `database/migrations/` 已同步。
-- 已执行单文件与全量 PHP 语法检查：
-  - `php -l app/Command/InitMenuPermissionsCommand.php`
-  - `php -l migrations/2026_05_24_100009_add_status_to_permissions_table.php`
-  - `php -l database/migrations/2026_05_24_100009_add_status_to_permissions_table.php`
-  - `find app config migrations database/migrations -name '*.php' -print0 | xargs -0 -n1 php -l`
-  均通过。
-- 已尝试进入阶段八本机联调，但当前 CLI PHP 仍为 `8.1.31`，执行 `php bin/hyperf.php list` 时 Composer 直接拦截：项目依赖要求 PHP `>=8.2.0`。因此本机暂不能执行 `migrate`、`init:menu-permissions`、导入导出任务联调。需要先切换 PHP 8.2+。
-
-阶段八页面问题修正记录：
-
-- 未救助明细的镇街显示改为优先显示附件2沉淀的 `street_town`，为空时回退显示 `town_id` 对应的 `towns.name`；镇街账号筛选项增加当前账号镇街兜底，避免基础选项未加载时显示成数字 ID。
-- 未救助明细的身份显示改为标签+悬浮完整文本，身份筛选改为下拉选择，选项来自清洗规则选项接口和当前列表已有身份。
-- 镇街账号数据可见范围已收紧为仅 `已下放`、`已接收`、`已通知` 三种状态；前端镇街账号状态筛选也只显示这三个选项。
-- 镇街账号访问当前清算期存在 `已下放` 数据时仍自动弹窗强制确认接收，弹窗不提供取消/关闭入口；确认后将 `已下放` 标记为 `已接收` 并刷新列表。
-- 镇街账号绕过前端直接调用接口时，也不能对 `已下放` 且未接收的数据直接标记通知或回填账户，必须先确认接收。
-- 镇街账号接收后可对 `已接收/已通知` 记录补填银行账户资料；仅 `已接收` 可标记为 `已通知`；新增撤销通知能力，可将 `已通知` 回退为 `已接收` 并清空 `notified_at`。
-- 未救助明细前端已将镇街账号的可操作入口显性化：顶部支持批量“补填 银行账户 / 标记 已通知 / 撤销 通知”，列表右侧固定“操作”列支持单条“补填资料 / 已通知 / 撤销”，不再完全依赖权限点展示，镇街账号按业务角色直接可见。
-- 单条补填资料会自动带入当前记录已有开户行、户名、账号；户名为空时默认带入姓名，方便镇街账号补录。
-- 未救助明细、重大疾病编码、镇街管理中的长文本列已统一改为左侧复制按钮 + `Typography.Text` 省略展示，鼠标 hover 显示完整内容；覆盖姓名、身份证号、镇街/村社、身份、医疗类别、医药机构、银行账户、备注、病种编码/名称、镇街名称等主要文本列。
-- 未救助统计接口新增 `received`、`notified` 计数；镇街账号访问未救助明细时，顶部统计卡片只展示“已接收”和“已通知”，不再展示管理员视角的当前记录、已匹配对象、拟通知、待接收、已剔除、已报销等统计。
-- 未救助明细操作区已按“导入 / 数据处理 / 记录操作 / 导出”分组，使用左侧色条区分操作类型，避免按钮密集堆叠。
-- 未救助明细操作区继续优化为紧凑工具条：左侧保留导入、下放、清洗等主流程按钮；右侧将通知、撤销、账户回填、报销标记收进“批量操作”下拉，将四类导出收进“导出”下拉，减少页面按钮堆叠。
-- “下放 镇街数据”不再依赖筛选区先选镇街；点击按钮后弹窗选择下放镇街，并按当前清算期执行下放。
-- 下放状态流已增加保护：只会将所选清算期和镇街下状态为 `拟通知` 的未剔除数据更新为 `已下放`；已处于 `已下放`、`已接收`、`已通知` 的数据不会被重复下放回退状态，接口会返回 `skipped_workflow_rows`，前端提示未重复处理数量。
-- 清洗规则配置默认只读，右上角点击“编辑”后才允许修改；编辑态按钮切换为“保存 / 取消”，取消会回滚到最近一次已保存规则；编辑期间禁用“执行 清洗规则”，避免未保存配置和后端实际执行配置不一致。
-- 清洗规则中的医疗类别、身份选项继续读取 `business_filter_options` 业务筛选表；医药机构名称条件值改为 tags 输入，输入关键字后回车生成可删除的块，不再要求用顿号手工分割。
-- `business_filter_options` 的根目录迁移与 `database/migrations` 迁移已保持一致，均增加 `Schema::hasTable('business_filter_options')` 幂等保护。
-- 附件1/附件2导入增强表头兼容：身份证支持“身份证号码/身份证件号码/公民身份号码”，附件2镇街支持“镇（街）/街道乡镇/镇街名称”等，身份支持“医疗救助身份/救助身份/特殊人员身份类别/人员类别”等。
-- 镇街匹配增强：精确匹配失败时会去掉“镇/乡/街道/办事处”等常见后缀再匹配，降低导入附件2后 `town_id=0` 导致镇街账号看不到数据的概率。
-- 重大疾病编码页面已补齐工具栏卡片、表格卡片、横向滚动、按钮文案，整体样式与未救助明细/镇街管理更一致。
-- 已执行相关后端 PHP 语法检查通过；前端 `pnpm -s tsc --noEmit | rg 'Unrescued|unrescued|DiseaseConfigs|Records/index|Town/index|services/unrescued'` 无未救助/镇街相关错误。全量 `pnpm -s tsc --noEmit` 仍失败，但报错来自既有页面 `SettlementConfig`、`InsuranceData`、`ImageOptimizationTest`、`Ocr`、`Table`。
-- 已启动前端 dev server 到 `http://localhost:8001` 验证可编译启动；本次 in-app browser 返回 `Browser is not available: iab`，未能截图检查页面视觉，随后已停止 dev server。
-
-## 10. 下次对话启动提示
-
-下次可以直接说：
-
-> 请阅读 `docs/project1.md`、`TODO_未救助台账开发交接文档.md`、`docs/未救助明细台账_md/业务逻辑与流程图.md`、`docs/未救助明细台账_md/数据库表设计规范.md`，按已确认口径继续未救助明细台账模块阶段八整体联调。阶段一至阶段七主体代码已完成，`init:menu-permissions` 已改为非破坏性 upsert，`permissions.status` 迁移已做幂等保护；未救助明细镇街/身份显示、附件1/2导入表头兼容、镇街后缀匹配、重大疾病编码页面样式、镇街账号行内补填/通知/撤销操作入口、镇街账号顶部仅展示已接收/已通知统计、长文本左侧复制按钮和 hover 完整提示、操作区紧凑工具条、下放弹窗选择镇街、重复下放不回退已下放/已接收/已通知状态、清洗规则只读/编辑态和医药机构 tags 关键字输入也已做修正。当前本机阻塞是 CLI PHP 为 8.1.31，而项目依赖要求 PHP >=8.2.0；请先确认或切换 PHP 8.2+，再执行迁移、非破坏性权限初始化，并用样例 CSV 跑通附件3配置、附件1/2导入、清洗、下放、镇街接收/通知/账户回填、报销标记、四类导出，补齐发现的问题、权限点、二次确认、操作日志和文档。
-
-
-保存清洗规则依然报错：{
-    "code": 401,
-    "msg": "SQLSTATE[HY000]: General error: 1364 Field 'rule_type' doesn't have a default value (SQL: insert into `unrescued_wash_configs` (`version`, `name`, `rule_name`, `data`, `is_active`, `created_by`, `updated_at`, `created_at`) values ('20260525231734', '未救助清洗规则', '未救助清洗规则', '[{\"code\":\"medical_category_keep\",\"name\":\"\\u533b\\u7597\\u7c7b\\u522b\",\"field\":\"medical_category\",\"action\":\"keep\",\"operator\":\"in\",\"values\":[],\"remark\":\"\\u95e8\\u8bca\\u6551\\u52a9\",\"enabled\":false},{\"code\":\"hospital_keyword_exclude\",\"name\":\"\\u533b\\u836f\\u673a\\u6784\\u540d\\u79f0\",\"field\":\"hospital_name\",\"action\":\"exclude\",\"operator\":\"contains\",\"values\":[],\"remark\":\"\\u5bf9\\u8c61\\u7c7b\\u522b\\u4e0d\\u7b26\",\"enabled\":true},{\"code\":\"pool_equals_policy\",\"name\":\"\\u7edf\\u7b79\\u62a5\\u9500\\u91d1\\u989d\",\"field\":\"pool_fund_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":true},{\"code\":\"large_equals_policy\",\"name\":\"\\u5927\\u989d\\u62a5\\u9500\",\"field\":\"large_amount_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":false},{\"code\":\"serious_equals_policy\",\"name\":\"\\u5927\\u75c5\\u62a5\\u9500\",\"field\":\"serious_illness_pay\",\"action\":\"exclude\",\"operator\":\"=\",\"compare_field\":\"policy_fee\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u91d1\\u989d\",\"enabled\":false},{\"code\":\"normal_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u666e\\u901a\\u4f4f\\u9662\\u6551\\u52a9\\u91d1\\u989d\",\"field\":\"used_normal_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"6000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"major_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u91cd\\u7279\\u5927\\u75be\\u75c5\\u6551\\u52a9\\u91d1\\u989d\",\"field\":\"used_major_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"100000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"large_fee_rescue_limit\",\"name\":\"\\u5df2\\u4f7f\\u7528\\u5927\\u989d\\u8d39\\u7528\\u4f4f\\u9662\\u6551\\u52a9\",\"field\":\"used_large_fee_rescue\",\"action\":\"exclude\",\"operator\":\"=\",\"value\":\"60000.00\",\"remark\":\"\\u65e0\\u6551\\u52a9\\u989d\\u5ea6\",\"enabled\":false},{\"code\":\"identity_exclude\",\"name\":\"\\u8eab\\u4efd\",\"field\":\"priority_identity\",\"action\":\"exclude\",\"operator\":\"contains\",\"values\":[],\"remark\":\"\\u5bf9\\u8c61\\u7c7b\\u522b\\u4e0d\\u7b26\",\"enabled\":false}]', 1, 1, '2026-05-25 23:17:34', '2026-05-25 23:17:34'))"
-}
+- 附件1按 `清算期 + 序号` 更新或新增。
+- 附件2按 `清算期 + 身份证号` 匹配主表，可能一行附件2匹配多条同身份证就医记录。
+- 清洗只负责剔除标记，不删除记录。
+- 已进入镇街流程的记录，附件1/附件2再次导入时不覆盖流程状态。
+- 镇街账号只处理已下放到自己的记录。
+- 导出附件2/附件3包含未匹配镇街但未剔除的数据，后续人工处理；未匹配镇街的数据不能执行下放。

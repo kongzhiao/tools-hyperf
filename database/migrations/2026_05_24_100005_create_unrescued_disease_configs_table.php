@@ -10,6 +10,10 @@ class CreateUnrescuedDiseaseConfigsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('unrescued_disease_configs')) {
+            return;
+        }
+
         Schema::create('unrescued_disease_configs', function (Blueprint $table) {
             $table->id();
             $table->string('disease_code', 64)->comment('病种编码');
@@ -22,6 +26,7 @@ class CreateUnrescuedDiseaseConfigsTable extends Migration
 
             $table->index('disease_code', 'idx_unrescued_disease_code');
             $table->index('status', 'idx_unrescued_disease_status');
+            $table->comment('未救助重大疾病编码表');
         });
     }
 

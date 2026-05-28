@@ -10,6 +10,10 @@ class CreateUnrescuedSupplementRecordsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('unrescued_supplement_records')) {
+            return;
+        }
+
         Schema::create('unrescued_supplement_records', function (Blueprint $table) {
             $table->id();
             $table->string('settlement_period', 20)->default('')->comment('清算期/月度');
@@ -47,6 +51,7 @@ class CreateUnrescuedSupplementRecordsTable extends Migration
             $table->index(['settlement_period', 'town_id'], 'idx_period_town');
             $table->index(['settlement_period', 'status'], 'idx_period_status');
             $table->index('disease_code', 'idx_disease_code');
+            $table->comment('未救助补充记录表');
         });
     }
 

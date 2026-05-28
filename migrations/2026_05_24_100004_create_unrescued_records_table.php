@@ -64,6 +64,10 @@ class CreateUnrescuedRecordsTable extends Migration
             $table->index(['settlement_period', 'id_card'], 'idx_period_id_card');
             $table->index(['settlement_period', 'town_id', 'status'], 'idx_period_town_status');
             $table->index(['settlement_period', 'status'], 'idx_period_status');
+            $table->index(['settlement_period', 'medical_category'], 'idx_period_medical_category');
+            $table->index(['settlement_period', 'priority_identity'], 'idx_period_priority_identity');
+            $table->index(['settlement_period', 'hospital_name'], 'idx_period_hospital_name');
+            $table->index(['settlement_period', 'exclude_rule_code'], 'idx_period_exclude_rule');
             $table->index('exclude_status', 'idx_exclude_status');
             $table->index('reimbursement_status', 'idx_reimbursement_status');
             $table->comment('未救助记录表');

@@ -9,6 +9,7 @@ use App\Model\Unrescued\UnrescuedRecord;
 use App\Model\Unrescued\UnrescuedSupplementRecord;
 use App\Service\Unrescued\UnrescuedRecordService;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Logger\LoggerFactory;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Writer\CSV\Options;
 use OpenSpout\Writer\CSV\Writer;
@@ -17,6 +18,7 @@ class UnrescuedExportJob extends AbstractJob
 {
     public function handle(): void
     {
+        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
         try {
             $this->startTask();
 
@@ -24,6 +26,12 @@ class UnrescuedExportJob extends AbstractJob
             $type = (string) ($this->params['type'] ?? 'attachment1');
             $filters = (array) ($this->params['filters'] ?? []);
             $userTownId = (int) ($this->params['user_town_id'] ?? 0);
+            $logger->info('Unrescued export start.', [
+                'uuid' => $this->uuid,
+                'type' => $type,
+                'filters' => $filters,
+                'user_town_id' => $userTownId,
+            ]);
 
             $filenameMap = [
                 'attachment1' => '医疗救助未救助排查明细',
@@ -44,21 +52,36 @@ class UnrescuedExportJob extends AbstractJob
             fwrite(fopen($storagePath, 'a'), "\xEF\xBB\xBF");
 
             if ($type === 'attachment4') {
-                $this->exportAttachment4($writer, $service, $filters, $userTownId);
+                $this->exportAttachment4($writer, $service, $filters, $userTownId, $logger);
             } else {
-                $this->exportRecordAttachment($writer, $service, $type, $filters, $userTownId);
+                $this->exportRecordAttachment($writer, $service, $type, $filters, $userTownId, $logger);
             }
 
             $writer->close();
             $relPath = str_replace(BASE_PATH . '/', '', $storagePath);
             $fileSize = round(filesize($storagePath) / 1024 / 1024, 2);
+            $logger->info('Unrescued export progress.', [
+                'uuid' => $this->uuid,
+                'type' => $type,
+                'progress' => 100.00,
+            ]);
+            $logger->info('Unrescued export success.', [
+                'uuid' => $this->uuid,
+                'type' => $type,
+                'file' => $relPath,
+                'file_size_mb' => $fileSize,
+            ]);
             $this->finishTask($relPath, $fileSize);
         } catch (\Throwable $e) {
+            $logger->error('Unrescued export failed: ' . $e->getMessage(), [
+                'uuid' => $this->uuid,
+                'params' => $this->params,
+            ]);
             $this->failTask($e, '未救助台账导出失败');
         }
     }
 
-    private function exportRecordAttachment(Writer $writer, UnrescuedRecordService $service, string $type, array $filters, int $userTownId): void
+    private function exportRecordAttachment(Writer $writer, UnrescuedRecordService $service, string $type, array $filters, int $userTownId, $logger): void
     {
         $headers = $this->recordHeaders($type);
         $writer->addRow(Row::fromValues($headers));
@@ -71,17 +94,30 @@ class UnrescuedExportJob extends AbstractJob
         }
 
         $total = max($query->count(), 1);
+        $logger->info('Unrescued export records counted.', [
+            'uuid' => $this->uuid,
+            'type' => $type,
+            'total_count' => $total,
+        ]);
         $processed = 0;
-        $query->orderBy('settlement_period')->orderBy('sequence_no')->chunk(1000, function ($records) use ($writer, $type, &$processed, $total) {
+        $query->orderBy('settlement_period')->orderBy('sequence_no')->chunk(1000, function ($records) use ($writer, $type, &$processed, $total, $logger) {
             foreach ($records as $record) {
                 $writer->addRow(Row::fromValues($this->recordRow($record, $type)));
                 $processed++;
             }
-            $this->updateProgress($this->uuid, min(($processed / $total) * 100, 99.9));
+            $progress = min(($processed / $total) * 100, 99.9);
+            $this->updateProgress($this->uuid, $progress);
+            $logger->info('Unrescued export progress.', [
+                'uuid' => $this->uuid,
+                'type' => $type,
+                'processed' => $processed,
+                'total_count' => $total,
+                'progress' => round($progress, 2),
+            ]);
         });
     }
 
-    private function exportAttachment4(Writer $writer, UnrescuedRecordService $service, array $filters, int $userTownId): void
+    private function exportAttachment4(Writer $writer, UnrescuedRecordService $service, array $filters, int $userTownId, $logger): void
     {
         $writer->addRow(Row::fromValues([
             '姓名', '身份证号', '对象类别', '镇街', '参保地', '参加险种', '就诊医疗机构名称', '医保就诊类别', '疾病编码',
@@ -104,8 +140,13 @@ class UnrescuedExportJob extends AbstractJob
         }
 
         $total = max($query->count(), 1);
+        $logger->info('Unrescued export records counted.', [
+            'uuid' => $this->uuid,
+            'type' => 'attachment4',
+            'total_count' => $total,
+        ]);
         $processed = 0;
-        $query->orderBy('settlement_period')->orderByDesc('id')->chunk(1000, function ($records) use ($writer, &$processed, $total) {
+        $query->orderBy('settlement_period')->orderByDesc('id')->chunk(1000, function ($records) use ($writer, &$processed, $total, $logger) {
             foreach ($records as $record) {
                 $writer->addRow(Row::fromValues([
                     $record->name,
@@ -133,7 +174,15 @@ class UnrescuedExportJob extends AbstractJob
                 ]));
                 $processed++;
             }
-            $this->updateProgress($this->uuid, min(($processed / $total) * 100, 99.9));
+            $progress = min(($processed / $total) * 100, 99.9);
+            $this->updateProgress($this->uuid, $progress);
+            $logger->info('Unrescued export progress.', [
+                'uuid' => $this->uuid,
+                'type' => 'attachment4',
+                'processed' => $processed,
+                'total_count' => $total,
+                'progress' => round($progress, 2),
+            ]);
         });
     }
 
@@ -158,7 +207,7 @@ class UnrescuedExportJob extends AbstractJob
         }
 
         return [
-            '序号', '姓名', '身份证号', '镇街', '身份', '医疗类别', '认定地', '医药机构名称', '医药机构编码', '市（内）外',
+            '清算期', '序号', '姓名', '身份证号', '镇街', '身份', '医疗类别', '认定地', '医药机构名称', '医药机构编码', '市（内）外',
             '入院时间', '出院时间', '结算时间', '医疗总费用', '医保政策范围费用', '统筹报销金额', '大额报销', '大病报销',
             '已使用门诊救助金额', '已使用普通住院救助金额', '已使用重特大疾病救助金额', '已使用大额费用住院救助',
             '进入报销金额', '备注',
@@ -226,7 +275,7 @@ class UnrescuedExportJob extends AbstractJob
             ];
         }
 
-        return $type === 'attachment1' ? array_merge([$record->sequence_no], $common) : $common;
+        return $type === 'attachment1' ? array_merge([$record->settlement_period, $record->sequence_no], $common) : $common;
     }
 
     private function money(mixed $value): string

@@ -8,19 +8,20 @@ use App\Controller\AbstractController;
 use App\Job\Unrescued\Attachment1ImportJob;
 use App\Job\Unrescued\Attachment2ImportJob;
 use App\Job\Unrescued\UnrescuedExportJob;
+use App\Job\Unrescued\WashExecuteJob;
+use App\Model\Task;
 use App\Model\Unrescued\UnrescuedRecord;
 use App\Model\Unrescued\UnrescuedSupplementRecord;
 use App\Model\Unrescued\UnrescuedWashConfig;
-use App\Model\Unrescued\UnrescuedWashLog;
 use App\Service\BusinessFilterOptionService;
 use App\Service\OperationLogService;
 use App\Service\TaskService;
 use App\Service\Unrescued\UnrescuedRecordService;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\DbConnection\Db;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Annotation\RequestMapping;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Logger\LoggerFactory;
 
 /**
  * @Controller(prefix="/api/unrescued/records")
@@ -90,11 +91,6 @@ class RecordController extends AbstractController
         $exportAttachment1Count = (clone $base)->count();
         $exportAttachment2Count = (clone $base)
             ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
-            ->where(function ($query) {
-                $query->whereNotNull('priority_identity')
-                    ->orWhereNotNull('street_town')
-                    ->orWhere('town_id', '>', 0);
-            })
             ->count();
         $exportAttachment3Count = $exportAttachment2Count;
 
@@ -157,6 +153,17 @@ class RecordController extends AbstractController
     {
         $medicalCategories = array_column($this->filterOptionService->listOptions('unrescued', 'medical_category'), 'value');
         $identities = array_column($this->filterOptionService->listOptions('unrescued', 'priority_identity'), 'value');
+        $rules = (array) ($this->activeWashConfig()->data ?? []);
+        foreach ($rules as $rule) {
+            $code = (string) ($rule['code'] ?? '');
+            $values = (array) ($rule['values'] ?? []);
+            if ($code === 'medical_category_keep') {
+                $medicalCategories = array_merge($medicalCategories, $values);
+            }
+            if ($code === 'identity_exclude') {
+                $identities = array_merge($identities, $values);
+            }
+        }
 
         return $this->success([
             'medical_categories' => array_values(array_unique(array_filter($medicalCategories))),
@@ -214,67 +221,62 @@ class RecordController extends AbstractController
         if (!$this->hasEnabledWashRules($rules)) {
             return $this->error('请先配置并启用至少一条清洗规则', 400);
         }
-        $query = UnrescuedRecord::query()->where('settlement_period', $period);
-        if ($this->currentTownId($request) > 0) {
-            $query->where('town_id', $this->currentTownId($request));
-        } elseif ($request->input('town_id')) {
-            $query->where('town_id', (int) $request->input('town_id'));
-        }
 
-        $records = $query->get();
-        $summary = [];
-        $excluded = 0;
-
-        Db::beginTransaction();
-        try {
-            foreach ($records as $record) {
-                $matched = $this->recordService->matchWashRule($record, $rules);
-                if ($matched) {
-                    $record->update([
-                        'exclude_status' => UnrescuedRecordService::EXCLUDE_YES,
-                        'exclude_rule_code' => (string) ($matched['code'] ?? ''),
-                        'remark' => (string) ($matched['remark'] ?? ''),
-                    ]);
-                    $code = (string) ($matched['code'] ?? 'unknown');
-                    $summary[$code] = ($summary[$code] ?? 0) + 1;
-                    $excluded++;
-                } else {
-                    $record->update([
-                        'exclude_status' => UnrescuedRecordService::EXCLUDE_NO,
-                        'exclude_rule_code' => null,
-                        'remark' => null,
-                    ]);
-                }
-            }
-
-            $log = UnrescuedWashLog::create([
+        $townId = (int) $request->input('town_id', 0);
+        $userId = (int) $request->getAttribute('userId', 0);
+        $username = (string) $request->getAttribute('username', 'System');
+        $lockKey = sprintf('task:lock:%d:unrescuedWash:%s:%d', $userId, $period, $townId);
+        $uuid = TaskService::instance()->dispatchTask(
+            sprintf('未救助台账_执行清洗_%s_', $period),
+            $userId,
+            $username,
+            WashExecuteJob::class,
+            [[
                 'settlement_period' => $period,
+                'town_id' => $townId,
                 'config_id' => (int) $config->id,
-                'batch_no' => date('YmdHis') . mt_rand(1000, 9999),
-                'total_count' => $records->count(),
-                'excluded_count' => $excluded,
-                'kept_count' => $records->count() - $excluded,
-                'summary' => $summary,
-                'created_by' => (int) $request->getAttribute('userId', 0),
-            ]);
-            Db::commit();
-        } catch (\Throwable $e) {
-            Db::rollBack();
-            return $this->error('执行清洗失败：' . $e->getMessage(), 500);
+                'created_by' => $userId,
+            ]],
+            $lockKey
+        );
+
+        if ($uuid === false) {
+            return $this->error('当前清算期清洗任务正在执行中，请勿重复提交', 400);
         }
 
-        $this->operationLogService->record('未救助明细', '执行清洗', 'wash_log', (string) $log->id, '执行未救助清洗', [
+        $this->operationLogService->record('未救助明细', '提交清洗', 'wash_task', $uuid, '提交未救助清洗任务', [
             'settlement_period' => $period,
-            'excluded_count' => $excluded,
-            'kept_count' => $records->count() - $excluded,
+            'town_id' => $townId,
         ]);
 
-        return $this->success([
-            'total_count' => $records->count(),
-            'excluded_count' => $excluded,
-            'kept_count' => $records->count() - $excluded,
-            'summary' => $summary,
-        ], '清洗完成');
+        return $this->success(['uuid' => $uuid], '清洗任务已提交，请等待执行完成');
+    }
+
+    /**
+     * @RequestMapping(path="/wash/status", methods="get")
+     */
+    public function washStatus(RequestInterface $request)
+    {
+        $period = $this->recordService->normalizePeriod((string) $request->input('settlement_period', ''));
+        if ($period === '') {
+            return $this->success(null, '获取成功');
+        }
+
+        $task = Task::query()
+            ->where('uid', (int) $request->getAttribute('userId', 0))
+            ->where('title', 'like', sprintf('未救助台账\_执行清洗\_%s\_%%', $period))
+            ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_RUNNING])
+            ->orderByDesc('id')
+            ->first();
+
+        return $this->success($task ? [
+            'uuid' => $task->uuid,
+            'title' => $task->title,
+            'progress' => (float) $task->progress,
+            'status' => Task::STATUS_MAP[$task->status] ?? 'processing',
+            'created_at' => $task->created_at?->toDateTimeString(),
+            'updated_at' => $task->updated_at?->toDateTimeString(),
+        ] : null, '获取成功');
     }
 
     /**
@@ -407,6 +409,7 @@ class RecordController extends AbstractController
      */
     public function export(RequestInterface $request)
     {
+        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
         if ($this->currentTownId($request) > 0) {
             return $this->error('镇街账号不能导出数据', 403);
         }
@@ -424,6 +427,12 @@ class RecordController extends AbstractController
 
         $userId = (int) $request->getAttribute('userId', 0);
         $username = (string) $request->getAttribute('username', 'System');
+        $logger->info('Unrescued export submit start.', [
+            'type' => $type,
+            'filters' => $filters,
+            'user_id' => $userId,
+            'username' => $username,
+        ]);
         $uuid = TaskService::instance()->dispatchTask(
             '未救助台账_导出_',
             $userId,
@@ -436,6 +445,11 @@ class RecordController extends AbstractController
             ]]
         );
 
+        $logger->info('Unrescued export submit success.', [
+            'uuid' => $uuid,
+            'type' => $type,
+            'user_id' => $userId,
+        ]);
         $this->operationLogService->record('未救助明细', '导出', 'unrescued_export', $uuid ?: '', '提交未救助导出任务', ['type' => $type]);
         return $this->success(['uuid' => $uuid], '导出任务已提交，请在任务中心查看进度');
     }
@@ -457,6 +471,7 @@ class RecordController extends AbstractController
 
     private function submitImport(RequestInterface $request, string $jobClass, string $title, string $lockName)
     {
+        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
         $file = $request->file('file');
         if (!$file || !$file->isValid()) {
             return $this->error('无效的文件', 400);
@@ -481,6 +496,14 @@ class RecordController extends AbstractController
         $username = (string) $request->getAttribute('username', 'System');
         $lockKey = sprintf('task:lock:%d:%s', $userId, $lockName);
 
+        $logger->info('Unrescued import submit start.', [
+            'title' => $title,
+            'job' => $jobClass,
+            'settlement_period' => $period,
+            'file' => $file->getClientFilename(),
+            'user_id' => $userId,
+            'username' => $username,
+        ]);
         $uuid = TaskService::instance()->dispatchTask(
             $title,
             $userId,
@@ -494,9 +517,20 @@ class RecordController extends AbstractController
         );
 
         if ($uuid === false) {
+            $logger->warning('Unrescued import submit rejected because task is running.', [
+                'title' => $title,
+                'settlement_period' => $period,
+                'user_id' => $userId,
+            ]);
             return $this->error('导入任务正在执行中，请在任务中心查看进度', 400);
         }
 
+        $logger->info('Unrescued import submit success.', [
+            'uuid' => $uuid,
+            'title' => $title,
+            'settlement_period' => $period,
+            'user_id' => $userId,
+        ]);
         $this->operationLogService->record('未救助明细', '导入', 'unrescued_records', $uuid, $title . '任务提交', [
             'settlement_period' => $period,
             'file' => $file->getClientFilename(),
@@ -597,12 +631,7 @@ class RecordController extends AbstractController
             ];
         }
 
-        $query->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
-            ->where(function ($subQuery) {
-                $subQuery->whereNotNull('priority_identity')
-                    ->orWhereNotNull('street_town')
-                    ->orWhere('town_id', '>', 0);
-            });
+        $query->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES);
         $count = $query->count();
 
         return [

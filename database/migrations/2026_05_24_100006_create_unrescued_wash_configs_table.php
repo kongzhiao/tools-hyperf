@@ -10,10 +10,15 @@ class CreateUnrescuedWashConfigsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('unrescued_wash_configs')) {
+            return;
+        }
+
         Schema::create('unrescued_wash_configs', function (Blueprint $table) {
             $table->id();
             $table->string('version', 50)->default('')->comment('规则版本号');
             $table->string('name', 100)->default('')->comment('配置名称');
+            $table->string('rule_name', 100)->default('')->comment('配置名称/兼容旧字段');
             $table->json('data')->nullable()->comment('清洗规则JSON');
             $table->tinyInteger('is_active')->default(1)->comment('是否启用');
             $table->unsignedBigInteger('created_by')->default(0)->comment('创建用户ID');
@@ -22,6 +27,7 @@ class CreateUnrescuedWashConfigsTable extends Migration
 
             $table->index(['is_active', 'created_at'], 'idx_active_created');
             $table->index('version', 'idx_version');
+            $table->comment('未救助清洗配置表');
         });
     }
 

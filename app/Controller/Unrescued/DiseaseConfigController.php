@@ -14,6 +14,7 @@ use Hyperf\Di\Annotation\Inject;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Annotation\RequestMapping;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\Logger\LoggerFactory;
 
 /**
  * @Controller(prefix="/api/unrescued/disease-configs")
@@ -123,6 +124,7 @@ class DiseaseConfigController extends AbstractController
      */
     public function import(RequestInterface $request)
     {
+        $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
         $file = $request->file('file');
         if (!$file || !$file->isValid()) {
             return $this->response->json(['code' => 400, 'msg' => '无效的文件']);
@@ -146,6 +148,11 @@ class DiseaseConfigController extends AbstractController
             $username = (string) $request->getAttribute('username', 'System');
             $lockKey = sprintf('task:lock:%d:unrescuedDiseaseImport', $userId);
 
+            $logger->info('Unrescued disease config import submit start.', [
+                'file' => $file->getClientFilename(),
+                'user_id' => $userId,
+                'username' => $username,
+            ]);
             $uuid = TaskService::instance()->dispatchTask(
                 '未救助台账_重大疾病编码导入_',
                 $userId,
@@ -159,15 +166,25 @@ class DiseaseConfigController extends AbstractController
             );
 
             if ($uuid === false) {
+                $logger->warning('Unrescued disease config import submit rejected because task is running.', [
+                    'file' => $file->getClientFilename(),
+                    'user_id' => $userId,
+                ]);
                 return $this->response->json(['code' => 400, 'msg' => '导入任务正在执行中，请在任务中心查看进度']);
             }
 
+            $logger->info('Unrescued disease config import submit success.', [
+                'uuid' => $uuid,
+                'file' => $file->getClientFilename(),
+                'user_id' => $userId,
+            ]);
             $this->operationLogService()->record('重大疾病编码', '导入', 'disease_config', $uuid, '提交重大疾病编码导入任务', [
                 'file' => $file->getClientFilename(),
             ]);
 
             return $this->response->json(['code' => 0, 'msg' => '导入任务已提交，请在任务中心查看进度', 'data' => ['uuid' => $uuid]]);
         } catch (\Throwable $e) {
+            $logger->error('Unrescued disease config import submit failed: ' . $e->getMessage());
             return $this->response->json(['code' => 500, 'msg' => '导入提交失败：' . $e->getMessage()]);
         }
     }

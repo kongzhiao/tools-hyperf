@@ -13,7 +13,7 @@ class CreateUnrescuedWashLogsTable extends Migration
         if (Schema::hasTable('unrescued_wash_logs')) {
             return;
         }
-        
+
         Schema::create('unrescued_wash_logs', function (Blueprint $table) {
             $table->id();
             $table->string('settlement_period', 20)->default('')->comment('清算期');

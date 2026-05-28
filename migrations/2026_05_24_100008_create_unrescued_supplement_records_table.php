@@ -13,7 +13,7 @@ class CreateUnrescuedSupplementRecordsTable extends Migration
         if (Schema::hasTable('unrescued_supplement_records')) {
             return;
         }
-        
+
         Schema::create('unrescued_supplement_records', function (Blueprint $table) {
             $table->id();
             $table->string('settlement_period', 20)->default('')->comment('清算期/月度');

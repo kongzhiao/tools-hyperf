@@ -10,6 +10,10 @@ class CreateUnrescuedWashLogsTable extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('unrescued_wash_logs')) {
+            return;
+        }
+
         Schema::create('unrescued_wash_logs', function (Blueprint $table) {
             $table->id();
             $table->string('settlement_period', 20)->default('')->comment('清算期');
@@ -25,6 +29,7 @@ class CreateUnrescuedWashLogsTable extends Migration
 
             $table->index(['settlement_period', 'batch_no'], 'idx_period_batch');
             $table->index('config_id', 'idx_config_id');
+            $table->comment('未救助清洗执行日志表');
         });
     }
 

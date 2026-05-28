@@ -47,6 +47,16 @@ class Attachment2ImportJob extends AbstractJob
             $processed = 0;
             $sourceBatch = date('YmdHis');
             $result = ['matched_rows' => 0, 'updated_records' => 0, 'skipped' => 0, 'errors' => []];
+            $townLookupMap = $service->buildTownLookupMap();
+            $pendingRows = [];
+            $identityValues = [];
+            $chunkSize = 1000;
+            $logger->info('Unrescued attachment2 import start.', [
+                'uuid' => $this->uuid,
+                'settlement_period' => $settlementPeriod,
+                'total_count' => $totalCount,
+                'source_file' => $this->params['source_file'] ?? '',
+            ]);
 
             $csvReader->read($this->tempFile, function (array $row, int $rowIndex) use (
                 $service,
@@ -55,11 +65,12 @@ class Attachment2ImportJob extends AbstractJob
                 $totalCount,
                 &$result,
                 $logger,
-                $filterOptionService,
-                $sourceBatch
+                $townLookupMap,
+                &$pendingRows,
+                &$identityValues,
+                $chunkSize
             ) {
                 $processed++;
-                $transactionStarted = false;
                 try {
                     $idCard = $service->pickValue($row, ['身份证号', '身份证号码', '身份证件号码', '公民身份号码', '身份证', 'id_card']);
                     if ($idCard === '') {
@@ -71,46 +82,26 @@ class Attachment2ImportJob extends AbstractJob
                     $streetTown = $service->pickValue($row, ['镇街', '镇（街）', '镇(街)', '街镇', '街道乡镇', '镇街名称', '乡镇街道', 'street_town']);
                     $village = $service->pickValue($row, ['村社', '村（居）', '村(居)', '社区', '村社区', '村居', 'village']);
                     $identity = $service->pickValue($row, ['优先身份', '医疗救助身份', '救助身份', '对象类别', '对象身份', '身份', '身份类别', '特殊人员身份类别', '特殊人员身份', '人员类别', 'priority_identity']);
-                    $townId = $service->resolveTownId($streetTown);
-                    $filterOptionService->saveOption('unrescued', 'priority_identity', $identity, $sourceBatch);
-
-                    $records = UnrescuedRecord::query()
-                        ->where('settlement_period', $settlementPeriod)
-                        ->where('id_card', $idCard)
-                        ->get();
-
-                    if ($records->isEmpty()) {
-                        $result['skipped']++;
-                        return;
+                    $townId = $service->resolveTownIdFromMap($streetTown, $townLookupMap);
+                    if ($identity !== '') {
+                        $identityValues[$identity] = true;
                     }
 
-                    $transactionStarted = true;
-                    Db::beginTransaction();
-                    foreach ($records as $record) {
-                        $data = [
-                            'town_id' => $townId,
-                            'street_town' => $streetTown ?: null,
-                            'village' => $village ?: null,
-                            'priority_identity' => $identity ?: null,
-                        ];
+                    $pendingRows[] = [
+                        'row_number' => $rowIndex + 1,
+                        'id_card' => $idCard,
+                        'name' => $name,
+                        'town_id' => $townId,
+                        'street_town' => $streetTown,
+                        'village' => $village,
+                        'priority_identity' => $identity,
+                    ];
 
-                        if (($record->name === null || trim((string) $record->name) === '' || trim((string) $record->name) === '--') && $name !== '') {
-                            $data['name'] = $name;
-                        }
-
-                        if (!$service->shouldKeepWorkflowStatus((string) $record->status)) {
-                            $data['status'] = $service->decideStatus((string) $record->calc_reimbursement_amount);
-                        }
-
-                        $record->update($data);
-                        $result['updated_records']++;
+                    if (count($pendingRows) >= $chunkSize) {
+                        $this->flushRows($pendingRows, $settlementPeriod, $result, $logger);
+                        $pendingRows = [];
                     }
-                    Db::commit();
-                    $result['matched_rows']++;
                 } catch (\Throwable $e) {
-                    if ($transactionStarted) {
-                        Db::rollBack();
-                    }
                     if (count($result['errors']) < 50) {
                         $result['errors'][] = '第' . ($rowIndex + 1) . '行: ' . $e->getMessage();
                     }
@@ -118,12 +109,39 @@ class Attachment2ImportJob extends AbstractJob
                 }
 
                 if ($processed % 100 === 0) {
-                    $this->updateProgress($this->uuid, min(($processed / $totalCount) * 100, 99.9));
+                    $progress = min(($processed / $totalCount) * 100, 99.9);
+                    $this->updateProgress($this->uuid, $progress);
+                    $logger->info('Unrescued attachment2 import progress.', [
+                        'uuid' => $this->uuid,
+                        'processed' => $processed,
+                        'total_count' => $totalCount,
+                        'progress' => round($progress, 2),
+                    ]);
                 }
             });
 
+            $this->flushRows($pendingRows, $settlementPeriod, $result, $logger);
+            foreach (array_keys($identityValues) as $identity) {
+                $filterOptionService->saveOption('unrescued', 'priority_identity', $identity, $sourceBatch);
+            }
+
+            $logger->info('Unrescued attachment2 import progress.', [
+                'uuid' => $this->uuid,
+                'processed' => $processed,
+                'total_count' => $totalCount,
+                'progress' => 100.00,
+            ]);
+            $logger->info('Unrescued attachment2 import success.', [
+                'uuid' => $this->uuid,
+                'settlement_period' => $settlementPeriod,
+                'result' => $result,
+            ]);
             $this->finishImportTask($result);
         } catch (\Throwable $e) {
+            $logger->error('Unrescued attachment2 import failed: ' . $e->getMessage(), [
+                'uuid' => $this->uuid,
+                'params' => $this->params,
+            ]);
             $this->failTask($e, '附件2导入失败');
         } finally {
             if (file_exists($this->tempFile)) {
@@ -131,6 +149,85 @@ class Attachment2ImportJob extends AbstractJob
             }
             $this->releaseLock();
         }
+    }
+
+    private function flushRows(array $rows, string $settlementPeriod, array &$result, $logger): void
+    {
+        if (empty($rows)) {
+            return;
+        }
+
+        $idCards = array_values(array_unique(array_column($rows, 'id_card')));
+        $countRows = UnrescuedRecord::query()
+            ->select(['id_card', Db::raw('COUNT(*) AS record_count')])
+            ->where('settlement_period', $settlementPeriod)
+            ->whereIn('id_card', $idCards)
+            ->groupBy('id_card')
+            ->get();
+
+        $recordCounts = [];
+        foreach ($countRows as $item) {
+            $recordCounts[(string) $item->id_card] = (int) $item->record_count;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        foreach ($rows as $row) {
+            try {
+                $matchedCount = $recordCounts[$row['id_card']] ?? 0;
+                if ($matchedCount <= 0) {
+                    $result['skipped']++;
+                    continue;
+                }
+
+                UnrescuedRecord::query()
+                    ->where('settlement_period', $settlementPeriod)
+                    ->where('id_card', $row['id_card'])
+                    ->update([
+                        'town_id' => $row['town_id'],
+                        'street_town' => $row['street_town'] !== '' ? $row['street_town'] : null,
+                        'village' => $row['village'] !== '' ? $row['village'] : null,
+                        'priority_identity' => $row['priority_identity'] !== '' ? $row['priority_identity'] : null,
+                        'status' => Db::raw($this->statusCaseSql()),
+                        'updated_at' => $now,
+                    ]);
+
+                if ($row['name'] !== '') {
+                    UnrescuedRecord::query()
+                        ->where('settlement_period', $settlementPeriod)
+                        ->where('id_card', $row['id_card'])
+                        ->where(function ($query) {
+                            $query->whereNull('name')
+                                ->orWhere('name', '')
+                                ->orWhere('name', '--');
+                        })
+                        ->update([
+                            'name' => $row['name'],
+                            'updated_at' => $now,
+                        ]);
+                }
+
+                $result['matched_rows']++;
+                $result['updated_records'] += $matchedCount;
+            } catch (\Throwable $e) {
+                if (count($result['errors']) < 50) {
+                    $result['errors'][] = '第' . $row['row_number'] . '行: ' . $e->getMessage();
+                }
+                $logger->warning('Unrescued attachment2 import row failed: ' . $e->getMessage());
+            }
+        }
+    }
+
+    private function statusCaseSql(): string
+    {
+        return sprintf(
+            "CASE WHEN `status` IN ('%s','%s','%s') THEN `status` WHEN `calc_reimbursement_amount` <= 0 THEN '%s' WHEN `calc_reimbursement_amount` <= 300 THEN '%s' ELSE '%s' END",
+            UnrescuedRecordService::STATUS_DISTRIBUTED,
+            UnrescuedRecordService::STATUS_RECEIVED,
+            UnrescuedRecordService::STATUS_NOTIFIED,
+            UnrescuedRecordService::STATUS_NO_AMOUNT,
+            UnrescuedRecordService::STATUS_NO_NOTICE,
+            UnrescuedRecordService::STATUS_TO_NOTICE
+        );
     }
 
     private function finishImportTask(array $result): void

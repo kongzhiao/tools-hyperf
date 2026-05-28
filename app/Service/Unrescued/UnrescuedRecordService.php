@@ -199,6 +199,55 @@ class UnrescuedRecordService
         return 0;
     }
 
+    public function buildTownLookupMap(): array
+    {
+        $map = [
+            'exact' => [],
+            'normalized' => [],
+        ];
+
+        $towns = Town::query()
+            ->select(['id', 'name', 'code'])
+            ->get();
+
+        foreach ($towns as $town) {
+            $id = (int) $town->id;
+            foreach ([(string) $town->name, (string) $town->code] as $value) {
+                $value = trim($value);
+                if ($value === '') {
+                    continue;
+                }
+
+                $map['exact'][$value] = $id;
+                $normalized = $this->normalizeTownName($value);
+                if ($normalized !== '') {
+                    $map['normalized'][$normalized] = $id;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    public function resolveTownIdFromMap(?string $townName, array $townLookupMap): int
+    {
+        $townName = trim((string) $townName);
+        if ($townName === '') {
+            return 0;
+        }
+
+        if (isset($townLookupMap['exact'][$townName])) {
+            return (int) $townLookupMap['exact'][$townName];
+        }
+
+        $normalized = $this->normalizeTownName($townName);
+        if ($normalized !== '' && isset($townLookupMap['normalized'][$normalized])) {
+            return (int) $townLookupMap['normalized'][$normalized];
+        }
+
+        return 0;
+    }
+
     private function normalizeTownName(string $name): string
     {
         $name = preg_replace('/\s+/u', '', trim($name)) ?: '';
@@ -213,7 +262,7 @@ class UnrescuedRecordService
             $query->where('settlement_period', $period);
         }
 
-        foreach (['status', 'exclude_status', 'reimbursement_status', 'town_id'] as $field) {
+        foreach (['status', 'exclude_status', 'reimbursement_status', 'town_id', 'medical_category', 'exclude_rule_code'] as $field) {
             if (isset($filters[$field]) && $filters[$field] !== '') {
                 $query->where($field, $filters[$field]);
             }
@@ -221,7 +270,12 @@ class UnrescuedRecordService
 
         $identity = trim((string) ($filters['priority_identity'] ?? ''));
         if ($identity !== '') {
-            $query->where('priority_identity', 'like', "%{$identity}%");
+            $query->where('priority_identity', $identity);
+        }
+
+        $hospitalName = trim((string) ($filters['hospital_name'] ?? ''));
+        if ($hospitalName !== '') {
+            $query->where('hospital_name', 'like', "%{$hospitalName}%");
         }
 
         $keyword = trim((string) ($filters['keyword'] ?? ''));
