@@ -258,6 +258,7 @@ Router::addGroup('/api', function () {
             Router::get('/wash-options', [App\Controller\Unrescued\RecordController::class, 'washOptions']);
             Router::post('/wash-config', [App\Controller\Unrescued\RecordController::class, 'saveWashConfig']);
             Router::post('/wash/execute', [App\Controller\Unrescued\RecordController::class, 'executeWash']);
+            Router::get('/wash/status', [App\Controller\Unrescued\RecordController::class, 'washStatus']);
             Router::post('/distribute', [App\Controller\Unrescued\RecordController::class, 'distribute']);
             Router::post('/receive', [App\Controller\Unrescued\RecordController::class, 'receive']);
             Router::post('/notify', [App\Controller\Unrescued\RecordController::class, 'notify']);

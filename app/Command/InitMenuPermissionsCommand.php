@@ -4,9 +4,8 @@ declare(strict_types=1);
 namespace App\Command;
 
 use App\Model\Permission;
-use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Annotation\Command;
-use Hyperf\DbConnection\Db;
+use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Redis\Redis;
 use Psr\Container\ContainerInterface;
 
@@ -24,647 +23,95 @@ class InitMenuPermissionsCommand extends HyperfCommand
     public function configure()
     {
         parent::configure();
-        $this->setDescription('初始化菜单权限数据（非破坏性 upsert，不清空现有权限和角色授权）');
+        $this->setDescription('初始化菜单权限数据（按当前库结构整理，非破坏性 upsert，不指定固定 ID）');
     }
 
     public function handle()
     {
         $this->output->writeln('开始初始化菜单权限...');
-        $this->output->writeln('使用非破坏性 upsert：保留现有权限 ID 与角色授权关系，仅新增或更新菜单/操作定义');
+        $this->output->writeln('策略：按权限 name 非破坏性 upsert，保留现有 ID 与角色授权关系，不再强制指定任何 ID');
 
-        // 定义菜单权限数据 - 重新设计结构
-        $menuPermissions = [
-            // 主菜单
-            [
-                'name' => '仪表板',
-                'description' => '仪表板',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/dashboard',
-                'component' => '@/pages/Dashboard',
-                'icon' => 'HomeOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '用户管理',
-                'description' => '用户管理',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/user-management',
-                'component' => null,
-                'icon' => 'TeamOutlined',
-                'sort' => 2,
-            ],
-            [
-                'name' => '业务配置',
-                'description' => '业务配置',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/business-config',
-                'component' => null,
-                'icon' => 'SettingOutlined',
-                'sort' => 3,
-            ],
-            [
-                'name' => '数据核实',
-                'description' => '数据核实',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/data-verification',
-                'component' => null,
-                'icon' => 'AuditOutlined',
-                'sort' => 4,
-            ],
-            // 添加统计汇总顶级菜单
-            [
-                'name' => '统计汇总',
-                'description' => '统计汇总',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/statistics-summary',
-                'component' => '@/pages/StatisticsSummary',
-                'icon' => 'BarChartOutlined',
-                'sort' => 6,
-            ],
-            // 添加救助报销顶级菜单
-            [
-                'name' => '救助报销',
-                'description' => '救助报销',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/medical-assistance',
-                'component' => null,
-                'icon' => 'MedicineBoxOutlined',
-                'sort' => 7,
-            ],
-            [
-                'name' => '未救助台账',
-                'description' => '未救助台账',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/unrescued',
-                'component' => null,
-                'icon' => 'FileSearchOutlined',
-                'sort' => 8,
-            ],
-            
-            // 救助报销子菜单
-            [
-                'name' => '受理记录',
-                'description' => '受理记录',
-                'type' => 'menu',
-                'parent_id' => 0, // 先创建，后面更新
-                'path' => '/medical-assistance/reimbursement',
-                'component' => '@/pages/MedicalAssistance/Reimbursement',
-                'icon' => 'DollarOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '就诊记录',
-                'description' => '就诊记录',
-                'type' => 'menu',
-                'parent_id' => 0, // 先创建，后面更新
-                'path' => '/medical-assistance/records',
-                'component' => '@/pages/MedicalAssistance/Records',
-                'icon' => 'FileTextOutlined',
-                'sort' => 2,
-            ],
-            [
-                'name' => '患者管理',
-                'description' => '患者管理',
-                'type' => 'menu',
-                'parent_id' => 0, // 先创建，后面更新
-                'path' => '/medical-assistance/patients',
-                'component' => '@/pages/MedicalAssistance/Patients',
-                'icon' => 'UserOutlined',
-                'sort' => 3,
-            ],
+        $definitions = $this->permissionDefinitions();
+        $this->assertUniqueNames($definitions);
 
-            // 用户管理子菜单
-            [
-                'name' => '账户管理',
-                'description' => '账户管理',
-                'type' => 'menu',
-                'parent_id' => 0, // 先创建，后面更新
-                'path' => '/user-management/accounts',
-                'component' => '@/pages/User',
-                'icon' => 'UserOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '角色管理',
-                'description' => '角色管理',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/user-management/roles',
-                'component' => '@/pages/Role',
-                'icon' => 'SafetyCertificateOutlined',
-                'sort' => 2,
-            ],
-            [
-                'name' => '权限管理',
-                'description' => '权限管理',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/user-management/permissions',
-                'component' => '@/pages/Permission',
-                'icon' => 'KeyOutlined',
-                'sort' => 3,
-            ],
-            [
-                'name' => '镇街管理',
-                'description' => '镇街管理',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/user-management/towns',
-                'component' => '@/pages/Town',
-                'icon' => 'EnvironmentOutlined',
-                'sort' => 4,
-            ],
-
-            // 未救助台账子菜单
-            [
-                'name' => '未救助明细',
-                'description' => '未救助明细',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/unrescued/records',
-                'component' => '@/pages/Unrescued/Records',
-                'icon' => 'FileTextOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '重大疾病编码',
-                'description' => '重大疾病编码',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/unrescued/disease-configs',
-                'component' => '@/pages/Unrescued/DiseaseConfigs',
-                'icon' => 'MedicineBoxOutlined',
-                'sort' => 2,
-            ],
-
-            // 业务配置子菜单
-            [
-                'name' => '类别转换配置',
-                'description' => '类别转换配置',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/business-config/config/category-conversion',
-                'component' => '@/pages/BussinessConfig/CategoryConversion',
-                'icon' => 'SwapOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '参保档次配置',
-                'description' => '参保档次配置',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/business-config/config/insurance-level-config',
-                'component' => '@/pages/BussinessConfig/InsuranceLevelConfig',
-                'icon' => 'ToolOutlined',
-                'sort' => 2,
-            ],
-            [
-                'id' => 100,
-                'name' => '类别额度配置',
-                'description' => '类别额度配置',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/business-config/config/category-money-config',
-                'component' => '@/pages/BussinessConfig/CategoryMoneyConfig',
-                'icon' => 'SettingOutlined',
-                'sort' => 3,
-            ],
-
-            // 数据核实子菜单
-            [
-                'name' => '参保数据管理',
-                'description' => '参保数据管理',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/data-verification/insurance-data',
-                'component' => '@/pages/DataVerification/InsuranceData',
-                'icon' => 'FileTextOutlined',
-                'sort' => 1,
-            ],
-            [
-                'name' => '身份信息核实',
-                'description' => '身份信息核实',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/data-verification/identity-verification',
-                'component' => '@/pages/DataVerification/IdentityVerification',
-                'icon' => 'UserOutlined',
-                'sort' => 2,
-            ],
-            [
-                'name' => '税务数据汇总',
-                'description' => '税务数据汇总',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/data-verification/tax-summary',
-                'component' => '@/pages/DataVerification/TaxSummary',
-                'icon' => 'AccountBookOutlined',
-                'sort' => 3,
-            ],
-            [
-                'name' => '参保数据汇总',
-                'description' => '参保数据汇总',
-                'type' => 'menu',
-                'parent_id' => 0,
-                'path' => '/data-verification/insurance-summary',
-                'component' => '@/pages/DataVerification/InsuranceSummary',
-                'icon' => 'BarChartOutlined',
-                'sort' => 4,
-            ],
-        ];
-
-        // 创建或更新权限记录，保留已有 ID，避免破坏 role_permissions 关联。
-        $createdPermissions = [];
+        $permissionIds = [];
         $createdMenuCount = 0;
         $updatedMenuCount = 0;
-        foreach ($menuPermissions as $permission) {
-            [$created, $isCreated] = $this->upsertPermission($permission);
-            $createdPermissions[$created->name] = $created->id;
-            $isCreated ? $createdMenuCount++ : $updatedMenuCount++;
-            $action = $isCreated ? '创建' : '更新';
-            $this->output->writeln("{$action}权限: {$permission['description']} ({$permission['name']})");
-        }
-
-        // 更新子菜单的parent_id
-        $parentMappings = [
-            // 用户管理子菜单
-            '账户管理' => '用户管理',
-            '角色管理' => '用户管理',
-            '权限管理' => '用户管理',
-            '镇街管理' => '用户管理',
-
-            // 未救助台账子菜单
-            '未救助明细' => '未救助台账',
-            '重大疾病编码' => '未救助台账',
-
-            // 业务配置子菜单
-            '类别转换配置' => '业务配置',
-            '参保档次配置' => '业务配置',
-            '类别额度配置' => '业务配置',
-
-            // 数据核实子菜单
-            '参保数据管理' => '数据核实',
-            '身份信息核实' => '数据核实',
-            '税务数据汇总' => '数据核实',
-            '参保数据汇总' => '数据核实',
-            
-            // 救助报销子菜单
-            '受理记录' => '救助报销',
-            '就诊记录' => '救助报销',
-            '患者管理' => '救助报销',
-        ];
-
-        foreach ($parentMappings as $childName => $parentName) {
-            if (isset($createdPermissions[$childName]) && isset($createdPermissions[$parentName])) {
-                Permission::where('id', $createdPermissions[$childName])
-                    ->update(['parent_id' => $createdPermissions[$parentName]]);
-                $this->output->writeln("更新 {$childName} 的父级为 {$parentName}");
-            }
-        }
-
-        // 创建操作权限 - 使用中文名称
-        $operationPermissions = [
-            // 账户管理操作权限
-            ['name' => '账户管理:查看', 'description' => '查看账户', 'type' => 'operation', 'parent_id' => 0, 'sort' => 1],
-            ['name' => '账户管理:创建', 'description' => '创建账户', 'type' => 'operation', 'parent_id' => 0, 'sort' => 2],
-            ['name' => '账户管理:编辑', 'description' => '编辑账户', 'type' => 'operation', 'parent_id' => 0, 'sort' => 3],
-            ['name' => '账户管理:删除', 'description' => '删除账户', 'type' => 'operation', 'parent_id' => 0, 'sort' => 4],
-
-            // 角色管理操作权限
-            ['name' => '角色管理:查看', 'description' => '查看角色', 'type' => 'operation', 'parent_id' => 0, 'sort' => 5],
-            ['name' => '角色管理:创建', 'description' => '创建角色', 'type' => 'operation', 'parent_id' => 0, 'sort' => 6],
-            ['name' => '角色管理:编辑', 'description' => '编辑角色', 'type' => 'operation', 'parent_id' => 0, 'sort' => 7],
-            ['name' => '角色管理:删除', 'description' => '删除角色', 'type' => 'operation', 'parent_id' => 0, 'sort' => 8],
-            ['name' => '角色管理:分配权限', 'description' => '分配角色权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 9],
-
-            // 权限管理操作权限
-            ['name' => '权限管理:查看', 'description' => '查看权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 10],
-            ['name' => '权限管理:创建', 'description' => '创建权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 11],
-            ['name' => '权限管理:编辑', 'description' => '编辑权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 12],
-            ['name' => '权限管理:删除', 'description' => '删除权限', 'type' => 'operation', 'parent_id' => 0, 'sort' => 13],
-
-            // 镇街管理操作权限
-            ['name' => '镇街管理:查看', 'description' => '查看镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 14],
-            ['name' => '镇街管理:创建', 'description' => '创建镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 15],
-            ['name' => '镇街管理:编辑', 'description' => '编辑镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 16],
-            ['name' => '镇街管理:删除', 'description' => '删除镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 17],
-            ['name' => '镇街管理:导入', 'description' => '导入镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 18],
-
-            // 类别转换配置操作权限
-            ['name' => '类别转换配置:查看', 'description' => '查看类别转换配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 16],
-            ['name' => '类别转换配置:创建', 'description' => '创建类别转换配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 17],
-            ['name' => '类别转换配置:编辑', 'description' => '编辑类别转换配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 18],
-            ['name' => '类别转换配置:删除', 'description' => '删除类别转换配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 19],
-
-            // 参保档次配置操作权限
-            ['name' => '参保档次配置:查看', 'description' => '查看参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 20],
-            ['name' => '参保档次配置:创建', 'description' => '创建参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 21],
-            ['name' => '参保档次配置:编辑', 'description' => '编辑参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 22],
-            ['name' => '参保档次配置:删除', 'description' => '删除参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 23],
-
-            // 类别额度配置操作权限（生产已有节点 ID：100-104）
-            ['id' => 101, 'name' => '类别额度配置:查看', 'description' => '查看类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 1],
-            ['id' => 102, 'name' => '类别额度配置:创建', 'description' => '创建类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 2],
-            ['id' => 103, 'name' => '类别额度配置:编辑', 'description' => '编辑类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 3],
-            ['id' => 104, 'name' => '类别额度配置:删除', 'description' => '删除类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 4],
-
-            // 参保数据管理操作权限
-            ['name' => '参保数据管理:查看', 'description' => '查看参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 24],
-            ['name' => '参保数据管理:创建', 'description' => '创建参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 25],
-            ['name' => '参保数据管理:编辑', 'description' => '编辑参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 26],
-            ['name' => '参保数据管理:删除', 'description' => '删除参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 27],
-            ['name' => '参保数据管理:导出', 'description' => '导出参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 28],
-            ['name' => '参保数据管理:导入', 'description' => '导入参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 29],
-
-            // 身份信息核实操作权限
-            ['name' => '身份信息核实:查看', 'description' => '查看身份信息核实', 'type' => 'operation', 'parent_id' => 0, 'sort' => 30],
-            ['name' => '身份信息核实:执行', 'description' => '执行身份信息核实', 'type' => 'operation', 'parent_id' => 0, 'sort' => 31],
-
-            // 税务数据汇总操作权限
-            ['name' => '税务数据汇总:查看', 'description' => '查看税务数据汇总', 'type' => 'operation', 'parent_id' => 0, 'sort' => 32],
-            ['name' => '税务数据汇总:导出', 'description' => '导出税务数据汇总', 'type' => 'operation', 'parent_id' => 0, 'sort' => 33],
-
-            // 参保数据汇总操作权限
-            ['name' => '参保数据汇总:查看', 'description' => '查看参保数据汇总', 'type' => 'operation', 'parent_id' => 0, 'sort' => 34],
-            ['name' => '参保数据汇总:导出', 'description' => '导出参保数据汇总', 'type' => 'operation', 'parent_id' => 0, 'sort' => 35],
-            
-            // 统计汇总操作权限
-            ['name' => '统计汇总:查看', 'description' => '查看统计汇总', 'type' => 'operation', 'parent_id' => 0, 'sort' => 38],
-            ['name' => '统计汇总:导入', 'description' => '导入统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 39],
-            ['name' => '统计汇总:导出明细', 'description' => '导出统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 40],
-            ['name' => '统计汇总:导出统计数据', 'description' => '导出统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 41],
-            ['name' => '统计汇总:创建', 'description' => '创建统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 42],
-            ['name' => '统计汇总:编辑', 'description' => '编辑统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 43],
-            ['name' => '统计汇总:删除', 'description' => '删除统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 44],
-            ['name' => '统计汇总:清空数据', 'description' => '清空统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 45],
-            ['name' => '统计汇总:批量删除', 'description' => '批量删除统计数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 46],
-
-
-            // 患者管理操作权限
-            ['name' => '患者管理:查看', 'description' => '查看患者管理', 'type' => 'operation', 'parent_id' => 0, 'sort' => 46],
-            ['name' => '患者管理:创建', 'description' => '创建患者管理', 'type' => 'operation', 'parent_id' => 0, 'sort' => 47],
-            ['name' => '患者管理:编辑', 'description' => '编辑患者管理', 'type' => 'operation', 'parent_id' => 0, 'sort' => 48],
-            ['name' => '患者管理:删除', 'description' => '删除患者管理', 'type' => 'operation', 'parent_id' => 0, 'sort' => 49],
-            ['name' => '患者管理:导出', 'description' => '导出患者管理', 'type' => 'operation', 'parent_id' => 0, 'sort' => 50],
-            
-            // 就诊记录操作权限
-            ['name' => '就诊记录:查看', 'description' => '查看就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 51],
-            ['name' => '就诊记录:创建', 'description' => '创建就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 52],
-            ['name' => '就诊记录:编辑', 'description' => '编辑就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 53],
-            ['name' => '就诊记录:删除', 'description' => '删除就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 54],
-            ['name' => '就诊记录:批量删除', 'description' => '批量删除就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 55],
-            ['name' => '就诊记录:导出', 'description' => '导出就诊记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 56],
-            
-            // 受理记录操作权限
-            ['name' => '受理记录:查看', 'description' => '查看受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 57],
-            ['name' => '受理记录:创建', 'description' => '创建受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 58],
-            ['name' => '受理记录:编辑', 'description' => '编辑受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 59],
-            ['name' => '受理记录:删除', 'description' => '删除受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 60],
-            ['name' => '受理记录:导出', 'description' => '导出受理记录', 'type' => 'operation', 'parent_id' => 0, 'sort' => 61],
-
-            // 未救助台账操作权限
-            ['name' => '未救助明细:查看', 'description' => '查看未救助明细', 'type' => 'operation', 'parent_id' => 0, 'sort' => 70],
-            ['name' => '未救助明细:导入', 'description' => '导入未救助明细', 'type' => 'operation', 'parent_id' => 0, 'sort' => 71],
-            ['name' => '未救助明细:清洗', 'description' => '执行清洗', 'type' => 'operation', 'parent_id' => 0, 'sort' => 72],
-            ['name' => '未救助明细:下放', 'description' => '下放镇街', 'type' => 'operation', 'parent_id' => 0, 'sort' => 73],
-            ['name' => '未救助明细:通知', 'description' => '标记通知', 'type' => 'operation', 'parent_id' => 0, 'sort' => 74],
-            ['name' => '未救助明细:账户回填', 'description' => '账户回填', 'type' => 'operation', 'parent_id' => 0, 'sort' => 75],
-            ['name' => '未救助明细:报销标记', 'description' => '报销标记', 'type' => 'operation', 'parent_id' => 0, 'sort' => 76],
-            ['name' => '未救助明细:导出', 'description' => '导出未救助台账', 'type' => 'operation', 'parent_id' => 0, 'sort' => 77],
-            ['name' => '重大疾病编码:查看', 'description' => '查看重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 78],
-            ['name' => '重大疾病编码:创建', 'description' => '创建重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 79],
-            ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 80],
-            ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 81],
-            ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent_id' => 0, 'sort' => 82],
-        ];
-
         $createdOperationCount = 0;
         $updatedOperationCount = 0;
-        foreach ($operationPermissions as $permission) {
-            [$created, $isCreated] = $this->upsertPermission($permission);
-            $createdPermissions[$created->name] = $created->id;
-            $isCreated ? $createdOperationCount++ : $updatedOperationCount++;
-            $action = $isCreated ? '创建' : '更新';
-            $this->output->writeln("{$action}操作权限: {$permission['description']} ({$permission['name']})");
-        }
 
-        // 更新操作权限的parent_id，将它们归属到对应的菜单权限
-        $operationParentMappings = [
-            // 账户管理相关操作权限 -> 账户管理
-            '账户管理:查看' => '账户管理',
-            '账户管理:创建' => '账户管理',
-            '账户管理:编辑' => '账户管理',
-            '账户管理:删除' => '账户管理',
+        foreach ($definitions as $definition) {
+            [$permission, $isCreated] = $this->upsertPermission($definition);
+            $permissionIds[$permission->name] = (int) $permission->id;
 
-            // 角色管理相关操作权限 -> 角色管理
-            '角色管理:查看' => '角色管理',
-            '角色管理:创建' => '角色管理',
-            '角色管理:编辑' => '角色管理',
-            '角色管理:删除' => '角色管理',
-            '角色管理:分配权限' => '角色管理',
-
-            // 权限管理相关操作权限 -> 权限管理
-            '权限管理:查看' => '权限管理',
-            '权限管理:创建' => '权限管理',
-            '权限管理:编辑' => '权限管理',
-            '权限管理:删除' => '权限管理',
-
-            // 镇街管理相关操作权限 -> 镇街管理
-            '镇街管理:查看' => '镇街管理',
-            '镇街管理:创建' => '镇街管理',
-            '镇街管理:编辑' => '镇街管理',
-            '镇街管理:删除' => '镇街管理',
-            '镇街管理:导入' => '镇街管理',
-
-            // 权限验证工具相关操作权限 -> 权限验证工具
-            '权限验证工具:查看' => '权限验证工具',
-            '权限验证工具:执行' => '权限验证工具',
-
-            // 类别转换配置相关操作权限 -> 类别转换配置
-            '类别转换配置:查看' => '类别转换配置',
-            '类别转换配置:创建' => '类别转换配置',
-            '类别转换配置:编辑' => '类别转换配置',
-            '类别转换配置:删除' => '类别转换配置',
-
-            // 参保档次配置相关操作权限 -> 参保档次配置
-            '参保档次配置:查看' => '参保档次配置',
-            '参保档次配置:创建' => '参保档次配置',
-            '参保档次配置:编辑' => '参保档次配置',
-            '参保档次配置:删除' => '参保档次配置',
-
-            // 类别额度配置相关操作权限 -> 类别额度配置
-            '类别额度配置:查看' => '类别额度配置',
-            '类别额度配置:创建' => '类别额度配置',
-            '类别额度配置:编辑' => '类别额度配置',
-            '类别额度配置:删除' => '类别额度配置',
-
-            // 参保数据管理相关操作权限 -> 参保数据管理
-            '参保数据管理:查看' => '参保数据管理',
-            '参保数据管理:创建' => '参保数据管理',
-            '参保数据管理:编辑' => '参保数据管理',
-            '参保数据管理:删除' => '参保数据管理',
-            '参保数据管理:导出' => '参保数据管理',
-            '参保数据管理:导入' => '参保数据管理',
-
-            // 身份信息核实相关操作权限 -> 身份信息核实
-            '身份信息核实:查看' => '身份信息核实',
-            '身份信息核实:执行' => '身份信息核实',
-
-            // 税务数据汇总相关操作权限 -> 税务数据汇总
-            '税务数据汇总:查看' => '税务数据汇总',
-            '税务数据汇总:导出' => '税务数据汇总',
-
-            // 参保数据汇总相关操作权限 -> 参保数据汇总
-            '参保数据汇总:查看' => '参保数据汇总',
-            '参保数据汇总:导出' => '参保数据汇总',
-
-            // 统计汇总相关操作权限 -> 统计汇总
-            '统计汇总:查看' => '统计汇总',
-            '统计汇总:导入' => '统计汇总',
-            '统计汇总:导出明细' => '统计汇总',
-            '统计汇总:导出统计数据' => '统计汇总',
-            '统计汇总:创建' => '统计汇总',
-            '统计汇总:编辑' => '统计汇总',
-            '统计汇总:清空数据' => '统计汇总',
-            '统计汇总:批量删除' => '统计汇总',
-            '统计汇总:删除' => '统计汇总',            
-            
-            // 救助报销相关操作权限 -> 救助报销
-            '救助报销:查看' => '救助报销',
-            '救助报销:创建' => '救助报销',
-            '救助报销:编辑' => '救助报销',
-            '救助报销:删除' => '救助报销',
-            '救助报销:导出' => '救助报销',
-            
-            // 患者管理相关操作权限 -> 患者管理
-            '患者管理:查看' => '患者管理',
-            '患者管理:创建' => '患者管理',
-            '患者管理:编辑' => '患者管理',
-            '患者管理:删除' => '患者管理',
-            '患者管理:导出' => '患者管理',
-            
-            // 就诊记录相关操作权限 -> 就诊记录
-            '就诊记录:查看' => '就诊记录',
-            '就诊记录:创建' => '就诊记录',
-            '就诊记录:编辑' => '就诊记录',
-            '就诊记录:删除' => '就诊记录',
-            '就诊记录:批量删除' => '就诊记录',
-            '就诊记录:导出' => '就诊记录',
-            
-            // 受理记录相关操作权限 -> 受理记录
-            '受理记录:查看' => '受理记录',
-            '受理记录:创建' => '受理记录',
-            '受理记录:编辑' => '受理记录',
-            '受理记录:删除' => '受理记录',
-            '受理记录:导出' => '受理记录',
-
-            // 未救助台账相关操作权限
-            '未救助明细:查看' => '未救助明细',
-            '未救助明细:导入' => '未救助明细',
-            '未救助明细:清洗' => '未救助明细',
-            '未救助明细:下放' => '未救助明细',
-            '未救助明细:通知' => '未救助明细',
-            '未救助明细:账户回填' => '未救助明细',
-            '未救助明细:报销标记' => '未救助明细',
-            '未救助明细:导出' => '未救助明细',
-            '重大疾病编码:查看' => '重大疾病编码',
-            '重大疾病编码:创建' => '重大疾病编码',
-            '重大疾病编码:编辑' => '重大疾病编码',
-            '重大疾病编码:删除' => '重大疾病编码',
-            '重大疾病编码:导入' => '重大疾病编码',
-        ];
-
-        foreach ($operationParentMappings as $operationName => $parentMenuName) {
-            if (isset($createdPermissions[$operationName]) && isset($createdPermissions[$parentMenuName])) {
-                Permission::where('id', $createdPermissions[$operationName])
-                    ->update(['parent_id' => $createdPermissions[$parentMenuName]]);
-                $this->output->writeln("更新操作权限 {$operationName} 的父级为 {$parentMenuName}");
+            if (($definition['type'] ?? '') === 'menu') {
+                $isCreated ? $createdMenuCount++ : $updatedMenuCount++;
+                $this->output->writeln(($isCreated ? '创建' : '更新') . "菜单: {$definition['name']}");
+            } else {
+                $isCreated ? $createdOperationCount++ : $updatedOperationCount++;
+                $this->output->writeln(($isCreated ? '创建' : '更新') . "操作: {$definition['name']}");
             }
         }
+
+        foreach ($definitions as $definition) {
+            $parentName = $definition['parent'] ?? null;
+            $parentId = 0;
+            if ($parentName) {
+                $parentId = $permissionIds[$parentName]
+                    ?? (int) Permission::query()->where('name', $parentName)->value('id');
+                if ($parentId <= 0) {
+                    $this->output->writeln("警告：{$definition['name']} 的父级 {$parentName} 不存在，已保持为顶级节点");
+                }
+            }
+
+            Permission::query()
+                ->where('name', $definition['name'])
+                ->update(['parent_id' => $parentId]);
+        }
+
+        $this->clearUserPermissionCache();
 
         $this->output->writeln('菜单权限初始化完成！');
         $this->output->writeln("菜单权限：新增 {$createdMenuCount} 个，更新 {$updatedMenuCount} 个");
         $this->output->writeln("操作权限：新增 {$createdOperationCount} 个，更新 {$updatedOperationCount} 个");
-        $this->clearUserPermissionCache();
-        
         $this->output->writeln('');
-        $this->output->writeln('新的菜单结构：');
-        $this->output->writeln('├── 仪表板');
-        $this->output->writeln('├── 用户管理');
-        $this->output->writeln('│   ├── 账户管理');
-        $this->output->writeln('│   ├── 角色管理');
-        $this->output->writeln('│   ├── 权限管理');
-        $this->output->writeln('│   └── 镇街管理');
-        $this->output->writeln('├── 业务配置');
-        $this->output->writeln('│   ├── 类别转换配置');
-        $this->output->writeln('│   ├── 参保档次配置');
-        $this->output->writeln('│   └── 类别额度配置');
-        $this->output->writeln('├── 数据核实');
-        $this->output->writeln('│   ├── 参保数据管理');
-        $this->output->writeln('│   ├── 身份信息核实');
-        $this->output->writeln('│   ├── 税务数据汇总');
-        $this->output->writeln('│   └── 参保数据汇总');
-        $this->output->writeln('├── 统计汇总');
-        $this->output->writeln('├── 救助报销');
-        $this->output->writeln('│   ├── 受理记录');
-        $this->output->writeln('│   ├── 就诊记录');
-        $this->output->writeln('│   └── 患者管理');
-        $this->output->writeln('└── 未救助台账');
-        $this->output->writeln('    ├── 未救助明细');
-        $this->output->writeln('    └── 重大疾病编码');
+        $this->output->writeln('当前菜单结构：');
+        $this->printMenuTree();
     }
 
-    private function upsertPermission(array $permission): array
+    private function upsertPermission(array $definition): array
     {
-        $expectedId = isset($permission['id']) ? (int) $permission['id'] : null;
         $data = [
-            'description' => $permission['description'] ?? '',
-            'type' => $permission['type'] ?? 'operation',
-            'parent_id' => $permission['parent_id'] ?? 0,
-            'path' => $permission['path'] ?? null,
-            'component' => $permission['component'] ?? null,
-            'icon' => $permission['icon'] ?? null,
-            'sort' => $permission['sort'] ?? 0,
-            'status' => $permission['status'] ?? 1,
+            'description' => $definition['description'] ?? '',
+            'type' => $definition['type'],
+            'parent_id' => 0,
+            'path' => $definition['path'] ?? null,
+            'component' => $definition['component'] ?? null,
+            'icon' => $definition['icon'] ?? null,
+            'sort' => (int) ($definition['sort'] ?? 0),
+            'status' => (int) ($definition['status'] ?? 1),
         ];
 
-        $model = Permission::where('name', $permission['name'])->orderBy('id')->first();
+        $model = Permission::query()->where('name', $definition['name'])->orderBy('id')->first();
         if ($model) {
             $model->fill($data);
             $model->save();
-            if ($expectedId && (int) $model->id !== $expectedId) {
-                $this->output->writeln("提示：{$permission['name']} 已存在，保留现有 ID {$model->id}，未强制改为生产 ID {$expectedId}");
-            }
             return [$model, false];
         }
 
-        if ($expectedId && !Permission::where('id', $expectedId)->exists()) {
-            $now = date('Y-m-d H:i:s');
-            $insertData = array_merge([
-                'id' => $expectedId,
-                'name' => $permission['name'],
-                'created_at' => $now,
-                'updated_at' => $now,
-            ], $data);
-            Db::table('permissions')->insert($insertData);
-            return [Permission::find($expectedId), true];
-        }
-
-        if ($expectedId) {
-            $this->output->writeln("提示：生产 ID {$expectedId} 已被占用，{$permission['name']} 将使用自增 ID 创建");
-        }
-
-        $model = new Permission(array_merge(['name' => $permission['name']], $data));
+        $model = new Permission(array_merge(['name' => $definition['name']], $data));
         $model->save();
 
         return [$model, true];
+    }
+
+    private function assertUniqueNames(array $definitions): void
+    {
+        $names = array_column($definitions, 'name');
+        $duplicates = array_unique(array_diff_assoc($names, array_unique($names)));
+        if ($duplicates) {
+            throw new \RuntimeException('菜单权限定义存在重复 name：' . implode('、', $duplicates));
+        }
     }
 
     private function clearUserPermissionCache(): void
@@ -685,4 +132,162 @@ class InitMenuPermissionsCommand extends HyperfCommand
             $this->output->writeln('清理用户权限缓存失败：' . $e->getMessage());
         }
     }
-} 
+
+    private function printMenuTree(): void
+    {
+        $menus = Permission::query()
+            ->where('type', 'menu')
+            ->orderBy('parent_id')
+            ->orderBy('sort')
+            ->orderBy('id')
+            ->get()
+            ->toArray();
+
+        $tree = Permission::buildTree($menus);
+        foreach ($tree as $menu) {
+            $this->printMenuNode($menu);
+        }
+    }
+
+    private function printMenuNode(array $menu, string $prefix = ''): void
+    {
+        $status = ((int) ($menu['status'] ?? 1)) === 1 ? '' : '（停用）';
+        $this->output->writeln($prefix . '├── ' . $menu['name'] . $status);
+        foreach (($menu['children'] ?? []) as $child) {
+            $this->printMenuNode($child, $prefix . '│   ');
+        }
+    }
+
+    /**
+     * 该列表按当前 permissions 表整理，不写入固定 ID。
+     * 生产/本地已有 ID 会被保留；新环境执行时由数据库自增生成。
+     */
+    private function permissionDefinitions(): array
+    {
+        return [
+            ['name' => '仪表板', 'description' => '仪表板', 'type' => 'menu', 'parent' => null, 'path' => '/dashboard', 'component' => '@/pages/Dashboard', 'icon' => 'HomeOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '用户管理', 'description' => '用户管理', 'type' => 'menu', 'parent' => null, 'path' => '/user-management', 'component' => null, 'icon' => 'TeamOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '业务配置', 'description' => '业务配置', 'type' => 'menu', 'parent' => null, 'path' => '/business-config', 'component' => null, 'icon' => 'SettingOutlined', 'sort' => 3, 'status' => 1],
+            ['name' => '数据核实', 'description' => '数据核实', 'type' => 'menu', 'parent' => null, 'path' => '/data-verification', 'component' => null, 'icon' => 'AuditOutlined', 'sort' => 4, 'status' => 1],
+            ['name' => '统计汇总', 'description' => '统计汇总', 'type' => 'menu', 'parent' => null, 'path' => '/statistics-summary', 'component' => '@/pages/StatisticsSummary', 'icon' => 'BarChartOutlined', 'sort' => 6, 'status' => 1],
+            ['name' => '救助报销', 'description' => '救助报销', 'type' => 'menu', 'parent' => null, 'path' => '/medical-assistance', 'component' => null, 'icon' => 'MedicineBoxOutlined', 'sort' => 7, 'status' => 1],
+            ['name' => '未救助台账', 'description' => '未救助台账', 'type' => 'menu', 'parent' => null, 'path' => '/unrescued', 'component' => null, 'icon' => 'FileSearchOutlined', 'sort' => 8, 'status' => 1],
+            ['name' => '联网结算', 'description' => '联网结算主菜单', 'type' => 'menu', 'parent' => null, 'path' => '/yf/settlement-online', 'component' => './YfSettlement/Online', 'icon' => 'GlobalOutlined', 'sort' => 20, 'status' => 1],
+
+            ['name' => '账户管理', 'description' => '账户管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/accounts', 'component' => '@/pages/User', 'icon' => 'UserOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '角色管理', 'description' => '角色管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/roles', 'component' => '@/pages/Role', 'icon' => 'SafetyCertificateOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '权限管理', 'description' => '权限管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/permissions', 'component' => '@/pages/Permission', 'icon' => 'KeyOutlined', 'sort' => 3, 'status' => 1],
+            ['name' => '镇街管理', 'description' => '镇街管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/towns', 'component' => '@/pages/Town', 'icon' => 'EnvironmentOutlined', 'sort' => 4, 'status' => 1],
+
+            ['name' => '类别转换配置', 'description' => '类别转换配置', 'type' => 'menu', 'parent' => '业务配置', 'path' => '/business-config/config/category-conversion', 'component' => '@/pages/BussinessConfig/CategoryConversion', 'icon' => 'SwapOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '参保档次配置', 'description' => '参保档次配置', 'type' => 'menu', 'parent' => '业务配置', 'path' => '/business-config/config/insurance-level-config', 'component' => '@/pages/BussinessConfig/InsuranceLevelConfig', 'icon' => 'ToolOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '类别额度配置', 'description' => '类别额度配置', 'type' => 'menu', 'parent' => '业务配置', 'path' => '/business-config/config/category-money-config', 'component' => '@/pages/BussinessConfig/CategoryMoneyConfig', 'icon' => 'SettingOutlined', 'sort' => 3, 'status' => 1],
+
+            ['name' => '参保数据管理', 'description' => '参保数据管理', 'type' => 'menu', 'parent' => '数据核实', 'path' => '/data-verification/insurance-data', 'component' => '@/pages/DataVerification/InsuranceData', 'icon' => 'FileTextOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '身份信息核实', 'description' => '身份信息核实', 'type' => 'menu', 'parent' => '数据核实', 'path' => '/data-verification/identity-verification', 'component' => '@/pages/DataVerification/IdentityVerification', 'icon' => 'UserOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '税务数据汇总', 'description' => '税务数据汇总', 'type' => 'menu', 'parent' => '数据核实', 'path' => '/data-verification/tax-summary', 'component' => '@/pages/DataVerification/TaxSummary', 'icon' => 'AccountBookOutlined', 'sort' => 3, 'status' => 1],
+            ['name' => '参保数据汇总', 'description' => '参保数据汇总', 'type' => 'menu', 'parent' => '数据核实', 'path' => '/data-verification/insurance-summary', 'component' => '@/pages/DataVerification/InsuranceSummary', 'icon' => 'BarChartOutlined', 'sort' => 4, 'status' => 1],
+
+            ['name' => '受理记录', 'description' => '受理记录', 'type' => 'menu', 'parent' => '救助报销', 'path' => '/medical-assistance/reimbursement', 'component' => '@/pages/MedicalAssistance/Reimbursement', 'icon' => 'DollarOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '就诊记录', 'description' => '就诊记录', 'type' => 'menu', 'parent' => '救助报销', 'path' => '/medical-assistance/records', 'component' => '@/pages/MedicalAssistance/Records', 'icon' => 'FileTextOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '患者管理', 'description' => '患者管理', 'type' => 'menu', 'parent' => '救助报销', 'path' => '/medical-assistance/patients', 'component' => '@/pages/MedicalAssistance/Patients', 'icon' => 'UserOutlined', 'sort' => 3, 'status' => 1],
+
+            ['name' => '未救助明细', 'description' => '未救助明细', 'type' => 'menu', 'parent' => '未救助台账', 'path' => '/unrescued/records', 'component' => '@/pages/Unrescued/Records', 'icon' => 'FileTextOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '重大疾病编码', 'description' => '重大疾病编码', 'type' => 'menu', 'parent' => '未救助台账', 'path' => '/unrescued/disease-configs', 'component' => '@/pages/Unrescued/DiseaseConfigs', 'icon' => 'MedicineBoxOutlined', 'sort' => 2, 'status' => 1],
+
+            ['name' => '账户管理:查看', 'description' => '查看账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 1, 'status' => 1],
+            ['name' => '账户管理:创建', 'description' => '创建账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 2, 'status' => 1],
+            ['name' => '账户管理:编辑', 'description' => '编辑账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 3, 'status' => 1],
+            ['name' => '账户管理:删除', 'description' => '删除账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 4, 'status' => 1],
+            ['name' => '角色管理:查看', 'description' => '查看角色', 'type' => 'operation', 'parent' => '角色管理', 'sort' => 5, 'status' => 1],
+            ['name' => '角色管理:创建', 'description' => '创建角色', 'type' => 'operation', 'parent' => '角色管理', 'sort' => 6, 'status' => 1],
+            ['name' => '角色管理:编辑', 'description' => '编辑角色', 'type' => 'operation', 'parent' => '角色管理', 'sort' => 7, 'status' => 1],
+            ['name' => '角色管理:删除', 'description' => '删除角色', 'type' => 'operation', 'parent' => '角色管理', 'sort' => 8, 'status' => 1],
+            ['name' => '角色管理:分配权限', 'description' => '分配角色权限', 'type' => 'operation', 'parent' => '角色管理', 'sort' => 9, 'status' => 1],
+            ['name' => '权限管理:查看', 'description' => '查看权限', 'type' => 'operation', 'parent' => '权限管理', 'sort' => 10, 'status' => 1],
+            ['name' => '权限管理:创建', 'description' => '创建权限', 'type' => 'operation', 'parent' => '权限管理', 'sort' => 11, 'status' => 1],
+            ['name' => '权限管理:编辑', 'description' => '编辑权限', 'type' => 'operation', 'parent' => '权限管理', 'sort' => 12, 'status' => 1],
+            ['name' => '权限管理:删除', 'description' => '删除权限', 'type' => 'operation', 'parent' => '权限管理', 'sort' => 13, 'status' => 1],
+            ['name' => '镇街管理:查看', 'description' => '查看镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 14, 'status' => 1],
+            ['name' => '镇街管理:创建', 'description' => '创建镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 15, 'status' => 1],
+            ['name' => '镇街管理:编辑', 'description' => '编辑镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 16, 'status' => 1],
+            ['name' => '镇街管理:删除', 'description' => '删除镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 17, 'status' => 1],
+            ['name' => '镇街管理:导入', 'description' => '导入镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 18, 'status' => 1],
+
+            ['name' => '类别转换配置:查看', 'description' => '查看类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 16, 'status' => 1],
+            ['name' => '类别转换配置:创建', 'description' => '创建类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 17, 'status' => 1],
+            ['name' => '类别转换配置:编辑', 'description' => '编辑类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 18, 'status' => 1],
+            ['name' => '类别转换配置:删除', 'description' => '删除类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 19, 'status' => 1],
+            ['name' => '参保档次配置:查看', 'description' => '查看参保档次配置', 'type' => 'operation', 'parent' => '参保档次配置', 'sort' => 20, 'status' => 1],
+            ['name' => '参保档次配置:创建', 'description' => '创建参保档次配置', 'type' => 'operation', 'parent' => '参保档次配置', 'sort' => 21, 'status' => 1],
+            ['name' => '参保档次配置:编辑', 'description' => '编辑参保档次配置', 'type' => 'operation', 'parent' => '参保档次配置', 'sort' => 22, 'status' => 1],
+            ['name' => '参保档次配置:删除', 'description' => '删除参保档次配置', 'type' => 'operation', 'parent' => '参保档次配置', 'sort' => 23, 'status' => 1],
+            ['name' => '类别额度配置:查看', 'description' => '查看类别额度配置', 'type' => 'operation', 'parent' => '类别额度配置', 'sort' => 1, 'status' => 1],
+            ['name' => '类别额度配置:创建', 'description' => '创建类别额度配置', 'type' => 'operation', 'parent' => '类别额度配置', 'sort' => 2, 'status' => 1],
+            ['name' => '类别额度配置:编辑', 'description' => '编辑类别额度配置', 'type' => 'operation', 'parent' => '类别额度配置', 'sort' => 3, 'status' => 1],
+            ['name' => '类别额度配置:删除', 'description' => '删除类别额度配置', 'type' => 'operation', 'parent' => '类别额度配置', 'sort' => 4, 'status' => 1],
+
+            ['name' => '参保数据管理:查看', 'description' => '查看参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 24, 'status' => 1],
+            ['name' => '参保数据管理:创建', 'description' => '创建参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 25, 'status' => 1],
+            ['name' => '参保数据管理:编辑', 'description' => '编辑参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 26, 'status' => 1],
+            ['name' => '参保数据管理:删除', 'description' => '删除参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 27, 'status' => 1],
+            ['name' => '参保数据管理:导出', 'description' => '导出参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 28, 'status' => 1],
+            ['name' => '参保数据管理:导入', 'description' => '导入参保数据', 'type' => 'operation', 'parent' => '参保数据管理', 'sort' => 29, 'status' => 1],
+            ['name' => '身份信息核实:查看', 'description' => '查看身份信息核实', 'type' => 'operation', 'parent' => '身份信息核实', 'sort' => 30, 'status' => 1],
+            ['name' => '身份信息核实:执行', 'description' => '执行身份信息核实', 'type' => 'operation', 'parent' => '身份信息核实', 'sort' => 31, 'status' => 1],
+            ['name' => '税务数据汇总:查看', 'description' => '查看税务数据汇总', 'type' => 'operation', 'parent' => '税务数据汇总', 'sort' => 32, 'status' => 1],
+            ['name' => '税务数据汇总:导出', 'description' => '导出税务数据汇总', 'type' => 'operation', 'parent' => '税务数据汇总', 'sort' => 33, 'status' => 1],
+            ['name' => '参保数据汇总:查看', 'description' => '查看参保数据汇总', 'type' => 'operation', 'parent' => '参保数据汇总', 'sort' => 34, 'status' => 1],
+            ['name' => '参保数据汇总:导出', 'description' => '导出参保数据汇总', 'type' => 'operation', 'parent' => '参保数据汇总', 'sort' => 35, 'status' => 1],
+
+            ['name' => '统计汇总:查看', 'description' => '查看统计汇总', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 38, 'status' => 1],
+            ['name' => '统计汇总:导入', 'description' => '导入统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 39, 'status' => 1],
+            ['name' => '统计汇总:导出明细', 'description' => '导出统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 40, 'status' => 1],
+            ['name' => '统计汇总:导出统计数据', 'description' => '导出统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 41, 'status' => 1],
+            ['name' => '统计汇总:创建', 'description' => '创建统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 42, 'status' => 1],
+            ['name' => '统计汇总:编辑', 'description' => '编辑统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 43, 'status' => 1],
+            ['name' => '统计汇总:删除', 'description' => '删除统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 44, 'status' => 1],
+            ['name' => '统计汇总:清空数据', 'description' => '清空统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 45, 'status' => 1],
+            ['name' => '统计汇总:批量删除', 'description' => '批量删除统计数据', 'type' => 'operation', 'parent' => '统计汇总', 'sort' => 46, 'status' => 1],
+
+            ['name' => '患者管理:查看', 'description' => '查看患者管理', 'type' => 'operation', 'parent' => '患者管理', 'sort' => 46, 'status' => 1],
+            ['name' => '患者管理:创建', 'description' => '创建患者管理', 'type' => 'operation', 'parent' => '患者管理', 'sort' => 47, 'status' => 1],
+            ['name' => '患者管理:编辑', 'description' => '编辑患者管理', 'type' => 'operation', 'parent' => '患者管理', 'sort' => 48, 'status' => 1],
+            ['name' => '患者管理:删除', 'description' => '删除患者管理', 'type' => 'operation', 'parent' => '患者管理', 'sort' => 49, 'status' => 1],
+            ['name' => '患者管理:导出', 'description' => '导出患者管理', 'type' => 'operation', 'parent' => '患者管理', 'sort' => 50, 'status' => 1],
+            ['name' => '就诊记录:查看', 'description' => '查看就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 51, 'status' => 1],
+            ['name' => '就诊记录:创建', 'description' => '创建就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 52, 'status' => 1],
+            ['name' => '就诊记录:编辑', 'description' => '编辑就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 53, 'status' => 1],
+            ['name' => '就诊记录:删除', 'description' => '删除就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 54, 'status' => 1],
+            ['name' => '就诊记录:批量删除', 'description' => '批量删除就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 55, 'status' => 1],
+            ['name' => '就诊记录:导出', 'description' => '导出就诊记录', 'type' => 'operation', 'parent' => '就诊记录', 'sort' => 56, 'status' => 1],
+            ['name' => '受理记录:查看', 'description' => '查看受理记录', 'type' => 'operation', 'parent' => '受理记录', 'sort' => 57, 'status' => 1],
+            ['name' => '受理记录:创建', 'description' => '创建受理记录', 'type' => 'operation', 'parent' => '受理记录', 'sort' => 58, 'status' => 1],
+            ['name' => '受理记录:编辑', 'description' => '编辑受理记录', 'type' => 'operation', 'parent' => '受理记录', 'sort' => 59, 'status' => 1],
+            ['name' => '受理记录:删除', 'description' => '删除受理记录', 'type' => 'operation', 'parent' => '受理记录', 'sort' => 60, 'status' => 1],
+            ['name' => '受理记录:导出', 'description' => '导出受理记录', 'type' => 'operation', 'parent' => '受理记录', 'sort' => 61, 'status' => 1],
+
+            ['name' => '联网结算:查看', 'description' => '查看联网结算列表', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 1, 'status' => 1],
+            ['name' => '联网结算:导入', 'description' => '导入结算数据', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 2, 'status' => 1],
+            ['name' => '联网结算:导出明细', 'description' => '导出联网结算明细数据', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 3, 'status' => 1],
+            ['name' => '联网结算:导出台账', 'description' => '导出联网结算台账数据', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 4, 'status' => 1],
+            ['name' => '联网结算:标记', 'description' => '标记支付状态', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 5, 'status' => 1],
+            ['name' => '联网结算:删除', 'description' => '物理/逻辑删除数据', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 6, 'status' => 1],
+            ['name' => '联网结算:重算', 'description' => '重新计算补助金额', 'type' => 'operation', 'parent' => '联网结算', 'sort' => 7, 'status' => 0],
+
+            ['name' => '未救助明细:查看', 'description' => '查看未救助明细', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 70, 'status' => 1],
+            ['name' => '未救助明细:导入', 'description' => '导入未救助明细', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 71, 'status' => 1],
+            ['name' => '未救助明细:清洗', 'description' => '执行清洗', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 72, 'status' => 1],
+            ['name' => '未救助明细:下放', 'description' => '下放镇街', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 73, 'status' => 1],
+            ['name' => '未救助明细:通知', 'description' => '标记通知', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 74, 'status' => 1],
+            ['name' => '未救助明细:账户回填', 'description' => '账户回填', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 75, 'status' => 1],
+            ['name' => '未救助明细:报销标记', 'description' => '报销标记', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 76, 'status' => 1],
+            ['name' => '未救助明细:导出', 'description' => '导出未救助台账', 'type' => 'operation', 'parent' => '未救助明细', 'sort' => 77, 'status' => 1],
+            ['name' => '重大疾病编码:查看', 'description' => '查看重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 78, 'status' => 1],
+            ['name' => '重大疾病编码:创建', 'description' => '创建重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 79, 'status' => 1],
+            ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 80, 'status' => 1],
+            ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 81, 'status' => 1],
+            ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 82, 'status' => 1],
+        ];
+    }
+}
