@@ -93,7 +93,8 @@ class AuthController extends AbstractController
      */
     public function info(RequestInterface $request)
     {
-        $user = $request->getAttribute('user');
+        $userId = (int) $request->getAttribute('userId', 0);
+        $user = $userId > 0 ? User::query()->with(['roles.permissions', 'town'])->find($userId) : null;
 
         if (!$user) {
             return $this->response->json([
@@ -102,7 +103,14 @@ class AuthController extends AbstractController
             ]);
         }
 
-        $data = is_array($user) ? $user : $user->toJwtArray();
+        $data = $user->toJwtArray();
+
+        try {
+            $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
+            $redis->set('user:cache:' . $userId, serialize($data), 7200);
+        } catch (\Exception $e) {
+            error_log('Redis refresh failed in AuthController::info: ' . $e->getMessage());
+        }
 
         return $this->response->json([
             'code' => 0,

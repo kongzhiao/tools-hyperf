@@ -7,6 +7,7 @@ use App\Model\Permission;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\DbConnection\Db;
+use Hyperf\Redis\Redis;
 use Psr\Container\ContainerInterface;
 
 #[Command]
@@ -591,6 +592,7 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $this->output->writeln('菜单权限初始化完成！');
         $this->output->writeln("菜单权限：新增 {$createdMenuCount} 个，更新 {$updatedMenuCount} 个");
         $this->output->writeln("操作权限：新增 {$createdOperationCount} 个，更新 {$updatedOperationCount} 个");
+        $this->clearUserPermissionCache();
         
         $this->output->writeln('');
         $this->output->writeln('新的菜单结构：');
@@ -663,5 +665,24 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $model->save();
 
         return [$model, true];
+    }
+
+    private function clearUserPermissionCache(): void
+    {
+        try {
+            $redis = $this->container->get(Redis::class);
+            $keys = $redis->keys('user:cache:*');
+            if (!$keys) {
+                $this->output->writeln('未发现用户权限缓存');
+                return;
+            }
+
+            foreach ($keys as $key) {
+                $redis->del($key);
+            }
+            $this->output->writeln('已清理用户权限缓存：' . count($keys) . ' 个');
+        } catch (\Throwable $e) {
+            $this->output->writeln('清理用户权限缓存失败：' . $e->getMessage());
+        }
     }
 } 
