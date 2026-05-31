@@ -178,6 +178,8 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '角色管理', 'description' => '角色管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/roles', 'component' => '@/pages/Role', 'icon' => 'SafetyCertificateOutlined', 'sort' => 2, 'status' => 1],
             ['name' => '权限管理', 'description' => '权限管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/permissions', 'component' => '@/pages/Permission', 'icon' => 'KeyOutlined', 'sort' => 3, 'status' => 1],
             ['name' => '镇街管理', 'description' => '镇街管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/towns', 'component' => '@/pages/Town', 'icon' => 'EnvironmentOutlined', 'sort' => 4, 'status' => 1],
+            ['name' => '操作记录', 'description' => '操作记录', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/operation-logs', 'component' => '@/pages/OperationLog', 'icon' => 'HistoryOutlined', 'sort' => 5, 'status' => 1],
+            ['name' => '业务筛选项', 'description' => '业务筛选项', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/business-filter-options', 'component' => '@/pages/BusinessFilterOption', 'icon' => 'FilterOutlined', 'sort' => 6, 'status' => 1],
 
             ['name' => '类别转换配置', 'description' => '类别转换配置', 'type' => 'menu', 'parent' => '业务配置', 'path' => '/business-config/config/category-conversion', 'component' => '@/pages/BussinessConfig/CategoryConversion', 'icon' => 'SwapOutlined', 'sort' => 1, 'status' => 1],
             ['name' => '参保档次配置', 'description' => '参保档次配置', 'type' => 'menu', 'parent' => '业务配置', 'path' => '/business-config/config/insurance-level-config', 'component' => '@/pages/BussinessConfig/InsuranceLevelConfig', 'icon' => 'ToolOutlined', 'sort' => 2, 'status' => 1],
@@ -213,6 +215,11 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '镇街管理:编辑', 'description' => '编辑镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 16, 'status' => 1],
             ['name' => '镇街管理:删除', 'description' => '删除镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 17, 'status' => 1],
             ['name' => '镇街管理:导入', 'description' => '导入镇街', 'type' => 'operation', 'parent' => '镇街管理', 'sort' => 18, 'status' => 1],
+            ['name' => '操作记录:查看', 'description' => '查看操作记录', 'type' => 'operation', 'parent' => '操作记录', 'sort' => 19, 'status' => 1],
+            ['name' => '业务筛选项:查看', 'description' => '查看业务筛选项', 'type' => 'operation', 'parent' => '业务筛选项', 'sort' => 20, 'status' => 1],
+            ['name' => '业务筛选项:创建', 'description' => '创建业务筛选项', 'type' => 'operation', 'parent' => '业务筛选项', 'sort' => 21, 'status' => 1],
+            ['name' => '业务筛选项:编辑', 'description' => '编辑业务筛选项', 'type' => 'operation', 'parent' => '业务筛选项', 'sort' => 22, 'status' => 1],
+            ['name' => '业务筛选项:删除', 'description' => '删除业务筛选项', 'type' => 'operation', 'parent' => '业务筛选项', 'sort' => 23, 'status' => 1],
 
             ['name' => '类别转换配置:查看', 'description' => '查看类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 16, 'status' => 1],
             ['name' => '类别转换配置:创建', 'description' => '创建类别转换配置', 'type' => 'operation', 'parent' => '类别转换配置', 'sort' => 17, 'status' => 1],

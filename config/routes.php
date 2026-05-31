@@ -63,8 +63,14 @@ Router::addGroup('/api', function () {
     Router::put('/towns/{id:\d+}', [App\Controller\TownController::class, 'update']);
     Router::delete('/towns/{id:\d+}', [App\Controller\TownController::class, 'destroy']);
 
+    // 操作记录
+    Router::get('/operation-logs', [App\Controller\OperationLogController::class, 'index']);
+
     // 通用业务筛选选项
     Router::get('/business-filter-options', [App\Controller\BusinessFilterOptionController::class, 'index']);
+    Router::post('/business-filter-options', [App\Controller\BusinessFilterOptionController::class, 'store']);
+    Router::put('/business-filter-options/{id:\d+}', [App\Controller\BusinessFilterOptionController::class, 'update']);
+    Router::delete('/business-filter-options/{id:\d+}', [App\Controller\BusinessFilterOptionController::class, 'destroy']);
 
     // 角色管理路由
     Router::get('/roles', [App\Controller\RoleController::class, 'index']);
