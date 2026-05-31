@@ -6,6 +6,7 @@ namespace App\Command;
 use App\Model\Permission;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Annotation\Command;
+use Hyperf\DbConnection\Db;
 use Psr\Container\ContainerInterface;
 
 #[Command]
@@ -208,8 +209,8 @@ class InitMenuPermissionsCommand extends HyperfCommand
                 'description' => '类别转换配置',
                 'type' => 'menu',
                 'parent_id' => 0,
-                'path' => '/business-config/category-conversion',
-                'component' => '@/pages/CategoryConversion',
+                'path' => '/business-config/config/category-conversion',
+                'component' => '@/pages/BussinessConfig/CategoryConversion',
                 'icon' => 'SwapOutlined',
                 'sort' => 1,
             ],
@@ -218,10 +219,21 @@ class InitMenuPermissionsCommand extends HyperfCommand
                 'description' => '参保档次配置',
                 'type' => 'menu',
                 'parent_id' => 0,
-                'path' => '/business-config/insurance-level-config',
-                'component' => '@/pages/InsuranceLevelConfig',
+                'path' => '/business-config/config/insurance-level-config',
+                'component' => '@/pages/BussinessConfig/InsuranceLevelConfig',
                 'icon' => 'ToolOutlined',
                 'sort' => 2,
+            ],
+            [
+                'id' => 100,
+                'name' => '类别额度配置',
+                'description' => '类别额度配置',
+                'type' => 'menu',
+                'parent_id' => 0,
+                'path' => '/business-config/config/category-money-config',
+                'component' => '@/pages/BussinessConfig/CategoryMoneyConfig',
+                'icon' => 'SettingOutlined',
+                'sort' => 3,
             ],
 
             // 数据核实子菜单
@@ -294,6 +306,7 @@ class InitMenuPermissionsCommand extends HyperfCommand
             // 业务配置子菜单
             '类别转换配置' => '业务配置',
             '参保档次配置' => '业务配置',
+            '类别额度配置' => '业务配置',
 
             // 数据核实子菜单
             '参保数据管理' => '数据核实',
@@ -354,6 +367,12 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '参保档次配置:创建', 'description' => '创建参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 21],
             ['name' => '参保档次配置:编辑', 'description' => '编辑参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 22],
             ['name' => '参保档次配置:删除', 'description' => '删除参保档次配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 23],
+
+            // 类别额度配置操作权限（生产已有节点 ID：100-104）
+            ['id' => 101, 'name' => '类别额度配置:查看', 'description' => '查看类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 1],
+            ['id' => 102, 'name' => '类别额度配置:创建', 'description' => '创建类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 2],
+            ['id' => 103, 'name' => '类别额度配置:编辑', 'description' => '编辑类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 3],
+            ['id' => 104, 'name' => '类别额度配置:删除', 'description' => '删除类别额度配置', 'type' => 'operation', 'parent_id' => 0, 'sort' => 4],
 
             // 参保数据管理操作权限
             ['name' => '参保数据管理:查看', 'description' => '查看参保数据', 'type' => 'operation', 'parent_id' => 0, 'sort' => 24],
@@ -479,6 +498,12 @@ class InitMenuPermissionsCommand extends HyperfCommand
             '参保档次配置:编辑' => '参保档次配置',
             '参保档次配置:删除' => '参保档次配置',
 
+            // 类别额度配置相关操作权限 -> 类别额度配置
+            '类别额度配置:查看' => '类别额度配置',
+            '类别额度配置:创建' => '类别额度配置',
+            '类别额度配置:编辑' => '类别额度配置',
+            '类别额度配置:删除' => '类别额度配置',
+
             // 参保数据管理相关操作权限 -> 参保数据管理
             '参保数据管理:查看' => '参保数据管理',
             '参保数据管理:创建' => '参保数据管理',
@@ -577,7 +602,8 @@ class InitMenuPermissionsCommand extends HyperfCommand
         $this->output->writeln('│   └── 镇街管理');
         $this->output->writeln('├── 业务配置');
         $this->output->writeln('│   ├── 类别转换配置');
-        $this->output->writeln('│   └── 参保档次配置');
+        $this->output->writeln('│   ├── 参保档次配置');
+        $this->output->writeln('│   └── 类别额度配置');
         $this->output->writeln('├── 数据核实');
         $this->output->writeln('│   ├── 参保数据管理');
         $this->output->writeln('│   ├── 身份信息核实');
@@ -595,6 +621,7 @@ class InitMenuPermissionsCommand extends HyperfCommand
 
     private function upsertPermission(array $permission): array
     {
+        $expectedId = isset($permission['id']) ? (int) $permission['id'] : null;
         $data = [
             'description' => $permission['description'] ?? '',
             'type' => $permission['type'] ?? 'operation',
@@ -610,7 +637,26 @@ class InitMenuPermissionsCommand extends HyperfCommand
         if ($model) {
             $model->fill($data);
             $model->save();
+            if ($expectedId && (int) $model->id !== $expectedId) {
+                $this->output->writeln("提示：{$permission['name']} 已存在，保留现有 ID {$model->id}，未强制改为生产 ID {$expectedId}");
+            }
             return [$model, false];
+        }
+
+        if ($expectedId && !Permission::where('id', $expectedId)->exists()) {
+            $now = date('Y-m-d H:i:s');
+            $insertData = array_merge([
+                'id' => $expectedId,
+                'name' => $permission['name'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ], $data);
+            Db::table('permissions')->insert($insertData);
+            return [Permission::find($expectedId), true];
+        }
+
+        if ($expectedId) {
+            $this->output->writeln("提示：生产 ID {$expectedId} 已被占用，{$permission['name']} 将使用自增 ID 创建");
         }
 
         $model = new Permission(array_merge(['name' => $permission['name']], $data));
