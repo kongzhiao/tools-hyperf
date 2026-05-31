@@ -16,6 +16,18 @@ use OpenSpout\Writer\CSV\Writer;
 
 class UnrescuedExportJob extends AbstractJob
 {
+    private const WASH_RULE_NAMES = [
+        'medical_category_keep' => '医疗类别保留',
+        'hospital_keyword_exclude' => '机构名称关键字剔除',
+        'pool_equals_policy' => '统筹报销等于政策范围费用',
+        'large_equals_policy' => '大额报销等于政策范围费用',
+        'serious_equals_policy' => '大病报销等于政策范围费用',
+        'normal_rescue_limit' => '普通住院救助额度已满',
+        'major_rescue_limit' => '重特大疾病救助额度已满',
+        'large_fee_rescue_limit' => '大额费用住院救助额度已满',
+        'identity_exclude' => '身份类别剔除',
+    ];
+
     public function handle(): void
     {
         $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
@@ -239,7 +251,7 @@ class UnrescuedExportJob extends AbstractJob
             $this->money($record->used_major_rescue),
             $this->money($record->used_large_fee_rescue),
             $this->money($record->calc_reimbursement_amount),
-            $record->remark,
+            $this->exportRemark($record),
         ];
 
         if ($type === 'attachment2') {
@@ -248,7 +260,7 @@ class UnrescuedExportJob extends AbstractJob
                 $record->name,
                 $this->idCard((string) $record->id_card),
                 $record->street_town,
-                $record->remark,
+                $this->exportRemark($record),
                 $record->bank_name,
                 $record->bank_account_name,
                 $this->idCard((string) $record->bank_account_no),
@@ -291,5 +303,20 @@ class UnrescuedExportJob extends AbstractJob
     private function dateText(mixed $value): string
     {
         return $value ? (string) $value : '';
+    }
+
+    private function exportRemark(UnrescuedRecord $record): string
+    {
+        $remark = trim((string) ($record->remark ?? ''));
+        if ($remark !== '') {
+            return $remark;
+        }
+
+        $ruleCode = trim((string) ($record->exclude_rule_code ?? ''));
+        if ($ruleCode !== '') {
+            return self::WASH_RULE_NAMES[$ruleCode] ?? $ruleCode;
+        }
+
+        return trim((string) ($record->status ?? ''));
     }
 }

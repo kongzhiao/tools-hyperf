@@ -48,9 +48,9 @@ class RecordController extends AbstractController
         $this->recordService->applyTownScope($query, $this->currentTownId($request));
 
         $total = $query->count();
-        $list = $query->orderByDesc('settlement_period')
-            ->orderBy('sequence_no')
-            ->offset(($page - 1) * $pageSize)
+        $this->applyListSorting($query, $request);
+
+        $list = $query->offset(($page - 1) * $pageSize)
             ->limit($pageSize)
             ->get();
 
@@ -196,6 +196,8 @@ class RecordController extends AbstractController
             'is_active' => 1,
             'created_by' => (int) $request->getAttribute('userId', 0),
         ]);
+
+        $this->syncWashRuleFilterOptions($rules);
 
         $this->operationLogService->record('未救助明细', '保存清洗规则', 'wash_config', (string) $config->id, '保存未救助清洗规则', ['version' => $config->version]);
 
@@ -578,6 +580,91 @@ class RecordController extends AbstractController
             'is_active' => 1,
             'created_by' => 0,
         ]);
+    }
+
+    private function applyListSorting($query, RequestInterface $request): void
+    {
+        $sortField = (string) $request->input('sort_field', '');
+        $sortOrder = (string) $request->input('sort_order', '');
+        $direction = match ($sortOrder) {
+            'asc', 'ascend' => 'asc',
+            'desc', 'descend' => 'desc',
+            default => '',
+        };
+
+        $amountFields = [
+            'total_fee',
+            'policy_fee',
+            'pool_fund_pay',
+            'large_amount_pay',
+            'serious_illness_pay',
+            'used_outpatient_rescue',
+            'used_normal_rescue',
+            'used_major_rescue',
+            'used_large_fee_rescue',
+            'calc_reimbursement_amount',
+        ];
+        $sortableFields = array_merge($amountFields, [
+            'settlement_period',
+            'sequence_no',
+            'name',
+            'medical_category',
+            'disease_code',
+            'disease_name',
+            'cert_location',
+            'hospital_name',
+            'hospital_code',
+            'in_out_city',
+            'admission_date',
+            'discharge_date',
+            'settlement_time',
+            'street_town',
+            'priority_identity',
+            'status',
+            'exclude_status',
+            'exclude_rule_code',
+            'reimbursement_status',
+            'created_at',
+            'updated_at',
+        ]);
+
+        if ($sortField !== '' && $direction !== '' && in_array($sortField, $sortableFields, true)) {
+            if (in_array($sortField, $amountFields, true)) {
+                $query->orderByRaw(sprintf('CAST(`%s` AS DECIMAL(18, 2)) %s', $sortField, strtoupper($direction)));
+            } elseif ($sortField === 'sequence_no') {
+                $query->orderByRaw(sprintf('CAST(`sequence_no` AS UNSIGNED) %s', strtoupper($direction)))
+                    ->orderBy('sequence_no', $direction);
+            } else {
+                $query->orderBy($sortField, $direction);
+            }
+            $query->orderBy('id');
+            return;
+        }
+
+        $query->orderByDesc('settlement_period')
+            ->orderByRaw('CAST(`sequence_no` AS UNSIGNED) ASC')
+            ->orderBy('sequence_no')
+            ->orderBy('id');
+    }
+
+    private function syncWashRuleFilterOptions(array $rules): void
+    {
+        $typeByCode = [
+            'medical_category_keep' => 'medical_category',
+            'identity_exclude' => 'priority_identity',
+        ];
+
+        foreach ($rules as $rule) {
+            $code = (string) ($rule['code'] ?? '');
+            $type = $typeByCode[$code] ?? '';
+            if ($type === '') {
+                continue;
+            }
+
+            foreach ((array) ($rule['values'] ?? []) as $value) {
+                $this->filterOptionService->saveOption('unrescued', $type, (string) $value, 'wash_config');
+            }
+        }
     }
 
     private function hasEnabledWashRules(array $rules): bool
