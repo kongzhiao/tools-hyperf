@@ -172,6 +172,7 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '统计汇总', 'description' => '统计汇总', 'type' => 'menu', 'parent' => null, 'path' => '/statistics-summary', 'component' => '@/pages/StatisticsSummary', 'icon' => 'BarChartOutlined', 'sort' => 6, 'status' => 1],
             ['name' => '救助报销', 'description' => '救助报销', 'type' => 'menu', 'parent' => null, 'path' => '/medical-assistance', 'component' => null, 'icon' => 'MedicineBoxOutlined', 'sort' => 7, 'status' => 1],
             ['name' => '未救助台账', 'description' => '未救助台账', 'type' => 'menu', 'parent' => null, 'path' => '/unrescued', 'component' => null, 'icon' => 'FileSearchOutlined', 'sort' => 8, 'status' => 1],
+            ['name' => '参保台账', 'description' => '参保台账', 'type' => 'menu', 'parent' => null, 'path' => '/enroll', 'component' => null, 'icon' => 'SolutionOutlined', 'sort' => 9, 'status' => 1],
             ['name' => '联网结算', 'description' => '联网结算主菜单', 'type' => 'menu', 'parent' => null, 'path' => '/yf/settlement-online', 'component' => './YfSettlement/Online', 'icon' => 'GlobalOutlined', 'sort' => 20, 'status' => 1],
 
             ['name' => '账户管理', 'description' => '账户管理', 'type' => 'menu', 'parent' => '用户管理', 'path' => '/user-management/accounts', 'component' => '@/pages/User', 'icon' => 'UserOutlined', 'sort' => 1, 'status' => 1],
@@ -196,6 +197,9 @@ class InitMenuPermissionsCommand extends HyperfCommand
 
             ['name' => '未救助明细', 'description' => '未救助明细', 'type' => 'menu', 'parent' => '未救助台账', 'path' => '/unrescued/records', 'component' => '@/pages/Unrescued/Records', 'icon' => 'FileTextOutlined', 'sort' => 1, 'status' => 1],
             ['name' => '重大疾病编码', 'description' => '重大疾病编码', 'type' => 'menu', 'parent' => '未救助台账', 'path' => '/unrescued/disease-configs', 'component' => '@/pages/Unrescued/DiseaseConfigs', 'icon' => 'MedicineBoxOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '参保台账明细', 'description' => '参保台账明细', 'type' => 'menu', 'parent' => '参保台账', 'path' => '/enroll/ledgers', 'component' => '@/pages/Enroll/Ledgers', 'icon' => 'FileTextOutlined', 'sort' => 1, 'status' => 1],
+            ['name' => '参保配置', 'description' => '参保配置', 'type' => 'menu', 'parent' => '参保台账', 'path' => '/enroll/configs', 'component' => '@/pages/Enroll/Configs', 'icon' => 'SettingOutlined', 'sort' => 2, 'status' => 1],
+            ['name' => '参保导入记录', 'description' => '参保导入记录', 'type' => 'menu', 'parent' => '参保台账', 'path' => '/enroll/import-batches', 'component' => '@/pages/Enroll/ImportBatches', 'icon' => 'HistoryOutlined', 'sort' => 3, 'status' => 1],
 
             ['name' => '账户管理:查看', 'description' => '查看账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 1, 'status' => 1],
             ['name' => '账户管理:创建', 'description' => '创建账户', 'type' => 'operation', 'parent' => '账户管理', 'sort' => 2, 'status' => 1],
@@ -295,6 +299,17 @@ class InitMenuPermissionsCommand extends HyperfCommand
             ['name' => '重大疾病编码:编辑', 'description' => '编辑重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 80, 'status' => 1],
             ['name' => '重大疾病编码:删除', 'description' => '删除重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 81, 'status' => 1],
             ['name' => '重大疾病编码:导入', 'description' => '导入重大疾病编码', 'type' => 'operation', 'parent' => '重大疾病编码', 'sort' => 82, 'status' => 1],
+            ['name' => '参保台账明细:查看', 'description' => '查看参保台账明细', 'type' => 'operation', 'parent' => '参保台账明细', 'sort' => 90, 'status' => 1],
+            ['name' => '参保台账明细:导入', 'description' => '导入参保台账数据', 'type' => 'operation', 'parent' => '参保台账明细', 'sort' => 91, 'status' => 1],
+            ['name' => '参保台账明细:导出', 'description' => '导出参保台账', 'type' => 'operation', 'parent' => '参保台账明细', 'sort' => 92, 'status' => 1],
+            ['name' => '参保台账明细:编辑', 'description' => '编辑参保台账', 'type' => 'operation', 'parent' => '参保台账明细', 'sort' => 93, 'status' => 1],
+            ['name' => '参保台账明细:删除', 'description' => '删除参保台账', 'type' => 'operation', 'parent' => '参保台账明细', 'sort' => 94, 'status' => 1],
+            ['name' => '参保配置:查看', 'description' => '查看参保配置', 'type' => 'operation', 'parent' => '参保配置', 'sort' => 95, 'status' => 1],
+            ['name' => '参保配置:导入', 'description' => '导入参保配置', 'type' => 'operation', 'parent' => '参保配置', 'sort' => 96, 'status' => 1],
+            ['name' => '参保配置:创建', 'description' => '创建参保配置', 'type' => 'operation', 'parent' => '参保配置', 'sort' => 97, 'status' => 1],
+            ['name' => '参保配置:编辑', 'description' => '编辑参保配置', 'type' => 'operation', 'parent' => '参保配置', 'sort' => 98, 'status' => 1],
+            ['name' => '参保配置:删除', 'description' => '删除参保配置', 'type' => 'operation', 'parent' => '参保配置', 'sort' => 99, 'status' => 1],
+            ['name' => '参保导入记录:查看', 'description' => '查看参保导入记录', 'type' => 'operation', 'parent' => '参保导入记录', 'sort' => 100, 'status' => 1],
         ];
     }
 }

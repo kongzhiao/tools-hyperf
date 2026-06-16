@@ -27,8 +27,9 @@ class CsvReaderService
             return 'UTF-8';
         }
 
-        // 读取前 8000 字节用于编码检测
-        $content = fread($handle, 8000);
+        // 读取前 1MB 用于编码检测。部分 CSV 表头是纯 ASCII，数据行才出现中文，
+        // 采样太小容易把 GBK/GB18030 文件误判为 UTF-8。
+        $content = fread($handle, 1024 * 1024);
         fclose($handle);
 
         if ($content === false || strlen($content) === 0) {
@@ -52,13 +53,16 @@ class CsvReaderService
             return 'UTF-8';
         }
 
-        // 3. 如果不是 UTF-8，再检测是否为 GBK
+        // 3. 如果不是 UTF-8，再检测是否为 GBK/GB18030
         if (mb_check_encoding($content, 'GBK')) {
             return 'GBK';
         }
+        if (mb_check_encoding($content, 'GB18030')) {
+            return 'GB18030';
+        }
 
         // 4. 兜底策略：使用探测函数
-        $detected = mb_detect_encoding($content, ['UTF-8', 'GBK', 'GB2312', 'BIG5'], true);
+        $detected = mb_detect_encoding($content, ['UTF-8', 'GB18030', 'GBK', 'GB2312', 'BIG5'], true);
         return $detected ?: 'UTF-8';
     }
 
@@ -93,7 +97,7 @@ class CsvReaderService
 
         // 逐行读取并转换编码
         while (($line = fgets($inputHandle)) !== false) {
-            $utf8Line = mb_convert_encoding($line, 'UTF-8', $encoding);
+            $utf8Line = $this->convertStringToUtf8($line, $encoding);
             fwrite($outputHandle, $utf8Line);
         }
 
@@ -101,6 +105,53 @@ class CsvReaderService
         fclose($outputHandle);
 
         return $tempPath;
+    }
+
+    /**
+     * 将任意 CSV 单元格规范为合法 UTF-8 文本。
+     */
+    private function normalizeCellValue(mixed $cell): string
+    {
+        $value = is_string($cell) ? $cell : (string) $cell;
+        $value = $this->convertStringToUtf8($value);
+
+        // 去除不可见字符，包括 UTF-8 BOM 和零宽空格。
+        $cleaned = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
+        if ($cleaned === null) {
+            $cleaned = str_replace(["\xEF\xBB\xBF", "\xE2\x80\x8B"], '', $value);
+        }
+
+        return trim($cleaned);
+    }
+
+    /**
+     * 转换字符串编码。GBK 文件里偶尔会混入扩展字符，优先按 GB18030/GBK 兼容处理。
+     */
+    private function convertStringToUtf8(string $value, ?string $encoding = null): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        if ($encoding === null || $encoding === '') {
+            if (mb_check_encoding($value, 'UTF-8')) {
+                return $value;
+            }
+            $encoding = mb_detect_encoding($value, ['GB18030', 'GBK', 'GB2312', 'BIG5'], true) ?: 'GB18030';
+        }
+
+        if (strtoupper($encoding) === 'UTF-8') {
+            return mb_check_encoding($value, 'UTF-8')
+                ? $value
+                : (iconv('GB18030', 'UTF-8//IGNORE', $value) ?: '');
+        }
+
+        $converted = iconv($encoding, 'UTF-8//IGNORE', $value);
+        if ($converted !== false) {
+            return $converted;
+        }
+
+        return mb_convert_encoding($value, 'UTF-8', $encoding);
     }
 
     /**
@@ -154,12 +205,7 @@ class CsvReaderService
 
                 // 处理表头
                 if ($hasHeader && $rowIndex === 0) {
-                    $headers = array_map(function ($cell) {
-                        $value = is_string($cell) ? $cell : (string) $cell;
-                        // 去除不可见字符，包括 BOM
-                        $value = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
-                        return trim($value);
-                    }, $rowData);
+                    $headers = array_map(fn ($cell) => $this->normalizeCellValue($cell), $rowData);
                     $rowIndex++;
                     continue;
                 }
@@ -169,11 +215,11 @@ class CsvReaderService
                     if ($hasHeader && !empty($headers)) {
                         $assocRow = [];
                         foreach ($headers as $index => $header) {
-                            $assocRow[$header] = $rowData[$index] ?? '';
+                            $assocRow[$header] = $this->normalizeCellValue($rowData[$index] ?? '');
                         }
                         $callback($assocRow, $rowIndex, $headers);
                     } else {
-                        $callback($rowData, $rowIndex, []);
+                        $callback(array_map(fn ($cell) => $this->normalizeCellValue($cell), $rowData), $rowIndex, []);
                     }
                     $processedCount++;
                 } catch (\Throwable $e) {
@@ -263,12 +309,7 @@ class CsvReaderService
 
                 // 处理表头
                 if ($hasHeader && $rowIndex === 0) {
-                    $headers = array_map(function ($cell) {
-                        $value = is_string($cell) ? $cell : (string) $cell;
-                        // 去除不可见字符，包括 BOM
-                        $value = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
-                        return trim($value);
-                    }, $rowData);
+                    $headers = array_map(fn ($cell) => $this->normalizeCellValue($cell), $rowData);
                     $rowIndex++;
                     continue;
                 }
@@ -277,11 +318,11 @@ class CsvReaderService
                 if ($hasHeader && !empty($headers)) {
                     $assocRow = [];
                     foreach ($headers as $index => $header) {
-                        $assocRow[$header] = $rowData[$index] ?? '';
+                        $assocRow[$header] = $this->normalizeCellValue($rowData[$index] ?? '');
                     }
                     $batch[] = ['data' => $assocRow, 'row' => $rowIndex + 1];
                 } else {
-                    $batch[] = ['data' => $rowData, 'row' => $rowIndex + 1];
+                    $batch[] = ['data' => array_map(fn ($cell) => $this->normalizeCellValue($cell), $rowData), 'row' => $rowIndex + 1];
                 }
 
                 $rowIndex++;
@@ -397,12 +438,7 @@ class CsvReaderService
 
         foreach ($reader->getSheetIterator() as $sheet) {
             foreach ($sheet->getRowIterator() as $row) {
-                $headers = array_map(function ($cell) {
-                    $value = is_string($cell) ? $cell : (string) $cell;
-                    // 去除不可见字符，包括 BOM
-                    $value = preg_replace('/[\x{FEFF}\x{200B}]/u', '', $value);
-                    return trim($value);
-                }, $row->toArray());
+                $headers = array_map(fn ($cell) => $this->normalizeCellValue($cell), $row->toArray());
                 break;
             }
             break;

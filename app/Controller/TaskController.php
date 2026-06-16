@@ -58,6 +58,7 @@ class TaskController extends AbstractController
                     // 'file_url' => $task->file_url,
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
+                    'failure_reason' => $task->failure_reason,
                     'created_at' => $task->created_at?->toDateTimeString(),
                     'updated_at' => $task->updated_at?->toDateTimeString(),
                 ];
@@ -137,6 +138,7 @@ class TaskController extends AbstractController
                     // 'file_url' => $task->file_url, // 为了安全，隐藏真实路径，改用 UUID 下载
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
+                    'failure_reason' => $task->failure_reason,
                     'created_at' => $task->created_at?->toDateTimeString(),
                     'updated_at' => $task->updated_at?->toDateTimeString(),
                 ]

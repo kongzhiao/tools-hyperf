@@ -283,6 +283,33 @@ Router::addGroup('/api', function () {
         });
     });
 
+    // 参保台账
+    Router::addGroup('/enroll', function () {
+        Router::addGroup('/ledgers', function () {
+            Router::get('', [App\Controller\Enroll\LedgerController::class, 'index']);
+            Router::get('/statistics', [App\Controller\Enroll\LedgerController::class, 'statistics']);
+            Router::get('/options', [App\Controller\Enroll\LedgerController::class, 'options']);
+            Router::post('/import-attachment3', [App\Controller\Enroll\LedgerController::class, 'importAttachment3']);
+            Router::post('/import-attachment4', [App\Controller\Enroll\LedgerController::class, 'importAttachment4']);
+            Router::post('/import-attachment5', [App\Controller\Enroll\LedgerController::class, 'importAttachment5']);
+            Router::post('/import-attachment6', [App\Controller\Enroll\LedgerController::class, 'importAttachment6']);
+            Router::post('/import-attachment3-return', [App\Controller\Enroll\LedgerController::class, 'importAttachment3Return']);
+            Router::post('/export', [App\Controller\Enroll\LedgerController::class, 'export']);
+            Router::get('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'show']);
+            Router::put('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'update']);
+            Router::delete('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'destroy']);
+        });
+        Router::addGroup('/configs', function () {
+            Router::get('', [App\Controller\Enroll\ConfigController::class, 'index']);
+            Router::post('', [App\Controller\Enroll\ConfigController::class, 'store']);
+            Router::post('/clone', [App\Controller\Enroll\ConfigController::class, 'cloneYear']);
+            Router::post('/import', [App\Controller\Enroll\ConfigController::class, 'import']);
+            Router::put('/{id:\d+}', [App\Controller\Enroll\ConfigController::class, 'update']);
+            Router::delete('/{id:\d+}', [App\Controller\Enroll\ConfigController::class, 'destroy']);
+        });
+        Router::get('/import-batches', [App\Controller\Enroll\LedgerController::class, 'importBatches']);
+    });
+
     // 优抚救助
     Router::addGroup('/settlement-config', function () {
         Router::get('', [App\Controller\SettlementConfigController::class, 'index']);
