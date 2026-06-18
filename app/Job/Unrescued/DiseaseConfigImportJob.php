@@ -155,7 +155,7 @@ class DiseaseConfigImportJob extends AbstractJob
         );
 
         $task = Task::where('uuid', $this->uuid)->first();
-        $title = $task ? $task->title : '未救助台账_重大疾病编码导入_';
+        $title = $task ? $task->title : '未救助台账_导入_重大疾病编码_';
         if (!str_contains($title, '(')) {
             $title .= $summary;
         }

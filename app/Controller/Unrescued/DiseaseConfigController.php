@@ -154,7 +154,7 @@ class DiseaseConfigController extends AbstractController
                 'username' => $username,
             ]);
             $uuid = TaskService::instance()->dispatchTask(
-                '未救助台账_重大疾病编码导入_',
+                '未救助台账_导入_重大疾病编码_',
                 $userId,
                 $username,
                 DiseaseConfigImportJob::class,

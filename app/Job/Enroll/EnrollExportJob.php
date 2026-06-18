@@ -28,12 +28,12 @@ class EnrollExportJob extends AbstractJob
             $filters = (array) ($this->params['filters'] ?? []);
             $townName = (string) ($this->params['town_name'] ?? '');
             $title = match ($type) {
-                'attachment2' => '资助参保对象-对比结果',
-                'attachment3' => '特殊对象资助参保台账',
-                default => '资助参保对象-汇总名单',
+                'attachment2' => '参保台账_导出_对比结果',
+                'attachment3' => '参保台账_导出_特殊对象资助参保台账',
+                default => '参保台账_导出_汇总名单',
             };
 
-            $filename = $title . '_' . date('YmdHis') . '.csv';
+            $filename = $title . '_' . $this->uuid . '.csv';
             $storagePath = BASE_PATH . '/public/storage/exports/' . $filename;
             if (!is_dir(dirname($storagePath))) {
                 mkdir(dirname($storagePath), 0777, true);

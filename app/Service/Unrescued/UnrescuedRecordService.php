@@ -262,7 +262,7 @@ class UnrescuedRecordService
             $query->where('settlement_period', $period);
         }
 
-        foreach (['status', 'exclude_status', 'reimbursement_status', 'town_id', 'medical_category', 'exclude_rule_code'] as $field) {
+        foreach (['status', 'exclude_status', 'reimbursement_status', 'town_id', 'medical_category', 'exclude_rule_code', 'in_out_city'] as $field) {
             if (isset($filters[$field]) && $filters[$field] !== '') {
                 $query->where($field, $filters[$field]);
             }
@@ -276,6 +276,11 @@ class UnrescuedRecordService
         $hospitalName = trim((string) ($filters['hospital_name'] ?? ''));
         if ($hospitalName !== '') {
             $query->where('hospital_name', 'like', "%{$hospitalName}%");
+        }
+
+        $remark = trim((string) ($filters['remark'] ?? $filters['remark_keyword'] ?? ''));
+        if ($remark !== '') {
+            $query->where('remark', 'like', "%{$remark}%");
         }
 
         $keyword = trim((string) ($filters['keyword'] ?? ''));

@@ -165,7 +165,7 @@ class LedgerController extends AbstractController
             return $this->error('镇街账号不能导入参保台账附件3', 403);
         }
 
-        return $this->submitImport($request, Attachment3ImportJob::class, '参保台账_附件3导入_', 'enrollAttachment3Import');
+        return $this->submitImport($request, Attachment3ImportJob::class, '参保台账_导入_附件3全量明细_', 'enrollAttachment3Import');
     }
 
     public function importAttachment4(RequestInterface $request)
@@ -174,7 +174,7 @@ class LedgerController extends AbstractController
             return $this->error('镇街账号不能导入参保台账附件4', 403);
         }
 
-        return $this->submitImport($request, SupplementImportJob::class, '参保台账_附件4导入_', 'enrollAttachment4Import', 'attachment4_verify');
+        return $this->submitImport($request, SupplementImportJob::class, '参保台账_导入_附件4参保核实_', 'enrollAttachment4Import', 'attachment4_verify');
     }
 
     public function importAttachment5(RequestInterface $request)
@@ -183,7 +183,7 @@ class LedgerController extends AbstractController
             return $this->error('镇街账号不能导入参保台账附件5', 403);
         }
 
-        return $this->submitImport($request, SupplementImportJob::class, '参保台账_附件5导入_', 'enrollAttachment5Import', 'attachment5_tax');
+        return $this->submitImport($request, SupplementImportJob::class, '参保台账_导入_附件5税务请款_', 'enrollAttachment5Import', 'attachment5_tax');
     }
 
     public function importAttachment6(RequestInterface $request)
@@ -192,12 +192,12 @@ class LedgerController extends AbstractController
             return $this->error('镇街账号不能导入参保台账附件6', 403);
         }
 
-        return $this->submitImport($request, SupplementImportJob::class, '参保台账_附件6导入_', 'enrollAttachment6Import', 'attachment6_death');
+        return $this->submitImport($request, SupplementImportJob::class, '参保台账_导入_附件6死亡名单_', 'enrollAttachment6Import', 'attachment6_death');
     }
 
     public function importAttachment3Return(RequestInterface $request)
     {
-        return $this->submitImport($request, Attachment3ReturnImportJob::class, '参保台账_附件3回导_', 'enrollAttachment3ReturnImport', 'attachment3_return');
+        return $this->submitImport($request, Attachment3ReturnImportJob::class, '参保台账_导入_附件3人工调整回导_', 'enrollAttachment3ReturnImport', 'attachment3_return');
     }
 
     public function export(RequestInterface $request)
@@ -208,7 +208,7 @@ class LedgerController extends AbstractController
         $username = (string) $request->getAttribute('username', 'System');
 
         $uuid = TaskService::instance()->dispatchTask(
-            '参保台账_导出_',
+            $this->exportTaskTitle($type),
             $userId,
             $username,
             EnrollExportJob::class,
@@ -343,6 +343,15 @@ class LedgerController extends AbstractController
         }
 
         return (string) (Town::query()->where('id', $townId)->value('name') ?? '');
+    }
+
+    private function exportTaskTitle(string $type): string
+    {
+        return match ($type) {
+            'attachment2' => '参保台账_导出_对比结果_',
+            'attachment3' => '参保台账_导出_特殊对象资助参保台账_',
+            default => '参保台账_导出_汇总名单_',
+        };
     }
 
     private function applyListSorting($query, RequestInterface $request): void

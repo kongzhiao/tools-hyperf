@@ -46,13 +46,13 @@ class UnrescuedExportJob extends AbstractJob
             ]);
 
             $filenameMap = [
-                'attachment1' => '医疗救助未救助排查明细',
-                'attachment2' => '医疗救助未报销台账',
-                'attachment3' => '医疗救助未救助通知名单',
-                'attachment4' => '医疗救助应补应退排查记录',
+                'attachment1' => '未救助台账_导出_排查明细',
+                'attachment2' => '未救助台账_导出_未报销台账',
+                'attachment3' => '未救助台账_导出_通知名单',
+                'attachment4' => '未救助台账_导出_应补应退排查记录',
             ];
             $title = $filenameMap[$type] ?? '未救助台账导出';
-            $filename = $title . '_' . date('YmdHis') . '.csv';
+            $filename = $title . '_' . $this->uuid . '.csv';
             $storagePath = BASE_PATH . '/public/storage/exports/' . $filename;
             if (!is_dir(dirname($storagePath))) {
                 mkdir(dirname($storagePath), 0777, true);

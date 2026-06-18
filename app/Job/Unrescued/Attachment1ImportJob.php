@@ -153,7 +153,7 @@ class Attachment1ImportJob extends AbstractJob
                 'settlement_period' => $settlementPeriod,
                 'result' => $result,
             ]);
-            $this->finishImportTask('未救助台账_附件1导入_', $result);
+            $this->finishImportTask('未救助台账_导入_附件1未救助明细_', $result);
         } catch (\Throwable $e) {
             $logger->error('Unrescued attachment1 import failed: ' . $e->getMessage(), [
                 'uuid' => $this->uuid,
