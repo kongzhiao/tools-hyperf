@@ -168,15 +168,15 @@ class EnrollExportJob extends AbstractJob
                 $data['name'] ?? '',
                 $data['id_card'] ?? '',
                 $data['medical_identity'] ?? '',
-                $data['included_month'] ?? '',
-                $data['cancel_month'] ?? '',
+                $this->displayYearMonthText($data['included_month'] ?? ''),
+                $this->displayYearMonthText($data['cancel_month'] ?? ''),
             ];
         }
         if ($type === 'attachment3') {
             return [
                 $sequence,
-                $data['included_month'] ?? '',
-                $data['cancel_month'] ?? '',
+                $this->displayYearMonthText($data['included_month'] ?? ''),
+                $this->displayYearMonthText($data['cancel_month'] ?? ''),
                 $data['change_status'] ?? '',
                 $data['town_name'] ?? '',
                 $data['village_name'] ?? '',
@@ -185,7 +185,7 @@ class EnrollExportJob extends AbstractJob
                 $data['medical_identity'] ?? '',
                 $data['subsidy_identity'] ?? '',
                 $data['is_insured'] ?? '',
-                $data['insurance_category'] ?? '',
+                $this->displayInsuranceCategory($data['insurance_category'] ?? null),
                 $data['resident_payment_amount'] ?? '0.00',
                 $data['payment_time'] ?? '',
                 $data['is_eligible_for_subsidy'] ?? '',
@@ -208,6 +208,23 @@ class EnrollExportJob extends AbstractJob
             $data['village_name'] ?? '',
             $data['subsidy_identity'] ?? '',
         ], $this->subsidyIdentityMarks($data, $subsidyIdentityHeaders));
+    }
+
+    private function displayInsuranceCategory(mixed $value): string
+    {
+        $value = trim((string) ($value ?? ''));
+
+        return $value !== '' ? $value : EnrollLedgerService::INSURANCE_CATEGORY_UNMATCHED;
+    }
+
+    private function displayYearMonthText(mixed $value): string
+    {
+        $value = trim((string) ($value ?? ''));
+        if (preg_match('/^\d{4}-\d{2}$/', $value) !== 1) {
+            return $value;
+        }
+
+        return '="' . $value . '"';
     }
 
     private function subsidyIdentityMarks(array $data, array $headers): array

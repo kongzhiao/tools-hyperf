@@ -17,6 +17,7 @@ class EnrollLedgerService
     public const CHANGE_NEW = '新增';
     public const CHANGE_CHANGED = '变更';
     public const CHANGE_CANCELLED = '取消';
+    public const INSURANCE_CATEGORY_UNMATCHED = '未匹配';
 
     public function pickValue(array $row, array $headers, string $default = ''): string
     {
@@ -128,15 +129,26 @@ class EnrollLedgerService
             'medical_identity',
             'subsidy_identity',
             'change_status',
-            'insurance_category',
             'is_insured',
             'is_eligible_for_subsidy',
             'is_subsidy_obtained',
+            'subsidy_method',
         ] as $field) {
             $value = trim((string) ($filters[$field] ?? ''));
             if ($value !== '') {
                 $query->where($field, $value);
             }
+        }
+
+        $insuranceCategory = trim((string) ($filters['insurance_category'] ?? ''));
+        if ($insuranceCategory === self::INSURANCE_CATEGORY_UNMATCHED) {
+            $query->where(function ($subQuery) {
+                $subQuery->whereNull('insurance_category')
+                    ->orWhere('insurance_category', '')
+                    ->orWhere('insurance_category', self::INSURANCE_CATEGORY_UNMATCHED);
+            });
+        } elseif ($insuranceCategory !== '') {
+            $query->where('insurance_category', $insuranceCategory);
         }
 
         $keyword = trim((string) ($filters['keyword'] ?? ''));

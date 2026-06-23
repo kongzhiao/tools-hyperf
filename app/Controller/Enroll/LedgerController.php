@@ -100,8 +100,25 @@ class LedgerController extends AbstractController
                 EnrollLedgerService::CHANGE_CHANGED,
                 EnrollLedgerService::CHANGE_CANCELLED,
             ],
-            'insurance_categories' => $pluckDistinct('insurance_category'),
+            'insurance_categories' => $this->withUnmatchedInsuranceCategory($base, $pluckDistinct('insurance_category')),
+            'subsidy_methods' => $pluckDistinct('subsidy_method'),
         ], '获取成功');
+    }
+
+    private function withUnmatchedInsuranceCategory($base, array $categories): array
+    {
+        $hasUnmatched = (clone $base)
+            ->where(function ($query) {
+                $query->whereNull('insurance_category')
+                    ->orWhere('insurance_category', '');
+            })
+            ->exists();
+
+        if ($hasUnmatched && !in_array(EnrollLedgerService::INSURANCE_CATEGORY_UNMATCHED, $categories, true)) {
+            array_unshift($categories, EnrollLedgerService::INSURANCE_CATEGORY_UNMATCHED);
+        }
+
+        return $categories;
     }
 
     public function show(int $id, RequestInterface $request)
