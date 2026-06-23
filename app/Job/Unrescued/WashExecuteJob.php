@@ -112,7 +112,7 @@ class WashExecuteJob extends AbstractJob
                 'created_by' => $createdBy,
             ]);
 
-            $title = Task::where('uuid', $this->uuid)->value('title') ?: '未救助台账_执行清洗_';
+            $title = Task::where('uuid', $this->uuid)->value('title') ?: '未救助台账_清洗_清洗规则_';
             if (!str_contains($title, '(剔除')) {
                 $title .= sprintf('(剔除%d/保留%d)', $excluded, $total - $excluded);
             }

@@ -72,7 +72,8 @@ abstract class AbstractJob extends Job
     {
         $this->updateTask($this->uuid, [
             'status' => Task::STATUS_RUNNING,
-            'progress' => 0.00
+            'progress' => 0.00,
+            'failure_reason' => null
         ]);
     }
 
@@ -88,7 +89,8 @@ abstract class AbstractJob extends Job
             'file_url' => $fileUrl,
             'url_at' => date('Y-m-d H:i:s'),
             'file_size' => $fileSizeMb,
-            'status' => Task::STATUS_COMPLETED
+            'status' => Task::STATUS_COMPLETED,
+            'failure_reason' => null
         ]);
         $this->releaseLock();
     }
@@ -105,9 +107,23 @@ abstract class AbstractJob extends Job
         $logger->error("{$msg} [{$this->uuid}]: " . $e->getMessage() . "\n" . $e->getTraceAsString());
 
         $this->updateTask($this->uuid, [
-            'status' => Task::STATUS_FAILED
+            'status' => Task::STATUS_FAILED,
+            'failure_reason' => $this->buildFailureReason($e, $customMsg)
         ]);
         $this->releaseLock();
+    }
+
+    /**
+     * 生成给任务中心展示的失败原因，日志里仍保留完整堆栈。
+     */
+    protected function buildFailureReason(\Throwable $e, ?string $customMsg = null): string
+    {
+        $reason = trim(($customMsg ? $customMsg . '：' : '') . $e->getMessage());
+        if ($reason === '') {
+            $reason = '任务执行失败，请联系管理员查看服务端日志';
+        }
+
+        return mb_substr($reason, 0, 1000);
     }
 
     /**
@@ -140,4 +156,3 @@ abstract class AbstractJob extends Job
         }
     }
 }
-

@@ -15,6 +15,7 @@ namespace App\Model;
  * @property string $url_at 
  * @property string $file_size 
  * @property int $status 
+ * @property string|null $failure_reason
  * @property \Carbon\Carbon $created_at 
  * @property \Carbon\Carbon $updated_at 
  */
@@ -48,7 +49,7 @@ class Task extends Model
     /**
      * The attributes that are mass assignable.
      */
-    protected array $fillable = ['uuid', 'title', 'uid', 'uname', 'progress', 'file_url', 'url_at', 'file_size', 'status'];
+    protected array $fillable = ['uuid', 'title', 'uid', 'uname', 'progress', 'file_url', 'url_at', 'file_size', 'status', 'failure_reason'];
 
     /**
      * The attributes that should be cast to native types.

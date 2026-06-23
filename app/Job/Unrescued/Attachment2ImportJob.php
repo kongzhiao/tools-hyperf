@@ -234,7 +234,7 @@ class Attachment2ImportJob extends AbstractJob
     {
         $summary = sprintf('(匹配%d行/更新%d条/跳过%d/失败%d)', $result['matched_rows'], $result['updated_records'], $result['skipped'], count($result['errors']));
         $task = Task::where('uuid', $this->uuid)->first();
-        $title = $task ? $task->title : '未救助台账_附件2导入_';
+        $title = $task ? $task->title : '未救助台账_导入_附件2救助对象名单_';
         if (!str_contains($title, '(')) {
             $title .= $summary;
         }

@@ -123,7 +123,7 @@ class RecordController extends AbstractController
         if ($this->currentTownId($request) > 0) {
             return $this->error('镇街账号不能导入未救助明细', 403);
         }
-        return $this->submitImport($request, Attachment1ImportJob::class, '未救助台账_附件1导入_', 'unrescuedAttachment1Import');
+        return $this->submitImport($request, Attachment1ImportJob::class, '未救助台账_导入_附件1未救助明细_', 'unrescuedAttachment1Import');
     }
 
     /**
@@ -134,7 +134,7 @@ class RecordController extends AbstractController
         if ($this->currentTownId($request) > 0) {
             return $this->error('镇街账号不能导入救助对象名单', 403);
         }
-        return $this->submitImport($request, Attachment2ImportJob::class, '未救助台账_附件2导入_', 'unrescuedAttachment2Import');
+        return $this->submitImport($request, Attachment2ImportJob::class, '未救助台账_导入_附件2救助对象名单_', 'unrescuedAttachment2Import');
     }
 
     /**
@@ -229,7 +229,7 @@ class RecordController extends AbstractController
         $username = (string) $request->getAttribute('username', 'System');
         $lockKey = sprintf('task:lock:%d:unrescuedWash:%s:%d', $userId, $period, $townId);
         $uuid = TaskService::instance()->dispatchTask(
-            sprintf('未救助台账_执行清洗_%s_', $period),
+            sprintf('未救助台账_清洗_清洗规则_%s_', $period),
             $userId,
             $username,
             WashExecuteJob::class,
@@ -412,9 +412,6 @@ class RecordController extends AbstractController
     public function export(RequestInterface $request)
     {
         $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
-        if ($this->currentTownId($request) > 0) {
-            return $this->error('镇街账号不能导出数据', 403);
-        }
 
         $type = (string) $request->input('type', 'attachment1');
         if (!in_array($type, ['attachment1', 'attachment2', 'attachment3', 'attachment4'], true)) {
@@ -436,7 +433,7 @@ class RecordController extends AbstractController
             'username' => $username,
         ]);
         $uuid = TaskService::instance()->dispatchTask(
-            '未救助台账_导出_',
+            $this->exportTaskTitle($type),
             $userId,
             $username,
             UnrescuedExportJob::class,
@@ -626,6 +623,10 @@ class RecordController extends AbstractController
             'reimbursement_status',
             'created_at',
             'updated_at',
+            'distributed_at',
+            'received_at',
+            'notified_at',
+            'reimbursed_at',
         ]);
 
         if ($sortField !== '' && $direction !== '' && in_array($sortField, $sortableFields, true)) {
@@ -692,6 +693,16 @@ class RecordController extends AbstractController
 
         $user = \App\Model\User::find($userId);
         return $user ? (int) ($user->town_id ?? 0) : 0;
+    }
+
+    private function exportTaskTitle(string $type): string
+    {
+        return match ($type) {
+            'attachment2' => '未救助台账_导出_未报销台账_',
+            'attachment3' => '未救助台账_导出_通知名单_',
+            'attachment4' => '未救助台账_导出_应补应退排查记录_',
+            default => '未救助台账_导出_排查明细_',
+        };
     }
 
     private function checkExportReady(string $type, array $filters, RequestInterface $request): array

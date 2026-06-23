@@ -63,8 +63,14 @@ Router::addGroup('/api', function () {
     Router::put('/towns/{id:\d+}', [App\Controller\TownController::class, 'update']);
     Router::delete('/towns/{id:\d+}', [App\Controller\TownController::class, 'destroy']);
 
+    // 操作记录
+    Router::get('/operation-logs', [App\Controller\OperationLogController::class, 'index']);
+
     // 通用业务筛选选项
     Router::get('/business-filter-options', [App\Controller\BusinessFilterOptionController::class, 'index']);
+    Router::post('/business-filter-options', [App\Controller\BusinessFilterOptionController::class, 'store']);
+    Router::put('/business-filter-options/{id:\d+}', [App\Controller\BusinessFilterOptionController::class, 'update']);
+    Router::delete('/business-filter-options/{id:\d+}', [App\Controller\BusinessFilterOptionController::class, 'destroy']);
 
     // 角色管理路由
     Router::get('/roles', [App\Controller\RoleController::class, 'index']);
@@ -258,6 +264,7 @@ Router::addGroup('/api', function () {
             Router::get('/wash-options', [App\Controller\Unrescued\RecordController::class, 'washOptions']);
             Router::post('/wash-config', [App\Controller\Unrescued\RecordController::class, 'saveWashConfig']);
             Router::post('/wash/execute', [App\Controller\Unrescued\RecordController::class, 'executeWash']);
+            Router::get('/wash/status', [App\Controller\Unrescued\RecordController::class, 'washStatus']);
             Router::post('/distribute', [App\Controller\Unrescued\RecordController::class, 'distribute']);
             Router::post('/receive', [App\Controller\Unrescued\RecordController::class, 'receive']);
             Router::post('/notify', [App\Controller\Unrescued\RecordController::class, 'notify']);
@@ -274,6 +281,33 @@ Router::addGroup('/api', function () {
             Router::put('/{id:\d+}', [App\Controller\Unrescued\DiseaseConfigController::class, 'update']);
             Router::delete('/{id:\d+}', [App\Controller\Unrescued\DiseaseConfigController::class, 'destroy']);
         });
+    });
+
+    // 参保台账
+    Router::addGroup('/enroll', function () {
+        Router::addGroup('/ledgers', function () {
+            Router::get('', [App\Controller\Enroll\LedgerController::class, 'index']);
+            Router::get('/statistics', [App\Controller\Enroll\LedgerController::class, 'statistics']);
+            Router::get('/options', [App\Controller\Enroll\LedgerController::class, 'options']);
+            Router::post('/import-attachment3', [App\Controller\Enroll\LedgerController::class, 'importAttachment3']);
+            Router::post('/import-attachment4', [App\Controller\Enroll\LedgerController::class, 'importAttachment4']);
+            Router::post('/import-attachment5', [App\Controller\Enroll\LedgerController::class, 'importAttachment5']);
+            Router::post('/import-attachment6', [App\Controller\Enroll\LedgerController::class, 'importAttachment6']);
+            Router::post('/import-attachment3-return', [App\Controller\Enroll\LedgerController::class, 'importAttachment3Return']);
+            Router::post('/export', [App\Controller\Enroll\LedgerController::class, 'export']);
+            Router::get('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'show']);
+            Router::put('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'update']);
+            Router::delete('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'destroy']);
+        });
+        Router::addGroup('/configs', function () {
+            Router::get('', [App\Controller\Enroll\ConfigController::class, 'index']);
+            Router::post('', [App\Controller\Enroll\ConfigController::class, 'store']);
+            Router::post('/clone', [App\Controller\Enroll\ConfigController::class, 'cloneYear']);
+            Router::post('/import', [App\Controller\Enroll\ConfigController::class, 'import']);
+            Router::put('/{id:\d+}', [App\Controller\Enroll\ConfigController::class, 'update']);
+            Router::delete('/{id:\d+}', [App\Controller\Enroll\ConfigController::class, 'destroy']);
+        });
+        Router::get('/import-batches', [App\Controller\Enroll\LedgerController::class, 'importBatches']);
     });
 
     // 优抚救助
