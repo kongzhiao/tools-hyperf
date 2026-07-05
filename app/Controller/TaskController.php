@@ -28,6 +28,8 @@ class TaskController extends AbstractController
 
             // 状态参数（非必填，默认全部）
             $status = $request->input('status');
+            $startAt = trim((string) $request->input('start_at', ''));
+            $endAt = trim((string) $request->input('end_at', ''));
 
             $query = Task::where('uid', $userId);
 
@@ -38,6 +40,12 @@ class TaskController extends AbstractController
                     throw new BusinessException(400, '无效的状态参数');
                 }
                 $query->where('status', $status);
+            }
+            if ($startAt !== '') {
+                $query->where('created_at', '>=', $startAt);
+            }
+            if ($endAt !== '') {
+                $query->where('created_at', '<=', $endAt);
             }
 
             // 计算总数
@@ -56,6 +64,7 @@ class TaskController extends AbstractController
                     'progress' => (float) $task->progress,
                     'status' => Task::STATUS_MAP[$task->status] ?? 'processing',
                     // 'file_url' => $task->file_url,
+                    'has_file' => !empty($task->file_url),
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
                     'failure_reason' => $task->failure_reason,
@@ -136,6 +145,7 @@ class TaskController extends AbstractController
                     'progress' => (float) $task->progress,
                     'status' => Task::STATUS_MAP[$task->status] ?? 'processing',
                     // 'file_url' => $task->file_url, // 为了安全，隐藏真实路径，改用 UUID 下载
+                    'has_file' => !empty($task->file_url),
                     'url_at' => $task->url_at,
                     'file_size' => $task->file_size,
                     'failure_reason' => $task->failure_reason,

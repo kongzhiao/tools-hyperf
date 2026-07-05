@@ -86,6 +86,9 @@ class SeedEnrollPermissions extends Migration
             ['name' => '参保台账明细:导出', 'description' => '导出参保台账', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 92],
             ['name' => '参保台账明细:编辑', 'description' => '编辑参保台账', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 93],
             ['name' => '参保台账明细:删除', 'description' => '删除参保台账', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 94],
+            ['name' => '参保台账明细:下放', 'description' => '下放参保台账给镇街核实', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 95],
+            ['name' => '参保台账明细:收回', 'description' => '收回参保台账镇街填报权限', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 96],
+            ['name' => '参保台账明细:下放批次', 'description' => '查看参保台账下放批次', 'type' => 'operation', 'parent_id' => $parentId, 'sort' => 97],
         ];
     }
 
@@ -147,6 +150,9 @@ class SeedEnrollPermissions extends Migration
             '参保台账明细:导出',
             '参保台账明细:编辑',
             '参保台账明细:删除',
+            '参保台账明细:下放',
+            '参保台账明细:收回',
+            '参保台账明细:下放批次',
             '参保配置:查看',
             '参保配置:导入',
             '参保配置:创建',

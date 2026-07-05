@@ -12,8 +12,10 @@ class UnrescuedRecordService
 {
     public const STATUS_PENDING = '待处理';
     public const STATUS_NO_AMOUNT = '无救助金额';
-    public const STATUS_NO_NOTICE = '不通知';
-    public const STATUS_TO_NOTICE = '拟通知';
+    public const STATUS_NOTICE_1 = '拟通知1';
+    public const STATUS_NOTICE_2 = '拟通知2';
+    public const STATUS_NO_NOTICE = self::STATUS_NOTICE_1;
+    public const STATUS_TO_NOTICE = self::STATUS_NOTICE_2;
     public const STATUS_DISTRIBUTED = '已下放';
     public const STATUS_RECEIVED = '已接收';
     public const STATUS_NOTIFIED = '已通知';
@@ -28,6 +30,8 @@ class UnrescuedRecordService
 
     public const EXCLUDE_NO = '未剔除';
     public const EXCLUDE_YES = '已剔除';
+    public const MATCHED = '已匹配';
+    public const UNMATCHED = '未匹配';
 
     public function pickValue(array $row, array $headers, string $default = ''): string
     {
@@ -94,10 +98,10 @@ class UnrescuedRecordService
         }
 
         if ($amount <= 300) {
-            return self::STATUS_NO_NOTICE;
+            return self::STATUS_NOTICE_1;
         }
 
-        return self::STATUS_TO_NOTICE;
+        return self::STATUS_NOTICE_2;
     }
 
     public function shouldKeepWorkflowStatus(?string $status): bool
@@ -204,6 +208,7 @@ class UnrescuedRecordService
         $map = [
             'exact' => [],
             'normalized' => [],
+            'contains' => [],
         ];
 
         $towns = Town::query()
@@ -222,9 +227,12 @@ class UnrescuedRecordService
                 $normalized = $this->normalizeTownName($value);
                 if ($normalized !== '') {
                     $map['normalized'][$normalized] = $id;
+                    $map['contains'][$normalized] = $id;
                 }
             }
         }
+
+        uksort($map['contains'], static fn (string $left, string $right) => mb_strlen($right) <=> mb_strlen($left));
 
         return $map;
     }
@@ -245,6 +253,12 @@ class UnrescuedRecordService
             return (int) $townLookupMap['normalized'][$normalized];
         }
 
+        foreach (($townLookupMap['contains'] ?? []) as $candidate => $id) {
+            if ($candidate !== '' && mb_strpos($normalized, (string) $candidate) !== false) {
+                return (int) $id;
+            }
+        }
+
         return 0;
     }
 
@@ -262,15 +276,37 @@ class UnrescuedRecordService
             $query->where('settlement_period', $period);
         }
 
-        foreach (['status', 'exclude_status', 'reimbursement_status', 'town_id', 'medical_category', 'exclude_rule_code', 'in_out_city'] as $field) {
-            if (isset($filters[$field]) && $filters[$field] !== '') {
-                $query->where($field, $filters[$field]);
+        foreach (['status', 'exclude_status', 'reimbursement_status', 'match_status', 'town_id', 'medical_category', 'exclude_rule_code', 'in_out_city'] as $field) {
+            $values = $this->filterValues($filters[$field] ?? null);
+            if ($values === []) {
+                continue;
+            }
+            if (count($values) === 1) {
+                $query->where($field, $values[0]);
+            } else {
+                $query->whereIn($field, $values);
             }
         }
 
-        $identity = trim((string) ($filters['priority_identity'] ?? ''));
-        if ($identity !== '') {
-            $query->where('priority_identity', $identity);
+        foreach (['disease_code', 'disease_name'] as $field) {
+            $values = $this->filterValues($filters[$field] ?? null);
+            if ($values !== []) {
+                $query->where(function ($subQuery) use ($field, $values) {
+                    foreach ($values as $value) {
+                        $subQuery->orWhere($field, 'like', "%{$value}%");
+                    }
+                });
+            }
+        }
+        $this->applyDiseaseKeywordFilter($query, $filters['disease_keyword'] ?? null);
+
+        $identities = $this->filterValues($filters['priority_identity'] ?? null);
+        if ($identities !== []) {
+            if (count($identities) === 1) {
+                $query->where('priority_identity', $identities[0]);
+            } else {
+                $query->whereIn('priority_identity', $identities);
+            }
         }
 
         $hospitalName = trim((string) ($filters['hospital_name'] ?? ''));
@@ -291,6 +327,37 @@ class UnrescuedRecordService
                     ->orWhere('sequence_no', 'like', "%{$keyword}%");
             });
         }
+    }
+
+    public function filterValues(mixed $value): array
+    {
+        if (is_array($value)) {
+            $values = $value;
+        } else {
+            $text = trim((string) $value);
+            if ($text === '') {
+                return [];
+            }
+            $values = str_contains($text, ',') ? explode(',', $text) : [$text];
+        }
+
+        $values = array_map(static fn ($item) => trim((string) $item), $values);
+        return array_values(array_filter(array_unique($values), static fn ($item) => $item !== ''));
+    }
+
+    public function applyDiseaseKeywordFilter($query, mixed $value): void
+    {
+        $values = $this->filterValues($value);
+        if ($values === []) {
+            return;
+        }
+
+        $query->where(function ($subQuery) use ($values) {
+            foreach ($values as $keyword) {
+                $subQuery->orWhere('disease_code', 'like', "%{$keyword}%")
+                    ->orWhere('disease_name', 'like', "%{$keyword}%");
+            }
+        });
     }
 
     public function applyTownScope($query, int $userTownId): void
@@ -397,8 +464,40 @@ class UnrescuedRecordService
         ];
     }
 
-    public function normalizeWashRules(array $savedRules): array
+    public function refundWashRules(): array
     {
+        return array_merge($this->defaultWashRules(), [
+            [
+                'code' => 'total_fee_offset_pair',
+                'name' => '总费用正负抵消',
+                'field' => 'total_fee',
+                'action' => 'exclude',
+                'operator' => 'custom',
+                'remark' => '正负费用抵消',
+                'condition_text' => '同一清算期 + 同一身份证号 + 总费用绝对值相同，正负成对剔除',
+                'enabled' => true,
+            ],
+            [
+                'code' => 'medical_assistance_positive',
+                'name' => '医疗救助金额大于0',
+                'field' => 'medical_assistance_pay',
+                'action' => 'exclude',
+                'operator' => '>',
+                'value' => '0.00',
+                'remark' => '已享受医疗救助',
+                'condition_text' => '医疗救助金额 > 0',
+                'enabled' => true,
+            ],
+        ]);
+    }
+
+    public function normalizeWashRules(array $savedRules, ?array $defaultRules = null): array
+    {
+        if (isset($savedRules['rules']) && is_array($savedRules['rules'])) {
+            $savedRules = $savedRules['rules'];
+        }
+
+        $defaultRules ??= $this->defaultWashRules();
         $savedByCode = [];
         foreach ($savedRules as $rule) {
             if (!empty($rule['code'])) {
@@ -407,7 +506,7 @@ class UnrescuedRecordService
         }
 
         $normalized = [];
-        foreach ($this->defaultWashRules() as $defaultRule) {
+        foreach ($defaultRules as $defaultRule) {
             $saved = $savedByCode[$defaultRule['code']] ?? [];
             $rule = array_merge($defaultRule, $saved);
 
@@ -429,10 +528,25 @@ class UnrescuedRecordService
         return $normalized;
     }
 
-    public function matchWashRule(UnrescuedRecord $record, array $rules): ?array
+    public function hasEnabledWashRules(array $rules): bool
     {
         foreach ($rules as $rule) {
-            if (($rule['enabled'] ?? true) === false) {
+            if (!is_array($rule)) {
+                continue;
+            }
+
+            if (filter_var($rule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function matchWashRule(object $record, array $rules): ?array
+    {
+        foreach ($rules as $rule) {
+            if (!filter_var($rule['enabled'] ?? true, FILTER_VALIDATE_BOOLEAN)) {
                 continue;
             }
 

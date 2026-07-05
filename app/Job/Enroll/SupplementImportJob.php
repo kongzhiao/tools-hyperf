@@ -100,7 +100,7 @@ class SupplementImportJob extends AbstractJob
 
                     $pendingRows[$idCard] = $this->mergePendingData($pendingRows[$idCard] ?? [], $data, $attachmentType, $service);
                     if (count($pendingRows) >= $chunkSize) {
-                        $this->flushRows($pendingRows, $year, $result, $service);
+                        $this->flushRows($pendingRows, $year, $result, $service, $attachmentType);
                         $pendingRows = [];
                     }
                 } catch (\Throwable $e) {
@@ -114,7 +114,7 @@ class SupplementImportJob extends AbstractJob
                 }
             });
 
-            $this->flushRows($pendingRows, $year, $result, $service);
+            $this->flushRows($pendingRows, $year, $result, $service, $attachmentType);
             if ($result['updated'] <= 0) {
                 throw new \RuntimeException('未匹配到可更新的参保台账记录，请确认年份、月份和身份证号码是否正确');
             }
@@ -234,6 +234,7 @@ class SupplementImportJob extends AbstractJob
 
         return [
             'death_remark' => $deathTime,
+            'uninsured_reason' => '死亡',
             'last_attachment6_period' => $period,
         ];
     }
@@ -282,7 +283,7 @@ class SupplementImportJob extends AbstractJob
         return $old;
     }
 
-    private function flushRows(array $rows, int $year, array &$result, EnrollLedgerService $service): void
+    private function flushRows(array $rows, int $year, array &$result, EnrollLedgerService $service, string $attachmentType): void
     {
         if ($rows === []) {
             return;
@@ -318,6 +319,31 @@ class SupplementImportJob extends AbstractJob
                     $data[$field] = $calculated[$field];
                 }
             }
+            if ($this->hasTownReviewInput($existing)) {
+                $reviewCalculated = $service->calculateTownReviewFields(array_merge($existing, $data));
+                foreach ([
+                    'insurance_category',
+                    'is_insured',
+                    'uninsured_reason',
+                    'is_eligible_for_subsidy',
+                    'is_subsidy_obtained',
+                    'subsidy_method',
+                    'payment_amount_check_status',
+                    'payment_amount_check_remark',
+                ] as $field) {
+                    if (array_key_exists($field, $reviewCalculated)) {
+                        $data[$field] = $reviewCalculated[$field];
+                    }
+                }
+            }
+            if ($attachmentType === 'attachment6_death') {
+                $data['is_insured'] = '否';
+                $data['uninsured_reason'] = '死亡';
+                $data['insurance_category'] = null;
+                $data['is_eligible_for_subsidy'] = '否';
+                $data['is_subsidy_obtained'] = '否';
+                $data['subsidy_method'] = null;
+            }
             $updateRows[] = [
                 'id' => (int) $existing['id'],
                 'data' => $data,
@@ -339,6 +365,12 @@ class SupplementImportJob extends AbstractJob
             Db::rollBack();
             throw $e;
         }
+    }
+
+    private function hasTownReviewInput(array $data): bool
+    {
+        return trim((string) ($data['town_is_insured'] ?? '')) !== ''
+            || (($data['town_resident_payment_amount'] ?? null) !== null && trim((string) $data['town_resident_payment_amount']) !== '');
     }
 
     private function batchUpdate(array $rows): void

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Controller\Enroll;
 
 use App\Controller\AbstractController;
+use App\Model\BusinessFilterOption;
 use App\Model\Enroll\EnrollConfig;
 use App\Model\Enroll\EnrollIdentityAmountConfig;
 use App\Service\CsvReaderService;
+use App\Service\BusinessFilterOptionService;
 use App\Service\Enroll\EnrollLedgerService;
 use App\Service\OperationLogService;
 use Hyperf\DbConnection\Db;
@@ -17,6 +19,7 @@ class ConfigController extends AbstractController
 {
     public function __construct(
         private readonly EnrollLedgerService $ledgerService,
+        private readonly BusinessFilterOptionService $filterOptionService,
         private readonly OperationLogService $operationLogService,
     ) {
         parent::__construct();
@@ -29,7 +32,16 @@ class ConfigController extends AbstractController
         $page = max((int) $request->input('page', 1), 1);
         $pageSize = max((int) $request->input('page_size', 20), 1);
 
-        if ($type === 'identity_amount') {
+        if ($this->isFilterOptionType($type)) {
+            $query = BusinessFilterOption::query()
+                ->where('module', EnrollLedgerService::MODULE)
+                ->where('type', $type);
+            $total = $query->count();
+            $list = $query->orderByDesc('sort')->orderBy('id')
+                ->offset(($page - 1) * $pageSize)
+                ->limit($pageSize)
+                ->get();
+        } elseif ($type === 'identity_amount') {
             $query = EnrollIdentityAmountConfig::query()->where('year', $year);
             $total = $query->count();
             $list = $query->orderBy('sort')->orderBy('id')
@@ -56,16 +68,37 @@ class ConfigController extends AbstractController
     public function store(RequestInterface $request)
     {
         $type = (string) $request->input('type', $request->input('config_type', EnrollConfig::TYPE_SUBSIDY));
-        $data = $this->buildConfigData($request, $type);
+        try {
+            if ($this->isFilterOptionType($type)) {
+                $data = $this->buildFilterOptionData($request, $type);
+                $this->filterOptionService->saveOption(EnrollLedgerService::MODULE, $type, $data['value'], 'enroll_config');
+                BusinessFilterOption::query()
+                    ->where('module', EnrollLedgerService::MODULE)
+                    ->where('type', $type)
+                    ->where('value', $data['value'])
+                    ->update([
+                        'label' => $data['label'],
+                        'status' => $data['status'],
+                        'sort' => $data['sort'],
+                        'remark' => $data['remark'],
+                        'source_batch' => 'enroll_config',
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+            } else {
+                $data = $this->buildConfigData($request, $type);
 
-        if ($type === 'identity_amount') {
-            $this->ledgerService->saveIdentityAmountConfigByProgramRule($data);
-        } else {
-            $this->ledgerService->saveConfigByProgramRule($data);
+                if ($type === 'identity_amount') {
+                    $this->ledgerService->saveIdentityAmountConfigByProgramRule($data);
+                } else {
+                    $this->ledgerService->saveConfigByProgramRule($data);
+                }
+            }
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 400);
         }
 
         $this->operationLogService->record('参保配置', '保存', 'enroll_config', null, '保存参保配置', [
-            'year' => $data['year'],
+            'year' => $data['year'] ?? null,
             'type' => $type,
         ]);
 
@@ -75,15 +108,28 @@ class ConfigController extends AbstractController
     public function update(int $id, RequestInterface $request)
     {
         $type = (string) $request->input('type', $request->input('config_type', ''));
-        $model = $type === 'identity_amount'
-            ? EnrollIdentityAmountConfig::find($id)
-            : EnrollConfig::find($id);
+        if ($this->isFilterOptionType($type)) {
+            $model = BusinessFilterOption::query()
+                ->where('module', EnrollLedgerService::MODULE)
+                ->where('type', $type)
+                ->find($id);
+        } else {
+            $model = $type === 'identity_amount'
+                ? EnrollIdentityAmountConfig::find($id)
+                : EnrollConfig::find($id);
+        }
 
         if (!$model) {
             return $this->error('配置不存在', 404);
         }
 
-        $data = $this->sanitizeUpdateData($request, $type, $model);
+        try {
+            $data = $this->isFilterOptionType($type)
+                ? $this->sanitizeFilterOptionUpdateData($request, $type, $model)
+                : $this->sanitizeUpdateData($request, $type, $model);
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 400);
+        }
         $model->update($data);
         $this->operationLogService->record('参保配置', '编辑', 'enroll_config', (string) $id, '编辑参保配置', [
             'type' => $type,
@@ -148,9 +194,16 @@ class ConfigController extends AbstractController
     public function destroy(int $id, RequestInterface $request)
     {
         $type = (string) $request->input('type', $request->input('config_type', ''));
-        $model = $type === 'identity_amount'
-            ? EnrollIdentityAmountConfig::find($id)
-            : EnrollConfig::find($id);
+        if ($this->isFilterOptionType($type)) {
+            $model = BusinessFilterOption::query()
+                ->where('module', EnrollLedgerService::MODULE)
+                ->where('type', $type)
+                ->find($id);
+        } else {
+            $model = $type === 'identity_amount'
+                ? EnrollIdentityAmountConfig::find($id)
+                : EnrollConfig::find($id);
+        }
 
         if (!$model) {
             return $this->error('配置不存在', 404);
@@ -235,7 +288,11 @@ class ConfigController extends AbstractController
             return [];
         }
 
-        $allowed = [EnrollConfig::TYPE_SUBSIDY, EnrollConfig::TYPE_MEDICAL, 'identity_amount'];
+        $allowed = [
+            EnrollConfig::TYPE_SUBSIDY,
+            EnrollConfig::TYPE_MEDICAL,
+            'identity_amount',
+        ];
         return array_values(array_unique(array_filter(array_map(
             fn ($type) => trim((string) $type),
             $types
@@ -396,6 +453,75 @@ class ConfigController extends AbstractController
             'personal_amount' => $this->ledgerService->parseAmount($request->input('personal_amount', 0)),
             'subsidy_amount' => $this->ledgerService->parseAmount($request->input('subsidy_amount', 0)),
             'included_identities' => $included,
+        ];
+    }
+
+    private function isFilterOptionType(string $type): bool
+    {
+        return in_array($type, ['uninsured_reason', 'resident_payment_amount'], true);
+    }
+
+    private function buildFilterOptionData(RequestInterface $request, string $type): array
+    {
+        $value = trim((string) $request->input('value', $request->input('label', '')));
+        if ($type === 'resident_payment_amount') {
+            $rawValue = $request->input('value', $request->input('amount', $value));
+            if (trim((string) $rawValue) === '') {
+                throw new \InvalidArgumentException('缴费金额不能为空');
+            }
+            $value = $this->ledgerService->parseAmount($rawValue);
+        }
+        if ($value === '' || ($type === 'resident_payment_amount' && (float) $value < 0)) {
+            throw new \InvalidArgumentException($type === 'resident_payment_amount' ? '缴费金额不能为空' : '未参保原因不能为空');
+        }
+
+        $label = trim((string) $request->input('label', $value));
+        return [
+            'module' => EnrollLedgerService::MODULE,
+            'type' => $type,
+            'value' => $value,
+            'label' => $label !== '' ? $label : $value,
+            'status' => (int) $request->input('status', 1),
+            'sort' => (int) $request->input('sort', 0),
+            'source_batch' => 'enroll_config',
+            'remark' => trim((string) $request->input('remark', '')) ?: null,
+        ];
+    }
+
+    private function sanitizeFilterOptionUpdateData(RequestInterface $request, string $type, BusinessFilterOption $model): array
+    {
+        $value = $request->input('value', $model->value ?? '');
+        if ($type === 'resident_payment_amount') {
+            if (trim((string) $value) === '') {
+                throw new \InvalidArgumentException('缴费金额不能为空');
+            }
+            $value = $this->ledgerService->parseAmount($value);
+        } else {
+            $value = trim((string) $value);
+        }
+        if ($value === '' || ($type === 'resident_payment_amount' && (float) $value < 0)) {
+            throw new \InvalidArgumentException($type === 'resident_payment_amount' ? '缴费金额不能为空' : '未参保原因不能为空');
+        }
+        $exists = BusinessFilterOption::query()
+            ->where('module', EnrollLedgerService::MODULE)
+            ->where('type', $type)
+            ->where('value', $value)
+            ->where('id', '<>', (int) $model->id)
+            ->exists();
+        if ($exists) {
+            throw new \InvalidArgumentException('同类型下该配置值已存在');
+        }
+
+        $label = trim((string) $request->input('label', $value));
+        return [
+            'module' => EnrollLedgerService::MODULE,
+            'type' => $type,
+            'value' => $value,
+            'label' => $label !== '' ? $label : $value,
+            'status' => (int) $request->input('status', $model->status ?? 1),
+            'sort' => (int) $request->input('sort', $model->sort ?? 0),
+            'source_batch' => $request->input('source_batch', $model->source_batch ?? 'enroll_config'),
+            'remark' => trim((string) $request->input('remark', $model->remark ?? '')) ?: null,
         ];
     }
 

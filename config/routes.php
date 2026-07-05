@@ -265,14 +265,34 @@ Router::addGroup('/api', function () {
             Router::post('/wash-config', [App\Controller\Unrescued\RecordController::class, 'saveWashConfig']);
             Router::post('/wash/execute', [App\Controller\Unrescued\RecordController::class, 'executeWash']);
             Router::get('/wash/status', [App\Controller\Unrescued\RecordController::class, 'washStatus']);
-            Router::post('/distribute', [App\Controller\Unrescued\RecordController::class, 'distribute']);
-            Router::post('/receive', [App\Controller\Unrescued\RecordController::class, 'receive']);
-            Router::post('/notify', [App\Controller\Unrescued\RecordController::class, 'notify']);
-            Router::post('/unnotify', [App\Controller\Unrescued\RecordController::class, 'unnotify']);
-            Router::post('/accounts', [App\Controller\Unrescued\RecordController::class, 'accounts']);
-            Router::post('/reimbursement', [App\Controller\Unrescued\RecordController::class, 'reimbursement']);
             Router::post('/export', [App\Controller\Unrescued\RecordController::class, 'export']);
             Router::get('/{id:\d+}', [App\Controller\Unrescued\RecordController::class, 'show']);
+        });
+        Router::addGroup('/refund-records', function () {
+            Router::get('', [App\Controller\Unrescued\RefundRecordController::class, 'index']);
+            Router::get('/statistics', [App\Controller\Unrescued\RefundRecordController::class, 'statistics']);
+            Router::post('/import-detail', [App\Controller\Unrescued\RefundRecordController::class, 'importDetail']);
+            Router::post('/import-object', [App\Controller\Unrescued\RefundRecordController::class, 'importObject']);
+            Router::get('/wash-config', [App\Controller\Unrescued\RefundRecordController::class, 'washConfig']);
+            Router::post('/wash-config', [App\Controller\Unrescued\RefundRecordController::class, 'saveWashConfig']);
+            Router::post('/wash/execute', [App\Controller\Unrescued\RefundRecordController::class, 'executeWash']);
+            Router::get('/wash/status', [App\Controller\Unrescued\RefundRecordController::class, 'washStatus']);
+            Router::post('/export', [App\Controller\Unrescued\RefundRecordController::class, 'export']);
+        });
+        Router::addGroup('/notice-records', function () {
+            Router::get('', [App\Controller\Unrescued\NoticeRecordController::class, 'index']);
+            Router::get('/statistics', [App\Controller\Unrescued\NoticeRecordController::class, 'statistics']);
+            Router::post('/import', [App\Controller\Unrescued\NoticeRecordController::class, 'import']);
+            Router::post('/distribute', [App\Controller\Unrescued\NoticeRecordController::class, 'distribute']);
+            Router::post('/undistribute', [App\Controller\Unrescued\NoticeRecordController::class, 'undistribute']);
+            Router::post('/receive', [App\Controller\Unrescued\NoticeRecordController::class, 'receive']);
+            Router::get('/receive/status', [App\Controller\Unrescued\NoticeRecordController::class, 'receiveStatus']);
+            Router::post('/notify', [App\Controller\Unrescued\NoticeRecordController::class, 'notify']);
+            Router::post('/unnotify', [App\Controller\Unrescued\NoticeRecordController::class, 'unnotify']);
+            Router::post('/feedback', [App\Controller\Unrescued\NoticeRecordController::class, 'feedback']);
+            Router::post('/admin-remark', [App\Controller\Unrescued\NoticeRecordController::class, 'adminRemark']);
+            Router::post('/reimbursement', [App\Controller\Unrescued\NoticeRecordController::class, 'reimbursement']);
+            Router::post('/export', [App\Controller\Unrescued\NoticeRecordController::class, 'export']);
         });
         Router::addGroup('/disease-configs', function () {
             Router::get('', [App\Controller\Unrescued\DiseaseConfigController::class, 'index']);
@@ -295,6 +315,11 @@ Router::addGroup('/api', function () {
             Router::post('/import-attachment6', [App\Controller\Enroll\LedgerController::class, 'importAttachment6']);
             Router::post('/import-attachment3-return', [App\Controller\Enroll\LedgerController::class, 'importAttachment3Return']);
             Router::post('/export', [App\Controller\Enroll\LedgerController::class, 'export']);
+            Router::post('/dispatch', [App\Controller\Enroll\LedgerController::class, 'dispatch']);
+            Router::post('/recall', [App\Controller\Enroll\LedgerController::class, 'recall']);
+            Router::get('/review-batches', [App\Controller\Enroll\LedgerController::class, 'reviewBatches']);
+            Router::get('/review-batches/{batchId:\d+}/items', [App\Controller\Enroll\LedgerController::class, 'reviewBatchItems']);
+            Router::post('/{id:\d+}/payment-check-confirm', [App\Controller\Enroll\LedgerController::class, 'confirmPaymentCheck']);
             Router::get('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'show']);
             Router::put('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'update']);
             Router::delete('/{id:\d+}', [App\Controller\Enroll\LedgerController::class, 'destroy']);

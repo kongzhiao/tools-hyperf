@@ -18,6 +18,21 @@ class EnrollLedgerService
     public const CHANGE_CHANGED = '变更';
     public const CHANGE_CANCELLED = '取消';
     public const INSURANCE_CATEGORY_UNMATCHED = '未匹配';
+    public const REVIEW_NOT_DISPATCHED = '未下放';
+    public const REVIEW_PENDING = '待填报';
+    public const REVIEW_FILLED = '已填报';
+    public const REVIEW_RECALLED = '已收回';
+    public const TOWN_STATUS_NOT_FILLED = '未填报';
+    public const TOWN_STATUS_FILLED = '已填报';
+    public const PAYMENT_CHECK_NOT_FILLED = '未填报';
+    public const PAYMENT_CHECK_MATCHED = '一致';
+    public const PAYMENT_CHECK_PENDING = '待核查';
+    public const PAYMENT_CHECK_CONFIRMED = '已核查';
+
+    public function defaultUninsuredReasons(): array
+    {
+        return ['死亡', '服刑', '服役', '拒参', '失踪', '无法联系', '已注销户口', '户口迁出', '其他'];
+    }
 
     public function pickValue(array $row, array $headers, string $default = ''): string
     {
@@ -133,6 +148,9 @@ class EnrollLedgerService
             'is_eligible_for_subsidy',
             'is_subsidy_obtained',
             'subsidy_method',
+            'review_status',
+            'town_submit_status',
+            'payment_amount_check_status',
         ] as $field) {
             $value = trim((string) ($filters[$field] ?? ''));
             if ($value !== '') {
@@ -161,11 +179,49 @@ class EnrollLedgerService
         }
     }
 
+    public function paymentAmountOptions(int $year): array
+    {
+        $amounts = [];
+        foreach ($this->configRows($year, EnrollConfig::TYPE_SUBSIDY) as $config) {
+            $amount = $this->parseAmount($config['personal_amount'] ?? 0);
+            if ((float) $amount > 0) {
+                $amounts[$amount] = true;
+            }
+        }
+
+        EnrollIdentityAmountConfig::query()
+            ->where('year', $year)
+            ->where('status', 1)
+            ->get(['paid_amount'])
+            ->each(function ($config) use (&$amounts) {
+                $amount = $this->parseAmount($config->paid_amount ?? 0);
+                if ((float) $amount > 0) {
+                    $amounts[$amount] = true;
+                }
+            });
+
+        $values = array_keys($amounts);
+        usort($values, fn ($left, $right) => (float) $left <=> (float) $right);
+        return $values;
+    }
+
     public function applyTownScope(Builder $query, ?string $townName): void
     {
         $townName = trim((string) $townName);
         if ($townName !== '') {
             $query->where('town_name', $townName);
+        }
+    }
+
+    public function applyTownReviewVisibleScope(Builder $query, ?string $townName): void
+    {
+        $townName = trim((string) $townName);
+        $this->applyTownScope($query, $townName);
+        if ($townName !== '') {
+            $query->whereIn('review_status', [
+                self::REVIEW_PENDING,
+                self::REVIEW_FILLED,
+            ]);
         }
     }
 
@@ -383,6 +439,114 @@ class EnrollLedgerService
         }
 
         return $data;
+    }
+
+    public function calculateTownReviewFields(array $data): array
+    {
+        $townIsInsured = trim((string) ($data['town_is_insured'] ?? ''));
+        $townReason = trim((string) ($data['town_uninsured_reason'] ?? ''));
+        $hasTownAmount = $this->hasFilledValue($data['town_resident_payment_amount'] ?? null);
+        $townAmount = $this->parseAmount($data['town_resident_payment_amount'] ?? 0);
+        $systemAmount = $this->parseAmount($data['resident_payment_amount'] ?? 0);
+
+        $updates = $this->paymentAmountCheckFields($hasTownAmount, $townAmount, $systemAmount);
+
+        if ($townIsInsured === '否') {
+            return array_merge($updates, [
+                'is_insured' => '否',
+                'uninsured_reason' => $townReason !== '' ? $townReason : ($data['uninsured_reason'] ?? null),
+                'insurance_category' => null,
+                'is_eligible_for_subsidy' => '否',
+                'is_subsidy_obtained' => '否',
+                'subsidy_method' => null,
+            ]);
+        }
+
+        if ($townIsInsured === '是' && !$hasTownAmount) {
+            return array_merge($updates, [
+                'is_insured' => '待核实',
+                'uninsured_reason' => null,
+                'insurance_category' => '需核实',
+                'is_eligible_for_subsidy' => '待核实',
+                'is_subsidy_obtained' => '待核实',
+                'subsidy_method' => null,
+                'payment_amount_check_status' => self::PAYMENT_CHECK_PENDING,
+                'payment_amount_check_remark' => '镇街已填报参保，但缴费金额为空',
+            ]);
+        }
+
+        if (!$hasTownAmount) {
+            return $updates;
+        }
+
+        if (($updates['payment_amount_check_status'] ?? '') === self::PAYMENT_CHECK_PENDING) {
+            return array_merge($updates, [
+                'is_insured' => '待核实',
+                'uninsured_reason' => null,
+                'insurance_category' => '需核实',
+                'is_eligible_for_subsidy' => '待核实',
+                'is_subsidy_obtained' => '待核实',
+                'subsidy_method' => null,
+            ]);
+        }
+
+        $calculated = $this->calculateInsuranceFields(array_merge($data, [
+            'resident_payment_amount' => $townAmount,
+        ]));
+
+        $result = $updates;
+        foreach ([
+            'insurance_category',
+            'is_insured',
+            'uninsured_reason',
+            'is_eligible_for_subsidy',
+            'is_subsidy_obtained',
+            'subsidy_method',
+        ] as $field) {
+            if (array_key_exists($field, $calculated)) {
+                $result[$field] = $calculated[$field];
+            }
+        }
+        if ($townIsInsured === '是' && !array_key_exists('is_insured', $result)) {
+            $result['is_insured'] = '是';
+            $result['uninsured_reason'] = '无';
+        }
+
+        return $result;
+    }
+
+    private function hasFilledValue(mixed $value): bool
+    {
+        return $value !== null && trim((string) $value) !== '';
+    }
+
+    private function paymentAmountCheckFields(bool $hasTownAmount, string $townAmount, string $systemAmount): array
+    {
+        if (!$hasTownAmount) {
+            return [
+                'payment_amount_check_status' => self::PAYMENT_CHECK_NOT_FILLED,
+                'payment_amount_check_remark' => null,
+            ];
+        }
+
+        if ((float) $systemAmount <= 0) {
+            return [
+                'payment_amount_check_status' => self::PAYMENT_CHECK_PENDING,
+                'payment_amount_check_remark' => '附件4缴费金额为空',
+            ];
+        }
+
+        if ($townAmount !== $systemAmount) {
+            return [
+                'payment_amount_check_status' => self::PAYMENT_CHECK_PENDING,
+                'payment_amount_check_remark' => '镇街填报缴费金额' . $townAmount . '与附件4缴费金额' . $systemAmount . '不一致',
+            ];
+        }
+
+        return [
+            'payment_amount_check_status' => self::PAYMENT_CHECK_MATCHED,
+            'payment_amount_check_remark' => null,
+        ];
     }
 
     private function calculateInsuranceCategory(array $data): array

@@ -11,7 +11,6 @@ use App\Job\Unrescued\UnrescuedExportJob;
 use App\Job\Unrescued\WashExecuteJob;
 use App\Model\Task;
 use App\Model\Unrescued\UnrescuedRecord;
-use App\Model\Unrescued\UnrescuedSupplementRecord;
 use App\Model\Unrescued\UnrescuedWashConfig;
 use App\Service\BusinessFilterOptionService;
 use App\Service\OperationLogService;
@@ -73,45 +72,28 @@ class RecordController extends AbstractController
 
         $total = (clone $base)->count();
         $excluded = (clone $base)->where('exclude_status', UnrescuedRecordService::EXCLUDE_YES)->count();
-        $toNotice = (clone $base)->where('status', UnrescuedRecordService::STATUS_TO_NOTICE)->count();
-        $distributed = (clone $base)->whereIn('status', [
-            UnrescuedRecordService::STATUS_DISTRIBUTED,
-            UnrescuedRecordService::STATUS_RECEIVED,
-            UnrescuedRecordService::STATUS_NOTIFIED,
-        ])->count();
-        $paid = (clone $base)->where('reimbursement_status', UnrescuedRecordService::REIMBURSEMENT_PAID)->count();
-        $pendingReceive = (clone $base)->where('status', UnrescuedRecordService::STATUS_DISTRIBUTED)->count();
-        $received = (clone $base)->where('status', UnrescuedRecordService::STATUS_RECEIVED)->count();
-        $notified = (clone $base)->where('status', UnrescuedRecordService::STATUS_NOTIFIED)->count();
+        $toNotice1 = (clone $base)->where('status', UnrescuedRecordService::STATUS_NOTICE_1)->count();
+        $toNotice2 = (clone $base)->where('status', UnrescuedRecordService::STATUS_NOTICE_2)->count();
         $matchedObject = (clone $base)->where(function ($query) {
             $query->whereNotNull('priority_identity')
                 ->orWhereNotNull('street_town')
                 ->orWhere('town_id', '>', 0);
         })->count();
-        $exportAttachment1Count = (clone $base)->count();
-        $exportAttachment2Count = (clone $base)
+        $matched = (clone $base)->where('match_status', UnrescuedRecordService::MATCHED)->count();
+        $unmatched = (clone $base)->where('match_status', UnrescuedRecordService::UNMATCHED)->count();
+        $exportCount = (clone $base)
             ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
             ->count();
-        $exportAttachment3Count = $exportAttachment2Count;
-
-        $supplementQuery = UnrescuedSupplementRecord::query();
-        $this->applySupplementExportFilters($supplementQuery, $request);
-        $exportAttachment4Count = $supplementQuery->count();
 
         return $this->success(compact(
             'total',
             'excluded',
-            'toNotice',
-            'distributed',
-            'paid',
-            'pendingReceive',
-            'received',
-            'notified',
+            'toNotice1',
+            'toNotice2',
             'matchedObject',
-            'exportAttachment1Count',
-            'exportAttachment2Count',
-            'exportAttachment3Count',
-            'exportAttachment4Count'
+            'matched',
+            'unmatched',
+            'exportCount'
         ), '获取成功');
     }
 
@@ -186,12 +168,16 @@ class RecordController extends AbstractController
         }
 
         $name = trim((string) $request->input('name', '未救助默认清洗规则'));
+        $rules = $this->recordService->normalizeWashRules($rules);
 
-        UnrescuedWashConfig::query()->where('is_active', 1)->update(['is_active' => 0]);
+        UnrescuedWashConfig::query()
+            ->whereIn('rule_name', ['未救助默认清洗规则', '未救助清洗规则'])
+            ->where('is_active', 1)
+            ->update(['is_active' => 0]);
         $config = UnrescuedWashConfig::create([
             'version' => date('YmdHis'),
             'name' => $name,
-            'rule_name' => $name,
+            'rule_name' => '未救助默认清洗规则',
             'data' => $rules,
             'is_active' => 1,
             'created_by' => (int) $request->getAttribute('userId', 0),
@@ -220,7 +206,7 @@ class RecordController extends AbstractController
 
         $config = $this->activeWashConfig();
         $rules = (array) ($config->data ?? []);
-        if (!$this->hasEnabledWashRules($rules)) {
+        if (!$this->recordService->hasEnabledWashRules($rules)) {
             return $this->error('请先配置并启用至少一条清洗规则', 400);
         }
 
@@ -282,7 +268,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/distribute", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function distribute(RequestInterface $request)
     {
@@ -321,7 +307,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/receive", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function receive(RequestInterface $request)
     {
@@ -349,7 +335,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/notify", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function notify(RequestInterface $request)
     {
@@ -363,7 +349,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/unnotify", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function unnotify(RequestInterface $request)
     {
@@ -376,7 +362,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/accounts", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function accounts(RequestInterface $request)
     {
@@ -391,7 +377,7 @@ class RecordController extends AbstractController
     }
 
     /**
-     * @RequestMapping(path="/reimbursement", methods="post")
+     * 旧流程入口已迁移到下放通知节点。
      */
     public function reimbursement(RequestInterface $request)
     {
@@ -413,11 +399,7 @@ class RecordController extends AbstractController
     {
         $logger = ApplicationContext::getContainer()->get(LoggerFactory::class)->get('default');
 
-        $type = (string) $request->input('type', 'attachment1');
-        if (!in_array($type, ['attachment1', 'attachment2', 'attachment3', 'attachment4'], true)) {
-            return $this->error('导出类型不正确', 400);
-        }
-
+        $type = (string) $request->input('type', 'unrescued');
         $filters = (array) $request->input('filters', []);
         $exportCheck = $this->checkExportReady($type, $filters, $request);
         if (!$exportCheck['ready']) {
@@ -438,7 +420,7 @@ class RecordController extends AbstractController
             $username,
             UnrescuedExportJob::class,
             [[
-                'type' => $type,
+                'type' => 'unrescued',
                 'filters' => $filters,
                 'user_town_id' => $this->currentTownId($request),
             ]]
@@ -561,6 +543,7 @@ class RecordController extends AbstractController
     private function activeWashConfig(): UnrescuedWashConfig
     {
         $config = UnrescuedWashConfig::query()
+            ->whereIn('rule_name', ['未救助默认清洗规则', '未救助清洗规则'])
             ->where('is_active', 1)
             ->orderByDesc('id')
             ->first();
@@ -668,17 +651,6 @@ class RecordController extends AbstractController
         }
     }
 
-    private function hasEnabledWashRules(array $rules): bool
-    {
-        foreach ($rules as $rule) {
-            if (($rule['enabled'] ?? false) === true) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private function currentTownId(RequestInterface $request): int
     {
         $townId = (int) $request->getAttribute('townId', 0);
@@ -698,43 +670,21 @@ class RecordController extends AbstractController
     private function exportTaskTitle(string $type): string
     {
         return match ($type) {
-            'attachment2' => '未救助台账_导出_未报销台账_',
-            'attachment3' => '未救助台账_导出_通知名单_',
-            'attachment4' => '未救助台账_导出_应补应退排查记录_',
-            default => '未救助台账_导出_排查明细_',
+            default => '未救助台账_导出_未救助明细表_',
         };
     }
 
     private function checkExportReady(string $type, array $filters, RequestInterface $request): array
     {
-        if ($type === 'attachment4') {
-            $query = UnrescuedSupplementRecord::query();
-            $this->applySupplementExportFilters($query, $request, $filters);
-            $count = $query->count();
-            return [
-                'ready' => $count > 0,
-                'message' => $count > 0 ? '' : '暂无应退应补排查记录，不能导出应退应补排查记录',
-            ];
-        }
-
         $query = UnrescuedRecord::query();
         $this->recordService->applyFilters($query, $filters);
         $this->recordService->applyTownScope($query, $this->currentTownId($request));
-
-        if ($type === 'attachment1') {
-            $count = $query->count();
-            return [
-                'ready' => $count > 0,
-                'message' => $count > 0 ? '' : '请先导入未救助明细，再导出排查明细',
-            ];
-        }
-
         $query->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES);
         $count = $query->count();
 
         return [
             'ready' => $count > 0,
-            'message' => $count > 0 ? '' : '请先导入救助对象名单并确保存在未剔除数据，再执行该导出',
+            'message' => $count > 0 ? '' : '当前筛选条件下暂无未剔除数据，不能导出未救助明细表',
         ];
     }
 

@@ -218,6 +218,7 @@ class Attachment1ImportJob extends AbstractJob
             $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
             $data['reimbursement_status'] = UnrescuedRecordService::REIMBURSEMENT_UNPAID;
             $data['exclude_status'] = UnrescuedRecordService::EXCLUDE_NO;
+            $data['match_status'] = UnrescuedRecordService::UNMATCHED;
             $data['created_at'] = $now;
             $data['updated_at'] = $now;
             $insertRows[] = $data;
@@ -322,6 +323,7 @@ class Attachment1ImportJob extends AbstractJob
                 $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
                 $data['reimbursement_status'] = UnrescuedRecordService::REIMBURSEMENT_UNPAID;
                 $data['exclude_status'] = UnrescuedRecordService::EXCLUDE_NO;
+                $data['match_status'] = UnrescuedRecordService::UNMATCHED;
                 UnrescuedRecord::create($data);
                 $result['created']++;
             } catch (\Throwable $e) {

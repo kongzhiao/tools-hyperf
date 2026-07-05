@@ -57,7 +57,7 @@ class EnrollExportJob extends AbstractJob
 
             $query = EnrollLedger::query();
             $service->applyFilters($query, $filters);
-            $service->applyTownScope($query, $townName);
+            $service->applyTownReviewVisibleScope($query, $townName);
             if ($type === 'attachment2') {
                 $query->whereIn('change_status', [
                     EnrollLedgerService::CHANGE_NEW,
@@ -117,7 +117,7 @@ class EnrollExportJob extends AbstractJob
                 '增量形式',
                 '姓名',
                 '身份证号码',
-                '医疗救助身份',
+                '资助参保身份',
                 '纳入资助时间',
                 '身份取消时间',
             ];
@@ -167,7 +167,7 @@ class EnrollExportJob extends AbstractJob
                 $data['change_status'] ?? '',
                 $data['name'] ?? '',
                 $data['id_card'] ?? '',
-                $data['medical_identity'] ?? '',
+                $data['subsidy_identity'] ?? '',
                 $this->displayYearMonthText($data['included_month'] ?? ''),
                 $this->displayYearMonthText($data['cancel_month'] ?? ''),
             ];

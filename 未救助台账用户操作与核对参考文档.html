@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>未救助台账用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#未救助台账用户操作与核对参考文档">未救助台账用户操作与核对参考文档</a>
+<a class="toc-level-2" href="#一、先记住六个原则">一、先记住六个原则</a>
+<a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+<a class="toc-level-2" href="#三、第一步维护基础数据">三、第一步：维护基础数据</a>
+<a class="toc-level-3" href="#1维护镇街">1. 维护镇街</a>
+<a class="toc-level-3" href="#2维护重大疾病编码">2. 维护重大疾病编码</a>
+<a class="toc-level-2" href="#四、未救助明细业务流程">四、未救助明细业务流程</a>
+<a class="toc-level-3" href="#1导入附件1未救助明细">1. 导入附件1未救助明细</a>
+<a class="toc-level-3" href="#2导入附件2救助对象名单">2. 导入附件2救助对象名单</a>
+<a class="toc-level-3" href="#3配置并执行清洗">3. 配置并执行清洗</a>
+<a class="toc-level-3" href="#4导出未救助明细表">4. 导出未救助明细表</a>
+<a class="toc-level-2" href="#五、应补应退明细业务流程">五、应补应退明细业务流程</a>
+<a class="toc-level-3" href="#1导入附件4应补应退明细">1. 导入附件4应补应退明细</a>
+<a class="toc-level-3" href="#2导入附件2救助对象名单-2">2. 导入附件2救助对象名单</a>
+<a class="toc-level-3" href="#3配置并执行清洗-2">3. 配置并执行清洗</a>
+<a class="toc-level-3" href="#4导出应补应退明细表">4. 导出应补应退明细表</a>
+<a class="toc-level-2" href="#六、下放通知业务流程">六、下放通知业务流程</a>
+<a class="toc-level-3" href="#1导入通知明细">1. 导入通知明细</a>
+<a class="toc-level-3" href="#2下放和撤销下放">2. 下放和撤销下放</a>
+<a class="toc-level-3" href="#3镇街接收">3. 镇街接收</a>
+<a class="toc-level-3" href="#4通知、撤销通知和反馈回填">4. 通知、撤销通知和反馈回填</a>
+<a class="toc-level-3" href="#5管理员备注和报销标记">5. 管理员备注和报销标记</a>
+<a class="toc-level-3" href="#6导出通知明细">6. 导出通知明细</a>
+<a class="toc-level-2" href="#七、常见问题核对">七、常见问题核对</a>
+<a class="toc-level-3" href="#1为什么状态是无救助金额">1. 为什么状态是“无救助金额”</a>
+<a class="toc-level-3" href="#2为什么状态是拟通知1或拟通知2">2. 为什么状态是“拟通知1”或“拟通知2”</a>
+<a class="toc-level-3" href="#3为什么附件2导入后镇街为空">3. 为什么附件2导入后镇街为空</a>
+<a class="toc-level-3" href="#4为什么附件2导入后身份类别为空">4. 为什么附件2导入后身份类别为空</a>
+<a class="toc-level-3" href="#5为什么清洗后数据被剔除">5. 为什么清洗后数据被剔除</a>
+<a class="toc-level-3" href="#6为什么下放通知不能下放">6. 为什么下放通知不能下放</a>
+<a class="toc-level-3" href="#7为什么镇街账号看不到通知数据">7. 为什么镇街账号看不到通知数据</a>
+<a class="toc-level-3" href="#8为什么导出数量和页面总数不一样">8. 为什么导出数量和页面总数不一样</a>
+<a class="toc-level-2" href="#八、推荐核对流程">八、推荐核对流程</a>
+<a class="toc-level-2" href="#九、镇街账号能做什么">九、镇街账号能做什么</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">由 TODO_未救助台账用户操作与核对参考文档.md 生成，单文件可离线浏览</div>
+      <h1 id="未救助台账用户操作与核对参考文档">未救助台账用户操作与核对参考文档</h1>
+<p>更新时间：2026-07-05</p>
+<p>这份文档给业务用户使用，按当前系统最新功能整理。所有导入文件目前只支持 <code>.csv</code>，系统会自动识别 UTF-8、GBK/GB18030 编码。导入、清洗、导出等耗时操作都会进入任务中心，提交后请先查看任务中心结果，再回到页面核对数据。</p>
+<h2 id="一、先记住六个原则">一、先记住六个原则</h2>
+<ol>
+<li>未救助台账现在包含三个业务节点：<code>未救助明细</code>、<code>应补应退明细</code>、<code>下放通知</code>。</li>
+<li><code>未救助明细</code> 和 <code>应补应退明细</code> 只负责导入、匹配、清洗、筛选和导出排查结果，不再直接办理镇街通知流程。</li>
+<li>下放、接收、通知、反馈回填、管理员备注、报销标记统一在 <code>下放通知</code> 节点办理。</li>
+<li>附件2《救助对象名单》用于匹配镇街、村社和身份类别；未救助明细和应补应退明细各自独立导入附件2。</li>
+<li>清洗只标记 <code>已剔除/未剔除</code>，不会删除原始记录；导出明细一般以 <code>未剔除</code> 数据作为后续人工核对基础。</li>
+<li>每次操作前先确认清算期，导入、清洗、导出都按清算期生效。</li>
+</ol>
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<div class="swimlane-wrap" aria-label="未救助台账角色泳道图">
+  <div class="swimlane-title">未救助台账角色操作泳道图</div>
+  <div class="swimlane-canvas">
+    <div class="lane-head lane-1">管理员</div>
+    <div class="lane-head lane-2">系统 / 任务中心</div>
+    <div class="lane-head lane-3">线下核对人员</div>
+    <div class="lane-head lane-4">镇街账号</div>
+    <svg class="flow-lines" viewBox="0 0 1000 900" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-unrescued" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f3a49"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-unrescued)" d="M125 145 L125 210"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M205 247 L295 247"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M375 278 L375 350"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M455 387 L545 387"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M625 418 L625 485"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M566 550 C458 552 316 565 205 567"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M625 610 L625 682" class="soft"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M205 567 L295 567"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M375 598 C350 635 270 675 205 699"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M205 699 L295 699"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M455 699 L795 699"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M875 728 L875 782"></path>
+      <path marker-end="url(#arrow-unrescued)" d="M795 819 L205 819"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(46% - 36px);top:516px;">需要通知</div>
+    <div class="flow-note" style="left:calc(63% - 42px);top:640px;">仅排查归档</div>
+    <div class="flow-card start" style="left:calc(12.5% - 64px);top:86px;">维护基础数据</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:218px;">导入未救助 / 应补应退明细</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:218px;">导入匹配<br>金额与状态计算</div>
+    <div class="flow-card warn" style="left:calc(37.5% - 64px);top:358px;">执行清洗<br>标记剔除</div>
+    <div class="flow-card check" style="left:calc(62.5% - 64px);top:358px;">导出排查明细<br>人工核对</div>
+    <div class="flow-card diamond" style="left:calc(62.5% - 58px);top:492px;"><span>是否进入<br>下放通知</span></div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:538px;">导入通知明细</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:538px;">生成待下放<br>通知明细</div>
+    <div class="flow-card warn" style="left:calc(12.5% - 64px);top:670px;">按镇街下放<br>或撤销下放</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:670px;">更新状态<br>控制可见范围</div>
+    <div class="flow-card key" style="left:calc(87.5% - 64px);top:670px;">接收并通知群众</div>
+    <div class="flow-card check" style="left:calc(87.5% - 64px);top:790px;">回填联系人<br>账户和备注</div>
+    <div class="flow-card end" style="left:calc(12.5% - 64px);top:790px;">报销标记<br>导出归档</div>
+    <div class="flow-card check" style="left:calc(62.5% - 64px);top:690px;">排查结果归档</div>
+  </div>
+</div>
+<h2 id="三、第一步维护基础数据">三、第一步：维护基础数据</h2>
+<h3 id="1维护镇街">1. 维护镇街</h3>
+<p>入口：<code>系统管理 -&gt; 镇街管理</code></p>
+<p>作用：</p>
+<ul>
+<li>附件2和下放通知导入时，根据镇街名称或编码匹配系统镇街。</li>
+<li>下放通知按镇街下放，必须能匹配到镇街。</li>
+<li>镇街账号只能处理自己绑定镇街的数据。</li>
+</ul>
+<p>需要重点核对：</p>
+<div class="table-wrap"><table><thead><tr><th>配置项</th><th>核对方式</th></tr></thead><tbody>
+<tr><td>镇街名称</td><td>要和导入文件里的镇街名称能对应</td></tr>
+<tr><td>镇街编码</td><td>如果导入文件使用编码，编码必须准确</td></tr>
+<tr><td>用户所属镇街</td><td>镇街账号要绑定正确镇街</td></tr>
+</tbody></table></div>
+<p>如果导入后很多记录没有镇街，优先检查镇街名称、编码和用户绑定关系。</p>
+<h3 id="2维护重大疾病编码">2. 维护重大疾病编码</h3>
+<p>入口：<code>未救助台账 -&gt; 重大疾病编码</code></p>
+<p>来源：附件3《救助重大疾病编码》</p>
+<p>作用：</p>
+<ul>
+<li>用于人工核对应补应退、重大疾病相关排查口径。</li>
+<li>系统页面支持新增、编辑、删除和 CSV 导入重大疾病编码。</li>
+</ul>
+<p>需要重点核对：</p>
+<div class="table-wrap"><table><thead><tr><th>配置列</th><th>核对方式</th></tr></thead><tbody>
+<tr><td>病种编码</td><td>与医保就诊明细中的病种编码一致</td></tr>
+<tr><td>病种名称</td><td>便于人工核对</td></tr>
+<tr><td>状态</td><td>启用的数据才作为有效配置</td></tr>
+</tbody></table></div>
+<h2 id="四、未救助明细业务流程">四、未救助明细业务流程</h2>
+<p>入口：<code>未救助台账 -&gt; 未救助明细</code></p>
+<p>主流程：</p>
+<ol>
+<li>选择清算期。</li>
+<li>导入附件1《未救助明细》。</li>
+<li>导入附件2《救助对象名单》。</li>
+<li>配置并执行清洗。</li>
+<li>导出未救助明细表。</li>
+<li>线下或内网系统继续人工核对，需下放通知的数据再导入 <code>下放通知</code>。</li>
+</ol>
+<h3 id="1导入附件1未救助明细">1. 导入附件1未救助明细</h3>
+<p>入口：<code>未救助明细 -&gt; 导入 -&gt; 导入附件1未救助明细</code></p>
+<p>操作：</p>
+<ol>
+<li>选择清算期，例如 <code>202602</code>。</li>
+<li>上传附件1 CSV。</li>
+<li>提交后到任务中心查看是否成功。</li>
+<li>回到未救助明细页，核对统计卡片和列表。</li>
+</ol>
+<p>附件1会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源或计算方式</th></tr></thead><tbody>
+<tr><td>序号</td><td>附件1序号，同一清算期内按序号更新</td></tr>
+<tr><td>姓名、身份证号</td><td>附件1对应字段</td></tr>
+<tr><td>医疗类别、病种编码、病种名称</td><td>附件1对应字段</td></tr>
+<tr><td>认定地、医药机构名称、医药机构编码、市内外</td><td>附件1对应字段</td></tr>
+<tr><td>入院时间、出院时间、结算时间</td><td>附件1对应字段</td></tr>
+<tr><td>医疗总费用、医保政策范围费用</td><td>附件1对应金额</td></tr>
+<tr><td>统筹报销金额、大额报销、大病报销</td><td>附件1对应金额</td></tr>
+<tr><td>已使用门诊/普通住院/重特大疾病/大额费用住院救助金额</td><td>附件1对应金额</td></tr>
+<tr><td>进入报销金额</td><td>医保政策范围费用 - 统筹报销金额 - 大额报销 - 大病报销</td></tr>
+</tbody></table></div>
+<p>状态判断：</p>
+<div class="table-wrap"><table><thead><tr><th>条件</th><th>状态</th></tr></thead><tbody>
+<tr><td>进入报销金额 &lt;= 0</td><td>无救助金额</td></tr>
+<tr><td>0 &lt; 进入报销金额 &lt;= 300</td><td>拟通知1</td></tr>
+<tr><td>进入报销金额 &gt; 300</td><td>拟通知2</td></tr>
+</tbody></table></div>
+<p>导入更新规则：</p>
+<div class="table-wrap"><table><thead><tr><th>情况</th><th>结果</th></tr></thead><tbody>
+<tr><td>同一清算期第一次出现该序号</td><td>新增记录</td></tr>
+<tr><td>同一清算期已存在该序号</td><td>更新原记录</td></tr>
+<tr><td>记录已是已下放、已接收、已通知</td><td>再次导入附件1不覆盖这些流程状态</td></tr>
+<tr><td>附件1没有序号</td><td>跳过该行</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>当前记录数是否接近附件1有效行数。</li>
+<li>抽查进入报销金额是否按公式计算正确。</li>
+<li><code>无救助金额</code>、<code>拟通知1</code>、<code>拟通知2</code> 数量是否符合预期。</li>
+<li>医疗类别筛选项是否出现附件1里的主要类别。</li>
+</ol>
+<h3 id="2导入附件2救助对象名单">2. 导入附件2救助对象名单</h3>
+<p>入口：<code>未救助明细 -&gt; 导入 -&gt; 导入附件2救助对象名单</code></p>
+<p>前提：当前清算期必须已经导入附件1。</p>
+<p>附件2按 <code>清算期 + 身份证号</code> 匹配附件1主表，同一身份证可能匹配多条就医记录。</p>
+<p>附件2会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源</th></tr></thead><tbody>
+<tr><td>镇街</td><td>附件2镇街名称或编码匹配系统镇街</td></tr>
+<tr><td>村社</td><td>附件2村社</td></tr>
+<tr><td>身份类别</td><td>附件2优先身份、医疗救助身份、救助身份、对象类别等字段</td></tr>
+<tr><td>姓名</td><td>附件1姓名为空或为 <code>--</code> 时，用附件2姓名补齐</td></tr>
+<tr><td>匹配状态</td><td>匹配到主表后为 <code>已匹配</code>，否则保持 <code>未匹配</code></td></tr>
+</tbody></table></div>
+<p>导入后会重新计算待处理类状态，但不会覆盖已经进入 <code>已下放</code>、<code>已接收</code>、<code>已通知</code> 的记录。</p>
+<p>核对重点：</p>
+<ol>
+<li>抽查几个身份证，确认镇街、村社、身份类别是否补齐。</li>
+<li>没有匹配镇街的记录，要检查附件2镇街名称和镇街管理里的名称/编码。</li>
+<li>如果整份文件效果异常，优先检查清算期、附件1是否已导入、身份证号码是否一致。</li>
+<li>身份类别筛选项是否出现附件2里的主要身份。</li>
+</ol>
+<h3 id="3配置并执行清洗">3. 配置并执行清洗</h3>
+<p>入口：<code>未救助明细 -&gt; 清洗规则</code></p>
+<p>常见清洗规则：</p>
+<div class="table-wrap"><table><thead><tr><th>规则</th><th>结果</th></tr></thead><tbody>
+<tr><td>医疗类别不在保留范围内</td><td>已剔除</td></tr>
+<tr><td>医药机构名称命中剔除关键字</td><td>已剔除</td></tr>
+<tr><td>统筹报销金额 = 医保政策范围费用</td><td>已剔除，备注无救助金额</td></tr>
+<tr><td>大额报销 = 医保政策范围费用</td><td>已剔除，备注无救助金额</td></tr>
+<tr><td>大病报销 = 医保政策范围费用</td><td>已剔除，备注无救助金额</td></tr>
+<tr><td>普通住院救助额度已满</td><td>已剔除</td></tr>
+<tr><td>重特大疾病救助额度已满</td><td>已剔除</td></tr>
+<tr><td>大额费用住院救助额度已满</td><td>已剔除</td></tr>
+<tr><td>身份类别命中剔除范围</td><td>已剔除</td></tr>
+</tbody></table></div>
+<p>执行清洗：</p>
+<ol>
+<li>确认当前清算期。</li>
+<li>检查清洗规则是否为本次业务口径。</li>
+<li>至少启用一条清洗规则。</li>
+<li>点击执行清洗并提交任务。</li>
+<li>任务完成后回到列表核对统计和命中规则。</li>
+</ol>
+<p>核对重点：</p>
+<ol>
+<li>已剔除数量是否符合规则预期。</li>
+<li>抽查已剔除记录，命中规则和备注是否合理。</li>
+<li>抽查未剔除记录，确认没有明显应剔除但未剔除的数据。</li>
+<li>清洗规则改动后，需要重新执行清洗，旧结果才会刷新。</li>
+</ol>
+<h3 id="4导出未救助明细表">4. 导出未救助明细表</h3>
+<p>入口：<code>未救助明细 -&gt; 导出</code></p>
+<p>导出口径：当前筛选条件下 <code>未剔除</code> 的未救助明细数据。</p>
+<p>导出后到任务中心下载。导出前建议先确认清算期、镇街、剔除状态、匹配状态等筛选条件。</p>
+<h2 id="五、应补应退明细业务流程">五、应补应退明细业务流程</h2>
+<p>入口：<code>未救助台账 -&gt; 应补应退明细</code></p>
+<p>主流程：</p>
+<ol>
+<li>选择清算期。</li>
+<li>导入附件4《应补应退明细》。</li>
+<li>导入附件2《救助对象名单》。</li>
+<li>配置并执行清洗。</li>
+<li>导出应补应退明细表。</li>
+<li>线下或内网系统继续人工核对，需下放通知的数据再导入 <code>下放通知</code>。</li>
+</ol>
+<h3 id="1导入附件4应补应退明细">1. 导入附件4应补应退明细</h3>
+<p>入口：<code>应补应退明细 -&gt; 导入 -&gt; 导入附件4应补应退明细</code></p>
+<p>附件4会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源或计算方式</th></tr></thead><tbody>
+<tr><td>序号</td><td>附件4序号；没有序号时按行号生成</td></tr>
+<tr><td>姓名、身份证号、镇街</td><td>附件4对应字段</td></tr>
+<tr><td>参保地、参加险种</td><td>附件4对应字段</td></tr>
+<tr><td>医疗机构、医疗类别、疾病编码、疾病名称</td><td>附件4对应字段</td></tr>
+<tr><td>入院时间、出院时间、结算时间</td><td>附件4对应字段</td></tr>
+<tr><td>总费用、医保政策范围费用</td><td>附件4对应金额</td></tr>
+<tr><td>统筹报销金额、大额报销、大病报销</td><td>附件4对应金额</td></tr>
+<tr><td>医疗救助金额、渝快保报销金额</td><td>附件4对应金额</td></tr>
+<tr><td>个人账户支付金额、个人现金支付金额</td><td>附件4对应金额</td></tr>
+<tr><td>进入报销金额</td><td>医保政策范围费用 - 统筹报销金额 - 大额报销 - 大病报销 - 医疗救助金额 - 渝快保报销金额</td></tr>
+</tbody></table></div>
+<p>状态判断同未救助明细：</p>
+<div class="table-wrap"><table><thead><tr><th>条件</th><th>状态</th></tr></thead><tbody>
+<tr><td>进入报销金额 &lt;= 0</td><td>无救助金额</td></tr>
+<tr><td>0 &lt; 进入报销金额 &lt;= 300</td><td>拟通知1</td></tr>
+<tr><td>进入报销金额 &gt; 300</td><td>拟通知2</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>当前记录数是否接近附件4有效行数。</li>
+<li>抽查进入报销金额是否额外扣除了医疗救助金额和渝快保报销金额。</li>
+<li>同一清算期同一序号再次导入会更新原记录。</li>
+</ol>
+<h3 id="2导入附件2救助对象名单-2">2. 导入附件2救助对象名单</h3>
+<p>入口：<code>应补应退明细 -&gt; 导入 -&gt; 导入附件2救助对象名单</code></p>
+<p>前提：当前清算期必须已经导入附件4。</p>
+<p>附件2按 <code>清算期 + 身份证号</code> 匹配应补应退主表，写入镇街、村社、身份类别和匹配状态。一个身份证可更新多条应补应退就医记录。</p>
+<p>核对重点：</p>
+<ol>
+<li>匹配状态是否从 <code>未匹配</code> 更新为 <code>已匹配</code>。</li>
+<li>镇街为空时，检查附件2镇街字段和镇街管理配置。</li>
+<li>身份类别为空时，检查附件2身份字段和表头。</li>
+</ol>
+<h3 id="3配置并执行清洗-2">3. 配置并执行清洗</h3>
+<p>入口：<code>应补应退明细 -&gt; 清洗规则</code></p>
+<p>应补应退清洗规则包含未救助明细的基础规则，并额外包含：</p>
+<div class="table-wrap"><table><thead><tr><th>规则</th><th>结果</th></tr></thead><tbody>
+<tr><td>总费用正负抵消</td><td>同一清算期 + 同一身份证号 + 总费用绝对值相同的正负记录成对剔除</td></tr>
+<tr><td>医疗救助金额大于 0</td><td>已剔除，备注已享受医疗救助</td></tr>
+</tbody></table></div>
+<p>执行清洗：</p>
+<ol>
+<li>确认当前清算期。</li>
+<li>检查应补应退清洗规则。</li>
+<li>点击执行清洗并提交任务。</li>
+<li>任务完成后核对剔除数量、保留数量和命中规则。</li>
+</ol>
+<p>核对重点：</p>
+<ol>
+<li>正负抵消规则只剔除可成对抵消的记录；多出来的正数或负数会保留。</li>
+<li>医疗救助金额大于 0 的记录是否按业务口径剔除。</li>
+<li>清洗后导出的数据是否只保留需要继续核对的少量记录。</li>
+</ol>
+<h3 id="4导出应补应退明细表">4. 导出应补应退明细表</h3>
+<p>入口：<code>应补应退明细 -&gt; 导出</code></p>
+<p>导出口径：当前筛选条件下 <code>未剔除</code> 的应补应退明细数据。</p>
+<p>导出后到任务中心下载。导出前建议确认清算期、镇街、剔除状态、匹配状态等筛选条件。</p>
+<h2 id="六、下放通知业务流程">六、下放通知业务流程</h2>
+<p>入口：<code>未救助台账 -&gt; 下放通知</code></p>
+<p>主流程：</p>
+<ol>
+<li>管理员导入通知明细。</li>
+<li>管理员按镇街下放。</li>
+<li>镇街账号接收。</li>
+<li>镇街通知群众并回填反馈信息。</li>
+<li>管理员填写备注、标记报销状态。</li>
+<li>按需导出通知明细。</li>
+</ol>
+<h3 id="1导入通知明细">1. 导入通知明细</h3>
+<p>入口：<code>下放通知 -&gt; 导入</code></p>
+<p>通知明细一般来自未救助明细、应补应退明细导出后的线下人工核对结果。系统导入时按清算期和序号新增或更新。</p>
+<p>通知明细会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源或计算方式</th></tr></thead><tbody>
+<tr><td>序号、姓名、身份证号</td><td>导入文件对应字段</td></tr>
+<tr><td>镇街</td><td>导入文件镇街字段匹配系统镇街</td></tr>
+<tr><td>对象类别/优先身份</td><td>导入文件对应字段</td></tr>
+<tr><td>参保地、参加险种、医疗机构、医疗类别</td><td>导入文件对应字段</td></tr>
+<tr><td>疾病编码、疾病名称、入院/出院/结算时间</td><td>导入文件对应字段</td></tr>
+<tr><td>总费用、政策范围费用、统筹/大额/大病报销</td><td>导入文件对应金额</td></tr>
+<tr><td>医疗救助金额、渝快保报销金额</td><td>导入文件对应金额</td></tr>
+<tr><td>个人账户支付金额、个人现金支付金额</td><td>导入文件对应金额</td></tr>
+<tr><td>系统备注</td><td>导入文件备注、剔除备注或系统备注字段</td></tr>
+<tr><td>参考进入报销金额</td><td>政策范围费用 - 统筹报销 - 大额报销 - 大病报销 - 医疗救助金额 - 渝快保报销金额</td></tr>
+</tbody></table></div>
+<p>导入后初始状态为 <code>待下放</code>，报销状态默认为 <code>未报销</code>。</p>
+<p>核对重点：</p>
+<ol>
+<li>导入后统计中的 <code>待下放</code> 数量是否符合本次通知明细。</li>
+<li>镇街为空的数据不能成功下放，需要先修正镇街字段或镇街基础数据。</li>
+<li>管理员列表可查看参考进入报销金额和管理员备注；镇街列表不展示这些管理员侧字段。</li>
+</ol>
+<h3 id="2下放和撤销下放">2. 下放和撤销下放</h3>
+<p>管理员入口：<code>下放通知 -&gt; 下放</code></p>
+<p>下放规则：</p>
+<div class="table-wrap"><table><thead><tr><th>条件</th><th>结果</th></tr></thead><tbody>
+<tr><td>状态为待下放且镇街在本次选择范围内</td><td>状态变为已下放</td></tr>
+<tr><td>镇街未匹配</td><td>不下放，并提示未匹配镇街数量</td></tr>
+<tr><td>状态已接收或已通知</td><td>不能撤销下放</td></tr>
+<tr><td>状态为已下放且尚未接收</td><td>可撤销为待下放</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>下放前按清算期确认待下放总数。</li>
+<li>分镇街下放时，确认选择的镇街完整。</li>
+<li>撤销下放只适合尚未被镇街接收的数据。</li>
+</ol>
+<h3 id="3镇街接收">3. 镇街接收</h3>
+<p>镇街账号入口：<code>未救助台账 -&gt; 下放通知</code></p>
+<p>镇街账号进入页面后，如果当前清算期存在 <code>已下放</code> 未接收数据，先确认接收。</p>
+<p>接收后：</p>
+<ul>
+<li>状态从 <code>已下放</code> 变为 <code>已接收</code>。</li>
+<li>写入接收时间。</li>
+<li>镇街列表展示本镇街 <code>已接收</code>、<code>已通知</code> 数据。</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>镇街账号必须绑定镇街，否则无法接收。</li>
+<li>镇街看不到其他镇街数据。</li>
+<li>如果镇街看不到数据，先确认是否已经接收、清算期是否正确、账号绑定镇街是否正确。</li>
+</ol>
+<h3 id="4通知、撤销通知和反馈回填">4. 通知、撤销通知和反馈回填</h3>
+<p>镇街线下通知群众后，在页面标记通知状态。</p>
+<div class="table-wrap"><table><thead><tr><th>操作</th><th>状态变化</th></tr></thead><tbody>
+<tr><td>标记通知</td><td>已接收 -&gt; 已通知</td></tr>
+<tr><td>撤销通知</td><td>已通知 -&gt; 已接收</td></tr>
+</tbody></table></div>
+<p>镇街可对 <code>已接收</code>、<code>已通知</code> 数据回填：</p>
+<ul>
+<li>联系人</li>
+<li>联系电话</li>
+<li>开户行</li>
+<li>户名</li>
+<li>银行账号</li>
+<li>镇街备注</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>已通知记录应有线下通知依据。</li>
+<li>需要后续拨款或报销的数据，开户行、户名、账号要尽量补齐。</li>
+<li>镇街备注用于记录无法联系、资料异常等现场情况。</li>
+</ol>
+<h3 id="5管理员备注和报销标记">5. 管理员备注和报销标记</h3>
+<p>管理员可在下放通知中填写管理员备注，并在报销或拨付完成后标记报销状态。</p>
+<p>报销状态：</p>
+<div class="table-wrap"><table><thead><tr><th>操作</th><th>结果</th></tr></thead><tbody>
+<tr><td>标记已报销</td><td>报销状态变为已报销，并写入报销时间</td></tr>
+<tr><td>恢复未报销</td><td>报销状态变为未报销，并清空报销时间</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>标记前先按清算期、镇街、报销状态筛选。</li>
+<li>标记已报销前，核对实际拨款或报销名单。</li>
+<li>不要把尚未完成拨款的数据提前标记为已报销。</li>
+</ol>
+<h3 id="6导出通知明细">6. 导出通知明细</h3>
+<p>入口：<code>下放通知 -&gt; 导出</code></p>
+<p>导出口径：当前筛选条件下的通知明细；镇街账号导出时系统自动限制为本镇街可见数据。</p>
+<p>导出前建议确认清算期、镇街、状态、报销状态、医疗类别、身份类别和关键词筛选。</p>
+<h2 id="七、常见问题核对">七、常见问题核对</h2>
+<h3 id="1为什么状态是无救助金额">1. 为什么状态是“无救助金额”</h3>
+<p>通常原因：</p>
+<ol>
+<li>进入报销金额 &lt;= 0。</li>
+<li>统筹、大额、大病等报销已经覆盖政策范围费用。</li>
+<li>金额列格式异常，导致解析后金额不符合预期。</li>
+</ol>
+<p>处理方式：</p>
+<ol>
+<li>抽查政策范围费用和各项报销金额。</li>
+<li>按对应公式手算进入报销金额。</li>
+</ol>
+<h3 id="2为什么状态是拟通知1或拟通知2">2. 为什么状态是“拟通知1”或“拟通知2”</h3>
+<p>系统按进入报销金额自动分档：</p>
+<div class="table-wrap"><table><thead><tr><th>金额范围</th><th>状态</th></tr></thead><tbody>
+<tr><td>0 &lt; 进入报销金额 &lt;= 300</td><td>拟通知1</td></tr>
+<tr><td>进入报销金额 &gt; 300</td><td>拟通知2</td></tr>
+</tbody></table></div>
+<p>这两个状态只用于排查和核对，不代表已经下放或通知。</p>
+<h3 id="3为什么附件2导入后镇街为空">3. 为什么附件2导入后镇街为空</h3>
+<p>通常原因：</p>
+<ol>
+<li>附件2镇街名称与系统镇街名称不一致。</li>
+<li>附件2使用了镇街编码，但镇街管理里未维护编码。</li>
+<li>附件2表头不符合模板，镇街列没有被识别。</li>
+</ol>
+<p>处理方式：</p>
+<ol>
+<li>回到镇街管理检查名称和编码。</li>
+<li>抽查附件2对应行的镇街字段。</li>
+<li>修正后重新导入附件2。</li>
+</ol>
+<h3 id="4为什么附件2导入后身份类别为空">4. 为什么附件2导入后身份类别为空</h3>
+<p>通常原因：</p>
+<ol>
+<li>附件2没有对应身份证。</li>
+<li>附件2身份类别列为空。</li>
+<li>附件2表头不符合模板。</li>
+<li>清算期选错，导致没有匹配到当前清算期主表数据。</li>
+</ol>
+<h3 id="5为什么清洗后数据被剔除">5. 为什么清洗后数据被剔除</h3>
+<p>通常原因：</p>
+<ol>
+<li>医疗类别不在保留范围。</li>
+<li>医药机构名称命中剔除关键字。</li>
+<li>报销金额已经达到规则中的剔除条件。</li>
+<li>身份类别命中剔除范围。</li>
+<li>应补应退中存在总费用正负抵消或医疗救助金额大于 0。</li>
+</ol>
+<p>处理方式：</p>
+<ol>
+<li>查看记录的命中规则和备注。</li>
+<li>如果规则口径不对，修改清洗规则后重新执行清洗。</li>
+</ol>
+<h3 id="6为什么下放通知不能下放">6. 为什么下放通知不能下放</h3>
+<p>通常原因：</p>
+<ol>
+<li>记录不是 <code>待下放</code>。</li>
+<li>没有匹配到镇街。</li>
+<li>选择的镇街不包含这条记录所属镇街。</li>
+<li>当前账号是镇街账号，不允许下放。</li>
+</ol>
+<h3 id="7为什么镇街账号看不到通知数据">7. 为什么镇街账号看不到通知数据</h3>
+<p>通常原因：</p>
+<ol>
+<li>管理员还没有下放。</li>
+<li>镇街还没有确认接收。</li>
+<li>用户没有绑定镇街。</li>
+<li>账号绑定镇街和记录镇街不一致。</li>
+<li>清算期选错。</li>
+</ol>
+<h3 id="8为什么导出数量和页面总数不一样">8. 为什么导出数量和页面总数不一样</h3>
+<p>通常原因：</p>
+<ol>
+<li>页面当前筛选条件和导出时筛选条件不同。</li>
+<li>未救助明细、应补应退明细导出默认要求有未剔除数据。</li>
+<li>镇街账号导出时会自动限制本镇街可见数据。</li>
+<li>清算期、状态或报销状态筛选未清空。</li>
+</ol>
+<h2 id="八、推荐核对流程">八、推荐核对流程</h2>
+<ol>
+<li>镇街管理确认镇街名称、编码、镇街账号绑定正确。</li>
+<li>重大疾病编码确认当前有效编码已维护。</li>
+<li>在未救助明细选择清算期，导入附件1，核对记录数、进入报销金额、状态分布。</li>
+<li>在未救助明细导入附件2，核对镇街、村社、身份类别和匹配状态。</li>
+<li>执行未救助明细清洗，抽查已剔除和未剔除记录。</li>
+<li>导出未救助明细表，交由线下或内网系统继续核对。</li>
+<li>在应补应退明细导入附件4，核对进入报销金额是否扣除医疗救助金额和渝快保报销金额。</li>
+<li>在应补应退明细导入附件2，核对镇街和身份匹配。</li>
+<li>执行应补应退清洗，重点核对正负抵消和医疗救助金额大于 0 剔除结果。</li>
+<li>导出应补应退明细表，交由线下或内网系统继续核对。</li>
+<li>将最终需要通知的数据导入下放通知。</li>
+<li>管理员按镇街下放，镇街接收、通知并回填反馈。</li>
+<li>管理员核对反馈和实际拨款情况后，标记报销状态并按需导出通知明细。</li>
+</ol>
+<h2 id="九、镇街账号能做什么">九、镇街账号能做什么</h2>
+<p>镇街账号只能看和处理本镇街数据。</p>
+<p>建议开放：</p>
+<ul>
+<li>下放通知查看</li>
+<li>下放通知接收</li>
+<li>通知和撤销通知</li>
+<li>反馈信息回填</li>
+<li>本镇街通知明细导出</li>
+</ul>
+<p>不建议开放：</p>
+<ul>
+<li>未救助明细和应补应退明细导入</li>
+<li>清洗规则配置和执行</li>
+<li>重大疾病编码维护</li>
+<li>下放和撤销下放</li>
+<li>管理员备注</li>
+<li>报销标记</li>
+</ul>
+<p>镇街账号进入页面后，系统会自动限制为本镇街数据。</p>
+    </main>
+  </div>
+  <a class="top-link" href="#top">返回顶部</a>
+</body>
+</html>

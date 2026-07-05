@@ -187,6 +187,7 @@ class Attachment2ImportJob extends AbstractJob
                         'street_town' => $row['street_town'] !== '' ? $row['street_town'] : null,
                         'village' => $row['village'] !== '' ? $row['village'] : null,
                         'priority_identity' => $row['priority_identity'] !== '' ? $row['priority_identity'] : null,
+                        'match_status' => UnrescuedRecordService::MATCHED,
                         'status' => Db::raw($this->statusCaseSql()),
                         'updated_at' => $now,
                     ]);
@@ -225,8 +226,8 @@ class Attachment2ImportJob extends AbstractJob
             UnrescuedRecordService::STATUS_RECEIVED,
             UnrescuedRecordService::STATUS_NOTIFIED,
             UnrescuedRecordService::STATUS_NO_AMOUNT,
-            UnrescuedRecordService::STATUS_NO_NOTICE,
-            UnrescuedRecordService::STATUS_TO_NOTICE
+            UnrescuedRecordService::STATUS_NOTICE_1,
+            UnrescuedRecordService::STATUS_NOTICE_2
         );
     }
 

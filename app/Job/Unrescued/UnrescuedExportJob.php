@@ -6,7 +6,6 @@ namespace App\Job\Unrescued;
 
 use App\Job\AbstractJob;
 use App\Model\Unrescued\UnrescuedRecord;
-use App\Model\Unrescued\UnrescuedSupplementRecord;
 use App\Service\Unrescued\UnrescuedRecordService;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Logger\LoggerFactory;
@@ -46,10 +45,7 @@ class UnrescuedExportJob extends AbstractJob
             ]);
 
             $filenameMap = [
-                'attachment1' => '未救助台账_导出_排查明细',
-                'attachment2' => '未救助台账_导出_未报销台账',
-                'attachment3' => '未救助台账_导出_通知名单',
-                'attachment4' => '未救助台账_导出_应补应退排查记录',
+                'unrescued' => '未救助台账_导出_未救助明细表',
             ];
             $title = $filenameMap[$type] ?? '未救助台账导出';
             $filename = $title . '_' . $this->uuid . '.csv';
@@ -63,11 +59,7 @@ class UnrescuedExportJob extends AbstractJob
             $writer->openToFile($storagePath);
             fwrite(fopen($storagePath, 'a'), "\xEF\xBB\xBF");
 
-            if ($type === 'attachment4') {
-                $this->exportAttachment4($writer, $service, $filters, $userTownId, $logger);
-            } else {
-                $this->exportRecordAttachment($writer, $service, $type, $filters, $userTownId, $logger);
-            }
+            $this->exportRecordAttachment($writer, $service, 'unrescued', $filters, $userTownId, $logger);
 
             $writer->close();
             $relPath = str_replace(BASE_PATH . '/', '', $storagePath);
@@ -101,9 +93,7 @@ class UnrescuedExportJob extends AbstractJob
         $query = UnrescuedRecord::query();
         $service->applyFilters($query, $filters);
         $service->applyTownScope($query, $userTownId);
-        if (in_array($type, ['attachment2', 'attachment3'], true)) {
-            $query->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES);
-        }
+        $query->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES);
 
         $total = max($query->count(), 1);
         $logger->info('Unrescued export records counted.', [
@@ -129,111 +119,30 @@ class UnrescuedExportJob extends AbstractJob
         });
     }
 
-    private function exportAttachment4(Writer $writer, UnrescuedRecordService $service, array $filters, int $userTownId, $logger): void
-    {
-        $writer->addRow(Row::fromValues([
-            '姓名', '身份证号', '对象类别', '镇街', '参保地', '参加险种', '就诊医疗机构名称', '医保就诊类别', '疾病编码',
-            '入院时间', '出院时间', '结算时间', '总费用', '医保政策范围内费用', '统筹报销金额', '大额报销金额', '大病报销金额',
-            '医疗救助金额', '渝快保报销金额', '个人账户支付金额', '个人现金支付金额', '进入医疗救助金额',
-        ]));
-
-        $query = UnrescuedSupplementRecord::query();
-        $period = $service->normalizePeriod((string) ($filters['settlement_period'] ?? ''));
-        if ($period !== '') {
-            $query->where('settlement_period', $period);
-        }
-        if ($userTownId > 0) {
-            $query->where('town_id', $userTownId);
-        } elseif (!empty($filters['town_id'])) {
-            $query->where('town_id', (int) $filters['town_id']);
-        }
-        if (!empty($filters['status'])) {
-            $query->where('status', (string) $filters['status']);
-        }
-
-        $total = max($query->count(), 1);
-        $logger->info('Unrescued export records counted.', [
-            'uuid' => $this->uuid,
-            'type' => 'attachment4',
-            'total_count' => $total,
-        ]);
-        $processed = 0;
-        $query->orderBy('settlement_period')->orderByDesc('id')->chunk(1000, function ($records) use ($writer, &$processed, $total, $logger) {
-            foreach ($records as $record) {
-                $writer->addRow(Row::fromValues([
-                    $record->name,
-                    $this->idCard((string) $record->id_card),
-                    $record->priority_identity,
-                    $record->street_town,
-                    $record->insurance_place,
-                    $record->insurance_category,
-                    $record->hospital_name,
-                    $record->medical_visit_category,
-                    $record->disease_code,
-                    $this->dateText($record->admission_date),
-                    $this->dateText($record->discharge_date),
-                    $this->dateText($record->settlement_time),
-                    $this->money($record->total_fee),
-                    $this->money($record->policy_fee),
-                    $this->money($record->pool_fund_pay),
-                    $this->money($record->large_amount_pay),
-                    $this->money($record->serious_illness_pay),
-                    $this->money($record->medical_assistance_pay),
-                    $this->money($record->yukuaibao_pay),
-                    $this->money($record->personal_account_pay),
-                    $this->money($record->personal_cash_pay),
-                    $this->money($record->calc_medical_assistance_amount),
-                ]));
-                $processed++;
-            }
-            $progress = min(($processed / $total) * 100, 99.9);
-            $this->updateProgress($this->uuid, $progress);
-            $logger->info('Unrescued export progress.', [
-                'uuid' => $this->uuid,
-                'type' => 'attachment4',
-                'processed' => $processed,
-                'total_count' => $total,
-                'progress' => round($progress, 2),
-            ]);
-        });
-    }
-
     private function recordHeaders(string $type): array
     {
-        if ($type === 'attachment2') {
-            return [
-                '清算期', '姓名', '身份证号', '镇街', '备注', '开户行', '姓名', '账号录入', '对象类别', '医疗类别', '认定地',
-                '医药机构名称', '医药机构编码', '市（内）外', '已报销医疗救助', '入院时间', '出院时间', '结算时间',
-                '医疗总费用', '医保政策范围费用', '统筹报销金额', '大额报销', '大病报销', '已使用门诊救助金额',
-                '已使用普通住院救助金额', '已使用重特大疾病救助金额', '已使用大额费用住院救助', '进入医疗救助金额',
-            ];
-        }
-
-        if ($type === 'attachment3') {
-            return [
-                '姓名', '身份证号', '镇街', '身份', '医疗类别', '认定地', '医药机构名称', '医药机构编码', '市（内）外',
-                '入院时间', '出院时间', '结算时间', '医疗总费用', '医保政策范围费用', '统筹报销金额', '大额报销', '大病报销',
-                '已使用门诊救助金额', '已使用普通住院救助金额', '已使用重特大疾病救助金额', '已使用大额费用住院救助',
-                '进入报销金额', '备注',
-            ];
-        }
-
         return [
-            '清算期', '序号', '姓名', '身份证号', '镇街', '身份', '医疗类别', '认定地', '医药机构名称', '医药机构编码', '市（内）外',
+            '清算期', '序号', '姓名', '身份证号', '匹配状态', '镇街', '村社', '身份', '医疗类别', '病种编码', '病种名称', '认定地', '医药机构名称', '医药机构编码', '市（内）外',
             '入院时间', '出院时间', '结算时间', '医疗总费用', '医保政策范围费用', '统筹报销金额', '大额报销', '大病报销',
             '已使用门诊救助金额', '已使用普通住院救助金额', '已使用重特大疾病救助金额', '已使用大额费用住院救助',
-            '进入报销金额', '备注',
+            '进入报销金额', '状态', '剔除状态', '备注',
         ];
     }
 
     private function recordRow(UnrescuedRecord $record, string $type): array
     {
-        $common = [
+        return [
+            $record->settlement_period,
+            $record->sequence_no,
             $record->name,
             $this->idCard((string) $record->id_card),
+            $record->match_status,
             $record->street_town,
+            $record->village,
             $record->priority_identity,
             $record->medical_category,
+            $record->disease_code,
+            $record->disease_name,
             $record->cert_location,
             $record->hospital_name,
             $record->hospital_code,
@@ -251,43 +160,10 @@ class UnrescuedExportJob extends AbstractJob
             $this->money($record->used_major_rescue),
             $this->money($record->used_large_fee_rescue),
             $this->money($record->calc_reimbursement_amount),
+            $record->status,
+            $record->exclude_status,
             $this->exportRemark($record),
         ];
-
-        if ($type === 'attachment2') {
-            return [
-                $record->settlement_period,
-                $record->name,
-                $this->idCard((string) $record->id_card),
-                $record->street_town,
-                $this->exportRemark($record),
-                $record->bank_name,
-                $record->bank_account_name,
-                $this->idCard((string) $record->bank_account_no),
-                $record->priority_identity,
-                $record->medical_category,
-                $record->cert_location,
-                $record->hospital_name,
-                $record->hospital_code,
-                $record->in_out_city,
-                $record->reimbursement_status === UnrescuedRecordService::REIMBURSEMENT_PAID ? '是' : '否',
-                $this->dateText($record->admission_date),
-                $this->dateText($record->discharge_date),
-                $this->dateText($record->settlement_time),
-                $this->money($record->total_fee),
-                $this->money($record->policy_fee),
-                $this->money($record->pool_fund_pay),
-                $this->money($record->large_amount_pay),
-                $this->money($record->serious_illness_pay),
-                $this->money($record->used_outpatient_rescue),
-                $this->money($record->used_normal_rescue),
-                $this->money($record->used_major_rescue),
-                $this->money($record->used_large_fee_rescue),
-                $this->money($record->calc_reimbursement_amount),
-            ];
-        }
-
-        return $type === 'attachment1' ? array_merge([$record->settlement_period, $record->sequence_no], $common) : $common;
     }
 
     private function money(mixed $value): string

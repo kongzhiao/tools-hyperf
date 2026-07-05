@@ -1,0 +1,1030 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>参保台账用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#参保台账用户操作与核对参考文档">参保台账用户操作与核对参考文档</a>
+<a class="toc-level-2" href="#一、先记住六个原则">一、先记住六个原则</a>
+<a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+<a class="toc-level-2" href="#三、第一步维护年度配置">三、第一步：维护年度配置</a>
+<a class="toc-level-3" href="#1资助参保身份">1. 资助参保身份</a>
+<a class="toc-level-3" href="#2医疗救助身份">2. 医疗救助身份</a>
+<a class="toc-level-3" href="#3身份对应明细">3. 身份对应明细</a>
+<a class="toc-level-3" href="#4未参保原因">4. 未参保原因</a>
+<a class="toc-level-3" href="#5居民缴费金额">5. 居民缴费金额</a>
+<a class="toc-level-3" href="#6年度克隆">6. 年度克隆</a>
+<a class="toc-level-2" href="#四、第二步导入附件3全量明细">四、第二步：导入附件3全量明细</a>
+<a class="toc-level-3" href="#新增、变更、取消怎么判断">新增、变更、取消怎么判断</a>
+<a class="toc-level-2" href="#五、第三步导入附件4参保核实">五、第三步：导入附件4参保核实</a>
+<a class="toc-level-2" href="#六、第四步导入附件5税务请款">六、第四步：导入附件5税务请款</a>
+<a class="toc-level-2" href="#七、第五步导入附件6死亡名单">七、第五步：导入附件6死亡名单</a>
+<a class="toc-level-2" href="#八、第六步附件3人工调整回导">八、第六步：附件3人工调整回导</a>
+<a class="toc-level-2" href="#九、第七步镇街复核下放">九、第七步：镇街复核下放</a>
+<a class="toc-level-3" href="#下放批次和明细">下放批次和明细</a>
+<a class="toc-level-2" href="#十、第八步镇街填报">十、第八步：镇街填报</a>
+<a class="toc-level-2" href="#十一、第九步收回复核">十一、第九步：收回复核</a>
+<a class="toc-level-2" href="#十二、第十步缴费金额核查确认">十二、第十步：缴费金额核查确认</a>
+<a class="toc-level-2" href="#十三、第十一步导出">十三、第十一步：导出</a>
+<a class="toc-level-2" href="#十四、常见问题核对">十四、常见问题核对</a>
+<a class="toc-level-3" href="#1为什么有人是需核实">1. 为什么有人是“需核实”</a>
+<a class="toc-level-3" href="#2为什么是否符合资助是待核实">2. 为什么是否符合资助是“待核实”</a>
+<a class="toc-level-3" href="#3为什么是否符合资助是否">3. 为什么是否符合资助是“否”</a>
+<a class="toc-level-3" href="#4为什么导入附件456失败">4. 为什么导入附件4/5/6失败</a>
+<a class="toc-level-3" href="#5为什么身份优先级是9999">5. 为什么身份优先级是 9999</a>
+<a class="toc-level-3" href="#6为什么镇街账号看不到数据">6. 为什么镇街账号看不到数据</a>
+<a class="toc-level-3" href="#7为什么不能下放复核">7. 为什么不能下放复核</a>
+<a class="toc-level-3" href="#8为什么缴费金额待核查">8. 为什么缴费金额待核查</a>
+<a class="toc-level-2" href="#十五、推荐核对流程">十五、推荐核对流程</a>
+<a class="toc-level-2" href="#十六、镇街账号能做什么">十六、镇街账号能做什么</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">由 TODO_参保台账用户操作与核对参考文档.md 生成，单文件可离线浏览</div>
+      <h1 id="参保台账用户操作与核对参考文档">参保台账用户操作与核对参考文档</h1>
+<p>更新时间：2026-07-05</p>
+<p>这份文档给业务用户使用，按当前系统最新功能整理。所有导入文件目前只支持 <code>.csv</code>，系统会自动识别 UTF-8、GBK/GB18030 编码。导入和导出等耗时操作都会进入任务中心，提交后请先查看任务中心结果，再回到页面核对数据。</p>
+<h2 id="一、先记住六个原则">一、先记住六个原则</h2>
+<ol>
+<li>先维护年度配置，再导入人员名单。</li>
+<li>附件3《资助参保对象全量明细》是每月全量主名单，必须先导入附件3，附件4/5/6 和附件3人工调整回导才有对象可匹配。</li>
+<li>附件1、附件2、附件7属于年度配置；附件3、附件4、附件5、附件6属于按月业务数据。</li>
+<li>管理员负责配置、导入、导出、下放复核、收回复核和缴费金额核查确认。</li>
+<li>镇街账号只处理已下放给本镇街且未收回的数据，主要填报是否参保、未参保原因、居民缴费金额、死亡时间和备注。</li>
+<li>最终数据核对以 <code>参保台账明细</code>、<code>参保导入记录</code>、<code>下放批次</code> 和导出文件为准。</li>
+</ol>
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<div class="swimlane-wrap" aria-label="参保台账角色泳道图">
+  <div class="swimlane-title">参保台账角色操作泳道图</div>
+  <div class="swimlane-canvas">
+    <div class="lane-head lane-1">管理员</div>
+    <div class="lane-head lane-2">系统 / 任务中心</div>
+    <div class="lane-head lane-3">镇街账号</div>
+    <div class="lane-head lane-4">线下 / 人工核对</div>
+    <svg class="flow-lines" viewBox="0 0 1000 900" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-enroll" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f3a49"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-enroll)" d="M205 115 L295 115"></path>
+      <path marker-end="url(#arrow-enroll)" d="M125 145 L125 210"></path>
+      <path marker-end="url(#arrow-enroll)" d="M205 247 L295 247"></path>
+      <path marker-end="url(#arrow-enroll)" d="M455 247 L795 247"></path>
+      <path marker-end="url(#arrow-enroll)" d="M795 278 C720 320 600 330 500 330 L245 330 C220 346 208 368 205 387"></path>
+      <path marker-end="url(#arrow-enroll)" d="M205 387 L295 387"></path>
+      <path marker-end="url(#arrow-enroll)" d="M375 418 C314 452 230 497 185 532"></path>
+      <path marker-end="url(#arrow-enroll)" d="M125 610 L125 662"></path>
+      <path marker-end="url(#arrow-enroll)" d="M80 550 C38 642 46 755 112 785" class="soft"></path>
+      <path marker-end="url(#arrow-enroll)" d="M205 699 L295 699"></path>
+      <path marker-end="url(#arrow-enroll)" d="M455 699 L545 699"></path>
+      <path marker-end="url(#arrow-enroll)" d="M625 728 C602 770 526 800 455 819"></path>
+      <path marker-end="url(#arrow-enroll)" d="M295 819 L205 819"></path>
+      <path marker-end="url(#arrow-enroll)" d="M205 819 L795 819"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(13% - 36px);top:632px;">需要复核</div>
+    <div class="flow-note" style="left:calc(9% - 32px);top:740px;">无需复核</div>
+    <div class="flow-card start" style="left:calc(12.5% - 64px);top:86px;">维护年度配置</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:86px;">保存配置<br>校验口径</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:218px;">导入附件3/4/5/6</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:218px;">身份匹配<br>状态金额计算</div>
+    <div class="flow-card check" style="left:calc(87.5% - 64px);top:218px;">核对异常<br>形成回导文件</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:358px;">附件3人工<br>调整回导</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:358px;">更新人工字段<br>刷新结果</div>
+    <div class="flow-card diamond" style="left:calc(12.5% - 58px);top:492px;"><span>是否需要<br>镇街复核</span></div>
+    <div class="flow-card warn" style="left:calc(12.5% - 64px);top:670px;">下放复核<br>查看批次</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:670px;">生成批次<br>限制可见</div>
+    <div class="flow-card key" style="left:calc(62.5% - 64px);top:670px;">镇街填报<br>参保和缴费</div>
+    <div class="flow-card warn" style="left:calc(37.5% - 64px);top:790px;">重算结果<br>标记待核查</div>
+    <div class="flow-card end" style="left:calc(12.5% - 64px);top:790px;">缴费核查<br>导出归档</div>
+    <div class="flow-card check" style="left:calc(87.5% - 64px);top:790px;">最终台账<br>归档核对</div>
+  </div>
+</div>
+<h2 id="三、第一步维护年度配置">三、第一步：维护年度配置</h2>
+<p>入口：<code>参保台账 -&gt; 参保配置</code></p>
+<p>选择年份后，依次维护五类配置。配置可手工新增、编辑、删除，也可按模板导入 CSV；新年度配置与旧年度相近时，可使用年度克隆。</p>
+<h3 id="1资助参保身份">1. 资助参保身份</h3>
+<p>来源：附件1《资助参保身份优先级配置》</p>
+<p>作用：</p>
+<ul>
+<li>根据附件3身份判断 <code>资助参保身份</code>。</li>
+<li>根据 <code>资助参保身份 + 居民医保缴费金额 + 资助金额</code> 计算 <code>参保类别</code>。</li>
+<li>生成 <code>资助参保对象-汇总名单</code> 的动态身份勾选列。</li>
+</ul>
+<p>需要重点核对：</p>
+<div class="table-wrap"><table><thead><tr><th>配置列</th><th>核对方式</th></tr></thead><tbody>
+<tr><td>优先级</td><td>数字越小越优先</td></tr>
+<tr><td>资助参保身份</td><td>名称要与业务口径一致</td></tr>
+<tr><td>资助档次/参保档次</td><td>后续作为参保类别输出</td></tr>
+<tr><td>资助标准</td><td>与政策口径一致</td></tr>
+<tr><td>个人实缴金额</td><td>要能对应附件4或镇街填报缴费金额</td></tr>
+<tr><td>资助代缴金额</td><td>要能对应附件5代缴金额</td></tr>
+<tr><td>包含参保身份</td><td>有别名、细分类或历史名称时补充</td></tr>
+</tbody></table></div>
+<h3 id="2医疗救助身份">2. 医疗救助身份</h3>
+<p>来源：附件2《医疗救助身份优先级配置》</p>
+<p>作用：</p>
+<ul>
+<li>根据附件3身份判断 <code>医疗救助身份</code>。</li>
+<li>判断人员身份是否发生变更。</li>
+</ul>
+<p>需要重点核对：</p>
+<div class="table-wrap"><table><thead><tr><th>配置列</th><th>核对方式</th></tr></thead><tbody>
+<tr><td>优先级/排序</td><td>数字越小越优先</td></tr>
+<tr><td>医疗救助身份</td><td>名称要准确</td></tr>
+<tr><td>包含参保身份</td><td>一个大类包含多个明细身份时必须填写</td></tr>
+</tbody></table></div>
+<h3 id="3身份对应明细">3. 身份对应明细</h3>
+<p>来源：附件7《身份对应明细配置》</p>
+<p>作用：</p>
+<ul>
+<li>根据 <code>获得资助身份类别 + 居民医保缴费金额</code> 判断 <code>是否符合资助</code>。</li>
+</ul>
+<p>需要重点核对：</p>
+<div class="table-wrap"><table><thead><tr><th>配置列</th><th>核对方式</th></tr></thead><tbody>
+<tr><td>特殊人员身份</td><td>后续匹配附件5的获得资助身份类别</td></tr>
+<tr><td>实缴金额</td><td>后续匹配居民医保缴费金额</td></tr>
+<tr><td>包含参保身份</td><td>有别名时补充，避免误判不符合资助</td></tr>
+</tbody></table></div>
+<h3 id="4未参保原因">4. 未参保原因</h3>
+<p>入口：<code>参保配置 -&gt; 未参保原因</code></p>
+<p>作用：</p>
+<ul>
+<li>镇街填报 <code>是否参保=否</code> 时，从配置项中选择未参保原因。</li>
+<li>默认常用原因包括死亡、服刑、服役、拒参、失踪、无法联系、已注销户口、户口迁出、其他。</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>原因名称要符合业务统计口径。</li>
+<li>不再使用的原因可停用或删除。</li>
+<li>镇街填报前先确认原因是否齐全。</li>
+</ol>
+<h3 id="5居民缴费金额">5. 居民缴费金额</h3>
+<p>入口：<code>参保配置 -&gt; 居民缴费金额</code></p>
+<p>作用：</p>
+<ul>
+<li>镇街填报居民缴费金额时，只能选择配置内金额。</li>
+<li>系统用镇街填报金额与附件4金额比对，生成缴费金额核查状态。</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>金额要和当年居民医保缴费标准一致。</li>
+<li>如果镇街填报提示金额不在配置项中，先回到这里补充。</li>
+</ol>
+<h3 id="6年度克隆">6. 年度克隆</h3>
+<p>入口：<code>参保配置 -&gt; 克隆年度</code></p>
+<p>建议操作：</p>
+<ol>
+<li>选择来源年份。</li>
+<li>选择目标年份。</li>
+<li>勾选要克隆的配置类型：资助参保身份、医疗救助身份、身份对应明细。</li>
+<li>目标年份已有旧配置且需要重来时，才勾选覆盖。</li>
+<li>克隆完成后抽查金额、优先级和包含身份。</li>
+</ol>
+<h2 id="四、第二步导入附件3全量明细">四、第二步：导入附件3全量明细</h2>
+<p>入口：<code>参保台账 -&gt; 参保台账明细 -&gt; 导入 -&gt; 导入附件3全量明细</code></p>
+<p>操作：</p>
+<ol>
+<li>选择年份。</li>
+<li>选择导入月份，例如 <code>2026-03</code>。</li>
+<li>上传附件3 CSV。</li>
+<li>提交后到任务中心查看是否成功。</li>
+<li>再到 <code>参保导入记录</code> 查看总行数、成功行数、失败原因和未匹配身份。</li>
+</ol>
+<p>附件3会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源或计算方式</th></tr></thead><tbody>
+<tr><td>姓名、身份证号码</td><td>附件3对应字段</td></tr>
+<tr><td>镇（街）、村（居）</td><td>附件3对应字段</td></tr>
+<tr><td>纳入资助时间</td><td>附件3纳入资助时间；为空时使用导入月份</td></tr>
+<tr><td>缴费时间</td><td>附件3缴费时间</td></tr>
+<tr><td>原始身份</td><td>附件3医疗救助身份、特殊人员身份、身份类别等字段</td></tr>
+<tr><td>医疗救助身份记录</td><td>按附件2配置匹配并保留全部命中身份</td></tr>
+<tr><td>医疗救助身份</td><td>医疗救助身份记录中优先级最高的一项</td></tr>
+<tr><td>资助参保身份记录</td><td>按附件1配置匹配并保留全部命中身份</td></tr>
+<tr><td>资助参保身份</td><td>资助参保身份记录中优先级最高的一项</td></tr>
+<tr><td>最后附件3月份</td><td>本次导入月份</td></tr>
+</tbody></table></div>
+<h3 id="新增、变更、取消怎么判断">新增、变更、取消怎么判断</h3>
+<div class="table-wrap"><table><thead><tr><th>情况</th><th>结果</th></tr></thead><tbody>
+<tr><td>本年度从未出现过这个身份证</td><td>新增</td></tr>
+<tr><td>本年度已有这个身份证，医疗救助身份变了</td><td>变更</td></tr>
+<tr><td>之前已经取消，本月又重新出现在附件3</td><td>变更</td></tr>
+<tr><td>本年度已有这个身份证，本月附件3没有这个人</td><td>取消，并写入身份取消时间</td></tr>
+<tr><td>本月重复导入且身份没变</td><td>保持原来的新增、变更或取消状态</td></tr>
+</tbody></table></div>
+<p>同一个身份证在附件3有多行时，系统会合并身份记录，取优先级最高的医疗救助身份和资助参保身份。</p>
+<p>核对重点：</p>
+<ol>
+<li>附件3如果存在身份证为空或身份为空的错误行，系统会停止导入，避免误判取消人员。</li>
+<li>导入后看统计卡片中的总数、新增、变更、取消数量。</li>
+<li>抽查多身份人员，确认优先级最高身份是否正确。</li>
+<li><code>参保导入记录</code> 中如出现优先级 9999 或未匹配身份，要回到配置中补身份或补包含参保身份，再重新导入附件3。</li>
+</ol>
+<h2 id="五、第三步导入附件4参保核实">五、第三步：导入附件4参保核实</h2>
+<p>入口：<code>参保台账明细 -&gt; 导入 -&gt; 导入附件4参保核实</code></p>
+<p>前提：当前年份必须已经导入附件3。</p>
+<p>附件4会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源</th></tr></thead><tbody>
+<tr><td>居民医保缴费金额</td><td>附件4个人缴费金额或居民医保缴费金额</td></tr>
+<tr><td>资助地或参保地（区外备注）</td><td>居民医保所属区划、职工医保所属区划不是江津时写入</td></tr>
+<tr><td>最后附件4月份</td><td>本次导入月份</td></tr>
+</tbody></table></div>
+<p>导入后会重新计算：</p>
+<ul>
+<li>参保类别</li>
+<li>是否参保</li>
+<li>未参保原因</li>
+<li>是否符合资助</li>
+<li>是否获得资助</li>
+<li>资助方式</li>
+</ul>
+<p>如果该人员已经有镇街填报内容，附件4导入后还会结合镇街填报金额重新计算缴费金额核查状态。</p>
+<p>核对重点：</p>
+<ol>
+<li>随机抽查居民医保缴费金额是否与附件4一致。</li>
+<li>区外参保人员是否出现区外备注。</li>
+<li>如果整份文件失败，通常是年份、月份或身份证号码与当年附件3台账匹配不上。</li>
+</ol>
+<h2 id="六、第四步导入附件5税务请款">六、第四步：导入附件5税务请款</h2>
+<p>入口：<code>参保台账明细 -&gt; 导入 -&gt; 导入附件5税务请款</code></p>
+<p>前提：当前年份必须已经导入附件3。</p>
+<p>附件5会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源</th></tr></thead><tbody>
+<tr><td>资助金额</td><td>附件5代缴金额或资助金额</td></tr>
+<tr><td>获得资助身份类别</td><td>附件5代缴类别、特殊人员身份类别或身份类别</td></tr>
+<tr><td>税务请款批次</td><td>附件5请款批次</td></tr>
+<tr><td>税务第一批请款</td><td>请款批次包含“第一”时，写入对应代缴金额</td></tr>
+<tr><td>最后附件5月份</td><td>本次导入月份</td></tr>
+</tbody></table></div>
+<p>同一个身份证在附件5有多行时，资助金额会累加；第一批请款金额也会按第一批记录累加。</p>
+<p>导入后会重新计算：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>计算规则</th></tr></thead><tbody>
+<tr><td>参保类别</td><td>资助参保身份 + 居民医保缴费金额 + 资助金额，匹配附件1配置</td></tr>
+<tr><td>是否参保</td><td>参保类别是居民一档、居民二档、大学生一档、大学生二档、需核实时为“是”</td></tr>
+<tr><td>未参保原因</td><td>是否参保为“是”时写“无”</td></tr>
+<tr><td>是否符合资助</td><td>纳入资助月份和缴费月份一致，并且附件7命中时为“是”</td></tr>
+<tr><td>是否获得资助</td><td>符合资助且资助金额大于 0 时为“是”</td></tr>
+<tr><td>资助方式</td><td>获得资助为“是”时为“系统资助”，否则为“事后资助”</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>资助金额是否与税务请款明细一致。</li>
+<li>多行同身份证资助金额是否累加。</li>
+<li>参保类别为 <code>需核实</code> 的人员，要检查附件1金额组合和身份是否能匹配。</li>
+<li>是否符合资助为 <code>否</code> 的人员，要检查缴费时间、纳入资助时间和附件7身份对应明细。</li>
+</ol>
+<h2 id="七、第五步导入附件6死亡名单">七、第五步：导入附件6死亡名单</h2>
+<p>入口：<code>参保台账明细 -&gt; 导入 -&gt; 导入附件6死亡名单</code></p>
+<p>前提：当前年份必须已经导入附件3。</p>
+<p>附件6会写入：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>来源或结果</th></tr></thead><tbody>
+<tr><td>备注（卫健委死亡时间）</td><td>附件6死亡时间</td></tr>
+<tr><td>未参保原因</td><td>死亡</td></tr>
+<tr><td>是否参保</td><td>否</td></tr>
+<tr><td>参保类别</td><td>清空</td></tr>
+<tr><td>是否符合资助</td><td>否</td></tr>
+<tr><td>是否获得资助</td><td>否</td></tr>
+<tr><td>资助方式</td><td>清空</td></tr>
+<tr><td>最后附件6月份</td><td>本次导入月份</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>有死亡时间的人员，列表死亡备注应有值。</li>
+<li>死亡人员是否参保、是否符合资助、是否获得资助应按上表更新。</li>
+<li>如果整份文件失败，通常是身份证号码没有匹配到当年台账。</li>
+</ol>
+<h2 id="八、第六步附件3人工调整回导">八、第六步：附件3人工调整回导</h2>
+<p>入口：<code>参保台账明细 -&gt; 导入 -&gt; 导入附件3人工调整回导</code></p>
+<p>用途：当导出后经过人工核对，需要回写部分人工调整字段时使用。</p>
+<p>前提：当前年份必须已经存在对应身份证的参保台账记录。</p>
+<p>回导可更新字段：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>说明</th></tr></thead><tbody>
+<tr><td>缴费时间</td><td>支持缴费时间、缴费日期等表头</td></tr>
+<tr><td>未参保原因</td><td>人工核对后的未参保原因</td></tr>
+<tr><td>资助地或参保地（区外备注）</td><td>人工核对后的区外备注</td></tr>
+<tr><td>备注（卫健委死亡时间）</td><td>人工核对后的死亡备注</td></tr>
+<tr><td>人工备注</td><td>管理员人工备注</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>文件必须包含身份证号码或身份证号。</li>
+<li>只回写文件里存在的可更新列，不存在的列不会覆盖原字段。</li>
+<li>如果没有匹配到任何记录，检查年份和身份证号码。</li>
+</ol>
+<h2 id="九、第七步镇街复核下放">九、第七步：镇街复核下放</h2>
+<p>入口：<code>参保台账明细 -&gt; 下放复核</code></p>
+<p>管理员可按镇街、勾选记录或当前筛选条件下放给镇街填报核实。</p>
+<p>下放方式：</p>
+<div class="table-wrap"><table><thead><tr><th>下放方式</th><th>适用场景</th></tr></thead><tbody>
+<tr><td>按镇街下放</td><td>常规按镇街批量核实</td></tr>
+<tr><td>勾选记录下放</td><td>只下放少量指定人员</td></tr>
+<tr><td>按筛选条件下放</td><td>例如只下放需核实、待核查或某类身份人员</td></tr>
+</tbody></table></div>
+<p>下放后：</p>
+<ul>
+<li>生成一条下放批次。</li>
+<li>对应明细写入当前下放批次。</li>
+<li>复核状态变为 <code>待填报</code>。</li>
+<li>镇街填报状态变为 <code>未填报</code>。</li>
+<li>已处于下放中的记录不会被重复下放。</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>下放前先确认年份、月份和筛选条件。</li>
+<li>下放后到 <code>下放批次</code> 查看批次号、镇街、总数、待填报数、已填报数。</li>
+<li>如果提示没有可下放记录，通常是记录已在下放中或筛选条件没有匹配到数据。</li>
+</ol>
+<h3 id="下放批次和明细">下放批次和明细</h3>
+<p>入口：<code>参保台账明细 -&gt; 下放批次</code></p>
+<p>管理员可查看：</p>
+<ul>
+<li>批次号</li>
+<li>年份、月份</li>
+<li>下放镇街</li>
+<li>下放方式</li>
+<li>总数、待填报数、已填报数、已收回数</li>
+<li>批次状态：已下放、部分收回、已收回</li>
+<li>批次明细及每条记录当前填报状态</li>
+</ul>
+<h2 id="十、第八步镇街填报">十、第八步：镇街填报</h2>
+<p>镇街账号入口：<code>参保台账 -&gt; 参保台账明细</code></p>
+<p>镇街账号只能看到本镇街且复核状态为 <code>待填报</code>、<code>已填报</code> 的记录。已收回、未下放、其他镇街数据不可见。</p>
+<p>镇街可填报字段：</p>
+<div class="table-wrap"><table><thead><tr><th>字段</th><th>填报要求</th></tr></thead><tbody>
+<tr><td>是否参保</td><td>只能填 <code>是</code>、<code>否</code> 或留空</td></tr>
+<tr><td>未参保原因</td><td>是否参保为否时填写，从配置项中选择</td></tr>
+<tr><td>居民医保缴费金额</td><td>是否参保为是时填写，从配置金额中选择</td></tr>
+<tr><td>死亡时间</td><td>有死亡情况时填写</td></tr>
+<tr><td>镇街备注</td><td>填写核实说明</td></tr>
+</tbody></table></div>
+<p>保存后：</p>
+<ul>
+<li>镇街填报状态变为 <code>已填报</code>。</li>
+<li>复核状态变为 <code>已填报</code>。</li>
+<li>写入填报人、填报时间。</li>
+<li>系统根据镇街填报内容重新计算参保类别、是否参保、未参保原因、是否符合资助、是否获得资助、资助方式和缴费金额核查状态。</li>
+</ul>
+<p>镇街填报计算规则：</p>
+<div class="table-wrap"><table><thead><tr><th>镇街填报情况</th><th>系统结果</th></tr></thead><tbody>
+<tr><td>是否参保 = 否</td><td>是否参保为否，使用镇街未参保原因，是否符合资助和是否获得资助为否</td></tr>
+<tr><td>是否参保 = 是，但未填缴费金额</td><td>参保类别为需核实，是否参保和资助相关结果为待核实，缴费金额待核查</td></tr>
+<tr><td>填报缴费金额与附件4金额一致</td><td>缴费金额核查状态为一致，并按该金额重新计算参保类别</td></tr>
+<tr><td>填报缴费金额与附件4金额不一致</td><td>缴费金额核查状态为待核查，参保类别为需核实</td></tr>
+<tr><td>附件4金额为空但镇街填了金额</td><td>缴费金额核查状态为待核查</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>镇街填报金额必须先维护在 <code>居民缴费金额</code> 配置中。</li>
+<li>镇街填报 <code>否</code> 时要选择合理未参保原因。</li>
+<li>镇街保存后，管理员应关注 <code>待核查</code> 数据。</li>
+</ol>
+<h2 id="十一、第九步收回复核">十一、第九步：收回复核</h2>
+<p>入口：<code>参保台账明细 -&gt; 收回复核</code></p>
+<p>管理员可按批次或勾选记录收回复核权限。</p>
+<p>收回后：</p>
+<div class="table-wrap"><table><thead><tr><th>收回对象</th><th>结果</th></tr></thead><tbody>
+<tr><td>整个批次</td><td>批次状态变为已收回，明细状态变为已收回</td></tr>
+<tr><td>部分记录</td><td>相关明细状态变为已收回，批次可能变为部分收回</td></tr>
+<tr><td>参保台账明细</td><td>当前下放批次清空，复核状态变为已收回</td></tr>
+</tbody></table></div>
+<p>核对重点：</p>
+<ol>
+<li>收回后镇街账号不再看到这些记录。</li>
+<li>已收回记录如果需要再次给镇街处理，可重新下放。</li>
+<li>收回前建议先导出或记录镇街已填报信息。</li>
+</ol>
+<h2 id="十二、第十步缴费金额核查确认">十二、第十步：缴费金额核查确认</h2>
+<p>入口：<code>参保台账明细 -&gt; 缴费金额核查</code></p>
+<p>管理员针对 <code>缴费金额核查状态=待核查</code> 的记录进行确认。</p>
+<p>待核查常见原因：</p>
+<div class="table-wrap"><table><thead><tr><th>原因</th><th>说明</th></tr></thead><tbody>
+<tr><td>附件4缴费金额为空</td><td>镇街填了金额，但系统来源金额为空</td></tr>
+<tr><td>镇街金额与附件4金额不一致</td><td>系统会记录两边金额差异</td></tr>
+<tr><td>镇街填报参保但缴费金额为空</td><td>需要补充或人工确认</td></tr>
+</tbody></table></div>
+<p>确认后：</p>
+<ul>
+<li>缴费金额核查状态变为 <code>已核查</code>。</li>
+<li>可保存核查备注。</li>
+</ul>
+<p>核对重点：</p>
+<ol>
+<li>确认前对照附件4、镇街填报记录和实际缴费凭证。</li>
+<li>备注中写清核查依据，便于后续追溯。</li>
+</ol>
+<h2 id="十三、第十一步导出">十三、第十一步：导出</h2>
+<p>入口：<code>参保台账明细 -&gt; 导出</code></p>
+<p>导出后到任务中心下载。镇街账号导出时，系统自动限制为本镇街已下放未收回可见数据。</p>
+<div class="table-wrap"><table><thead><tr><th>导出文件</th><th>建议导出时机</th><th>主要核对</th></tr></thead><tbody>
+<tr><td>资助参保对象-汇总名单</td><td>导入附件1、附件2、附件3后</td><td>动态身份列是否按资助参保身份记录打勾</td></tr>
+<tr><td>资助参保对象-对比结果</td><td>导入附件3后</td><td>新增、变更、取消是否正确</td></tr>
+<tr><td>特殊对象资助参保台账</td><td>附件3、4、5、6、镇街复核和人工回导完成后</td><td>金额、参保类别、是否符合资助、死亡备注、人工备注是否完整</td></tr>
+</tbody></table></div>
+<p>导出口径：</p>
+<div class="table-wrap"><table><thead><tr><th>文件</th><th>当前范围</th></tr></thead><tbody>
+<tr><td>汇总名单</td><td>当前筛选条件下的台账数据，身份列随当年资助参保身份配置动态生成</td></tr>
+<tr><td>对比结果</td><td>当前筛选条件下新增、变更、取消数据</td></tr>
+<tr><td>特殊对象资助参保台账</td><td>当前筛选条件下完整台账字段</td></tr>
+</tbody></table></div>
+<h2 id="十四、常见问题核对">十四、常见问题核对</h2>
+<h3 id="1为什么有人是需核实">1. 为什么有人是“需核实”</h3>
+<p>通常原因：</p>
+<ol>
+<li>附件4个人缴费金额没导入或没匹配上。</li>
+<li>附件5资助金额没导入或没匹配上。</li>
+<li>附件1资助参保身份配置里没有对应身份和金额组合。</li>
+<li>身份名称不一致，需要补 <code>包含参保身份</code>。</li>
+<li>镇街填报缴费金额与附件4金额不一致。</li>
+</ol>
+<h3 id="2为什么是否符合资助是待核实">2. 为什么是否符合资助是“待核实”</h3>
+<p>通常原因：</p>
+<ol>
+<li>缴费时间为空。</li>
+<li>纳入资助时间或缴费时间格式不规范。</li>
+<li>镇街已填报参保但缴费金额为空。</li>
+<li>缴费金额处于待核查状态。</li>
+</ol>
+<h3 id="3为什么是否符合资助是否">3. 为什么是否符合资助是“否”</h3>
+<p>通常原因：</p>
+<ol>
+<li>纳入资助月份和缴费月份不是同一个月。</li>
+<li>附件7身份对应明细没有匹配到 <code>获得资助身份类别 + 居民医保缴费金额</code>。</li>
+<li>身份别名未配置，需要补 <code>包含参保身份</code>。</li>
+<li>附件6死亡名单或镇街填报未参保导致结果更新为否。</li>
+</ol>
+<h3 id="4为什么导入附件456失败">4. 为什么导入附件4/5/6失败</h3>
+<p>通常原因：</p>
+<ol>
+<li>还没有先导入附件3。</li>
+<li>选择的年份不对。</li>
+<li>导入月份选择不对。</li>
+<li>文件里的身份证号码和当前年度台账无法匹配。</li>
+<li>文件表头不是系统模板要求的表头。</li>
+</ol>
+<h3 id="5为什么身份优先级是9999">5. 为什么身份优先级是 9999</h3>
+<p>表示附件3里的身份没有匹配到当前年度配置。</p>
+<p>处理方式：</p>
+<ol>
+<li>回到参保配置。</li>
+<li>检查资助参保身份或医疗救助身份是否缺失。</li>
+<li>如果是别名、细分类或历史名称，编辑配置并补到 <code>包含参保身份</code>。</li>
+<li>重新导入附件3。</li>
+</ol>
+<h3 id="6为什么镇街账号看不到数据">6. 为什么镇街账号看不到数据</h3>
+<p>通常原因：</p>
+<ol>
+<li>管理员还没有下放复核。</li>
+<li>数据已经被管理员收回。</li>
+<li>镇街账号没有绑定镇街。</li>
+<li>账号绑定镇街和台账镇街名称不一致。</li>
+<li>年份、月份或筛选条件选错。</li>
+</ol>
+<h3 id="7为什么不能下放复核">7. 为什么不能下放复核</h3>
+<p>通常原因：</p>
+<ol>
+<li>没有选择镇街、记录或有效筛选条件。</li>
+<li>当前筛选条件没有匹配到数据。</li>
+<li>记录已经处于下放中，不能重复下放。</li>
+<li>当前账号是镇街账号，不允许下放。</li>
+</ol>
+<h3 id="8为什么缴费金额待核查">8. 为什么缴费金额待核查</h3>
+<p>通常原因：</p>
+<ol>
+<li>镇街填报金额与附件4金额不一致。</li>
+<li>附件4金额为空。</li>
+<li>镇街填报参保但没有填缴费金额。</li>
+</ol>
+<p>处理方式：</p>
+<ol>
+<li>对照附件4、镇街填报和实际缴费凭证。</li>
+<li>必要时让镇街修正填报。</li>
+<li>管理员确认后标记为 <code>已核查</code> 并填写备注。</li>
+</ol>
+<h2 id="十五、推荐核对流程">十五、推荐核对流程</h2>
+<ol>
+<li>配置页确认附件1、附件2、附件7、未参保原因、居民缴费金额都有当前年份数据。</li>
+<li>导入附件3后，看统计卡片新增、变更、取消数量。</li>
+<li>到参保导入记录查看是否有未匹配身份或失败原因。</li>
+<li>抽查 5 到 10 个多身份人员，确认医疗救助身份和资助参保身份取最高优先级。</li>
+<li>导入附件4后，核对居民医保缴费金额和区外备注。</li>
+<li>导入附件5后，核对资助金额、参保类别、是否符合资助。</li>
+<li>导入附件6后，核对死亡备注和死亡人员结果。</li>
+<li>如有人工调整，导入附件3人工调整回导并抽查回写字段。</li>
+<li>管理员按镇街、勾选记录或筛选条件下放复核。</li>
+<li>镇街填报后，核对已填报数、未参保原因和缴费金额。</li>
+<li>管理员处理缴费金额待核查记录。</li>
+<li>必要时收回异常批次或异常记录，修正后重新下放。</li>
+<li>导出对比结果，核对新增、变更、取消。</li>
+<li>导出特殊对象资助参保台账，核对最终字段是否完整。</li>
+</ol>
+<h2 id="十六、镇街账号能做什么">十六、镇街账号能做什么</h2>
+<p>镇街账号只能看和处理本镇街已下放、未收回的数据。</p>
+<p>建议开放：</p>
+<ul>
+<li>参保台账明细查看</li>
+<li>本镇街可见数据导出</li>
+<li>是否参保、未参保原因、居民缴费金额、死亡时间、镇街备注填报</li>
+</ul>
+<p>不建议开放：</p>
+<ul>
+<li>参保配置</li>
+<li>附件3/4/5/6 导入</li>
+<li>附件3人工调整回导</li>
+<li>参保导入记录</li>
+<li>下放复核和收回复核</li>
+<li>下放批次管理</li>
+<li>缴费金额核查确认</li>
+</ul>
+<p>镇街账号进入页面后，系统会自动限制为本镇街数据，并且只显示复核状态为 <code>待填报</code>、<code>已填报</code> 的记录。</p>
+    </main>
+  </div>
+  <a class="top-link" href="#top">返回顶部</a>
+</body>
+</html>
