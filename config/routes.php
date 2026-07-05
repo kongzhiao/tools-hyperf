@@ -14,6 +14,7 @@ use Hyperf\HttpServer\Router\Router;
 // ==================== 基础路由 ====================
 Router::addRoute(['GET', 'POST'], '/', 'App\Controller\IndexController::index');
 Router::get('/health', 'App\Controller\IndexController::health');
+Router::get('/helps/{filename:.+}', [App\Controller\HelpController::class, 'show']);
 // Router::get('/favicon.ico', function () {
 //     return '';
 // });
@@ -40,6 +41,7 @@ Router::addGroup('/api', function () {
 Router::addGroup('/api', function () {
     Router::get('/user/info', [App\Controller\AuthController::class, 'info']);
     Router::post('/user/change-password', [App\Controller\AuthController::class, 'changePassword']);
+    Router::get('/helps', [App\Controller\HelpController::class, 'index']);
 
     // 任务管理路由
     Router::get('/tasks', [App\Controller\TaskController::class, 'index']);
