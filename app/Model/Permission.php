@@ -76,16 +76,16 @@ class Permission extends Model
     // 获取用户可访问的菜单
     public static function getUserMenus($userPermissions, $isAdmin = false)
     {
-        $query = self::where('type', 'menu')
+        $menuQuery = self::where('type', 'menu')
             ->orderBy('parent_id')
             ->orderBy('sort')
             ->orderBy('id');
 
         if (!$isAdmin) {
-            $query->where('status', 1);
+            $menuQuery->where('status', 1);
         }
 
-        $menus = $query->get()->toArray();
+        $menus = $menuQuery->get()->toArray();
         if ($isAdmin || in_array('*', $userPermissions, true)) {
             return self::buildTree($menus);
         }
@@ -96,9 +96,22 @@ class Permission extends Model
             $menusById[(int) $menu['id']] = $menu;
         }
 
+        $operationParents = [];
+        $operationQuery = self::where('type', 'operation');
+        if (!$isAdmin) {
+            $operationQuery->where('status', 1);
+        }
+        $operations = $operationQuery->get(['name', 'parent_id'])->toArray();
+        foreach ($operations as $operation) {
+            if (isset($permissionMap[$operation['name']])) {
+                $operationParents[(int) $operation['parent_id']] = true;
+            }
+        }
+
         $allowedIds = [];
         foreach ($menus as $menu) {
-            if (!isset($permissionMap[$menu['name']])) {
+            $id = (int) $menu['id'];
+            if (!isset($permissionMap[$menu['name']]) && !isset($operationParents[$id])) {
                 continue;
             }
 
