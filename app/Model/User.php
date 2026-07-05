@@ -64,7 +64,7 @@ class User extends Model
                 }
             }
         }
-        return array_unique($permissions);
+        return array_values(array_unique($permissions));
     }
     
     /**
@@ -72,13 +72,16 @@ class User extends Model
      */
     public function toJwtArray()
     {
+        $permissions = $this->getPermissions();
+
         return [
             'id' => $this->id,
             'username' => $this->username,
             'nickname' => $this->nickname,
             'town_id' => $this->town_id,
             'town_name' => $this->town ? $this->town->name : null,
-            'permissions' => $this->getPermissions(),
+            'permissions' => $permissions,
+            'menus' => Permission::getUserMenus($permissions, (int) $this->id === 1),
         ];
     }
 }

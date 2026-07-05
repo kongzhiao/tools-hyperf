@@ -76,60 +76,44 @@ class Permission extends Model
     // 获取用户可访问的菜单
     public static function getUserMenus($userPermissions, $isAdmin = false)
     {
-        $query = self::where('type', 'menu')->with('children');
+        $query = self::where('type', 'menu')
+            ->orderBy('parent_id')
+            ->orderBy('sort')
+            ->orderBy('id');
+
         if (!$isAdmin) {
             $query->where('status', 1);
         }
-        $menus = $query->get();
-        $accessibleMenus = [];
 
+        $menus = $query->get()->toArray();
+        if ($isAdmin || in_array('*', $userPermissions, true)) {
+            return self::buildTree($menus);
+        }
+
+        $permissionMap = array_flip($userPermissions);
+        $menusById = [];
         foreach ($menus as $menu) {
-            // 检查用户是否有该菜单的权限
-            $hasPermission = false;
-            
-            // 检查菜单本身
-            if (in_array($menu->name, $userPermissions) || in_array('*', $userPermissions)) {
-                $hasPermission = true;
+            $menusById[(int) $menu['id']] = $menu;
+        }
+
+        $allowedIds = [];
+        foreach ($menus as $menu) {
+            if (!isset($permissionMap[$menu['name']])) {
+                continue;
             }
-            
-            // 检查子菜单
-            if ($menu->children) {
-                $accessibleChildren = [];
-                foreach ($menu->children as $child) {
-                    // 检查子菜单本身是否有权限
-                    if (in_array($child->name, $userPermissions) || in_array('*', $userPermissions)) {
-                        $accessibleChildren[] = $child;
-                    } else {
-                        // 检查子菜单的操作权限（type = 'operation'）
-                        $childOperations = self::where('parent_id', $child->id)
-                            ->where('type', 'operation')
-                            ->get();
-                        
-                        $hasOperationPermission = false;
-                        foreach ($childOperations as $operation) {
-                            if (in_array($operation->name, $userPermissions) || in_array('*', $userPermissions)) {
-                                $hasOperationPermission = true;
-                                break;
-                            }
-                        }
-                        
-                        if ($hasOperationPermission) {
-                            $accessibleChildren[] = $child;
-                        }
-                    }
-                }
-                
-                if (!empty($accessibleChildren)) {
-                    $menu->children = $accessibleChildren;
-                    // 如果有可访问的子菜单，父菜单也应该显示
-                    $hasPermission = true;
-                }
-            }
-            
-            if ($hasPermission) {
-                $accessibleMenus[] = $menu->toArray();
+
+            $current = $menu;
+            while ($current) {
+                $id = (int) $current['id'];
+                $allowedIds[$id] = true;
+                $parentId = (int) ($current['parent_id'] ?? 0);
+                $current = $parentId > 0 ? ($menusById[$parentId] ?? null) : null;
             }
         }
+
+        $accessibleMenus = array_values(array_filter($menus, static function ($menu) use ($allowedIds) {
+            return isset($allowedIds[(int) $menu['id']]);
+        }));
 
         return self::buildTree($accessibleMenus);
     }
