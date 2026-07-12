@@ -94,13 +94,13 @@ class RefundRecordController extends AbstractController
     {
         $rules = $request->input('rules', $request->input('data', []));
         if (!is_array($rules)) {
-            return $this->error('清洗规则格式不正确', 400);
+            return $this->error('筛查规则格式不正确', 400);
         }
         $rules = $this->recordService->normalizeWashRules($rules, $this->recordService->refundWashRules());
         UnrescuedWashConfig::query()->where('rule_name', '应补应退清洗规则')->update(['is_active' => 0]);
         $config = UnrescuedWashConfig::create([
             'version' => date('YmdHis'),
-            'name' => '应补应退清洗规则',
+            'name' => '应补应退筛查规则',
             'rule_name' => '应补应退清洗规则',
             'data' => $rules,
             'is_active' => 1,
@@ -121,12 +121,12 @@ class RefundRecordController extends AbstractController
         $config = $this->activeWashConfig();
         $rules = (array) ($config->data ?? []);
         if (!$this->recordService->hasEnabledWashRules($rules)) {
-            return $this->error('请先配置并启用至少一条清洗规则', 400);
+            return $this->error('请先配置并启用至少一条筛查规则', 400);
         }
 
         $userId = (int) $request->getAttribute('userId', 0);
         $uuid = TaskService::instance()->dispatchTask(
-            sprintf('应补应退明细_清洗_%s_', $period),
+            sprintf('应补应退明细_筛查_%s_', $period),
             $userId,
             (string) $request->getAttribute('username', 'System'),
             RefundWashExecuteJob::class,
@@ -138,9 +138,9 @@ class RefundRecordController extends AbstractController
             sprintf('task:lock:%d:refundWash:%s', $userId, $period)
         );
         if ($uuid === false) {
-            return $this->error('当前清算期清洗任务正在执行中，请勿重复提交', 400);
+            return $this->error('当前清算期筛查任务正在执行中，请勿重复提交', 400);
         }
-        return $this->success(['uuid' => $uuid], '清洗任务已提交');
+        return $this->success(['uuid' => $uuid], '筛查任务已提交');
     }
 
     /**
@@ -155,7 +155,10 @@ class RefundRecordController extends AbstractController
 
         $task = Task::query()
             ->where('uid', (int) $request->getAttribute('userId', 0))
-            ->where('title', 'like', sprintf('应补应退明细\_清洗\_%s\_%%', $period))
+            ->where(function ($query) use ($period) {
+                $query->where('title', 'like', sprintf('应补应退明细\_筛查\_%s\_%%', $period))
+                    ->orWhere('title', 'like', sprintf('应补应退明细\_清洗\_%s\_%%', $period));
+            })
             ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_RUNNING])
             ->orderByDesc('id')
             ->first();
@@ -239,11 +242,12 @@ class RefundRecordController extends AbstractController
                 (array) ($config->data ?? []),
                 $this->recordService->refundWashRules()
             );
+            $config->name = '应补应退筛查规则';
             return $config;
         }
         return UnrescuedWashConfig::create([
             'version' => 'refund_default_' . date('YmdHis'),
-            'name' => '应补应退清洗规则',
+            'name' => '应补应退筛查规则',
             'rule_name' => '应补应退清洗规则',
             'data' => $this->recordService->refundWashRules(),
             'is_active' => 1,

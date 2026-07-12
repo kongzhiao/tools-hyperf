@@ -33,31 +33,60 @@ class RefundWashExecuteJob extends AbstractJob
             }
             $config = UnrescuedWashConfig::query()->find($configId);
             if (!$config) {
-                throw new \RuntimeException('清洗规则配置不存在');
+                throw new \RuntimeException('筛查规则配置不存在');
             }
 
             $rules = $service->normalizeWashRules((array) ($config->data ?? []), $service->refundWashRules());
+            $priorityRule = $service->priorityWashRule($rules);
+            $ordinaryRules = $service->withoutPriorityWashRule($rules);
+            $enabledMajorDiseaseCodes = $service->enabledMajorDiseaseCodes();
             $ruleByCode = [];
-            foreach ($rules as $rule) {
+            foreach ($ordinaryRules as $rule) {
                 if (!empty($rule['code'])) {
                     $ruleByCode[(string) $rule['code']] = $rule;
                 }
             }
             $total = UnrescuedRefundRecord::query()->where('settlement_period', $period)->count();
             $summary = [];
+            $priorityKept = 0;
+            $priorityExcluded = 0;
+            $initialized = 0;
 
             UnrescuedRefundRecord::query()
                 ->where('settlement_period', $period)
-                ->update([
-                    'exclude_status' => UnrescuedRecordService::EXCLUDE_NO,
-                    'exclude_rule_code' => null,
-                    'remark' => null,
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                ->orderBy('id')
+                ->chunkById(500, function ($records) use ($service, $priorityRule, $enabledMajorDiseaseCodes, &$priorityKept, &$priorityExcluded, &$initialized, &$summary, $total) {
+                    $updates = [];
+                    foreach ($records as $record) {
+                        $initialized++;
+                        $priorityMatched = $service->matchesPriorityWashRule($record, $priorityRule, $enabledMajorDiseaseCodes);
+                        $priorityAction = $service->priorityWashAction($priorityRule);
+                        $isExcluded = $priorityMatched && $priorityAction === 'exclude';
+                        $updates[] = [
+                            'id' => (int) $record->id,
+                            'status' => $priorityMatched ? UnrescuedRecordService::STATUS_NOTICE_2 : $service->screeningStatus($record),
+                            'exclude_status' => $isExcluded ? UnrescuedRecordService::EXCLUDE_YES : UnrescuedRecordService::EXCLUDE_NO,
+                            'exclude_rule_code' => $priorityMatched ? UnrescuedRecordService::PRIORITY_WASH_RULE_CODE : null,
+                            'remark' => $priorityMatched ? (string) ($priorityRule['remark'] ?? '') : null,
+                        ];
 
-            $excluded = 0;
+                        if ($priorityMatched) {
+                            $summary[UnrescuedRecordService::PRIORITY_WASH_RULE_CODE] = ($summary[UnrescuedRecordService::PRIORITY_WASH_RULE_CODE] ?? 0) + 1;
+                            if ($isExcluded) {
+                                $priorityExcluded++;
+                            } else {
+                                $priorityKept++;
+                            }
+                        }
+                    }
+                    $this->batchUpdateScreeningResult($updates);
+                    $this->updateProgress($this->uuid, $total > 0 ? min(($initialized / $total) * 40, 40) : 40);
+                }, 'id');
+
+            $excluded = $priorityExcluded;
             if (($ruleByCode['total_fee_offset_pair']['enabled'] ?? false) === true) {
                 $excluded = $this->excludeOffsetPairs($period, $ruleByCode['total_fee_offset_pair'], $summary);
+                $excluded += $priorityExcluded;
             }
             $processed = 0;
             $medicalAssistanceRule = $ruleByCode['medical_assistance_positive'] ?? null;
@@ -66,8 +95,12 @@ class RefundWashExecuteJob extends AbstractJob
             UnrescuedRefundRecord::query()
                 ->where('settlement_period', $period)
                 ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
+                ->where(function ($query) {
+                    $query->whereNull('exclude_rule_code')
+                        ->orWhere('exclude_rule_code', '!=', UnrescuedRecordService::PRIORITY_WASH_RULE_CODE);
+                })
                 ->orderBy('id')
-                ->chunk(500, function ($records) use ($service, $rules, $medicalAssistanceRule, $medicalAssistanceEnabled, &$processed, &$excluded, &$summary, $total) {
+                ->chunkById(500, function ($records) use ($service, $ordinaryRules, $medicalAssistanceRule, $medicalAssistanceEnabled, &$processed, &$excluded, &$summary, $total) {
                     $updates = [];
                     foreach ($records as $record) {
                         $processed++;
@@ -75,7 +108,7 @@ class RefundWashExecuteJob extends AbstractJob
                         if ($medicalAssistanceEnabled && (float) $record->medical_assistance_pay > 0) {
                             $rule = $medicalAssistanceRule;
                         } else {
-                            $rule = $service->matchWashRule($record, $rules);
+                            $rule = $service->matchWashRule($record, $ordinaryRules);
                         }
                         if (!$rule) {
                             continue;
@@ -90,8 +123,8 @@ class RefundWashExecuteJob extends AbstractJob
                         $excluded++;
                     }
                     $this->batchMarkExcluded($updates);
-                    $this->updateProgress($this->uuid, $total > 0 ? min(($processed / $total) * 100, 99.9) : 99.9);
-                });
+                    $this->updateProgress($this->uuid, $total > 0 ? min(40 + ($processed / $total) * 59.9, 99.9) : 99.9);
+                }, 'id');
 
             UnrescuedWashLog::create([
                 'settlement_period' => $period,
@@ -104,9 +137,9 @@ class RefundWashExecuteJob extends AbstractJob
                 'created_by' => $createdBy,
             ]);
 
-            $title = Task::where('uuid', $this->uuid)->value('title') ?: '应补应退明细_清洗_';
+            $title = Task::where('uuid', $this->uuid)->value('title') ?: '应补应退明细_筛查_';
             if (!str_contains($title, '(剔除')) {
-                $title .= sprintf('(剔除%d/保留%d)', $excluded, $total - $excluded);
+                $title .= sprintf('(剔除%d/优先保留%d/保留%d)', $excluded, $priorityKept, $total - $excluded);
             }
             $this->updateTask($this->uuid, [
                 'progress' => 100.00,
@@ -116,7 +149,7 @@ class RefundWashExecuteJob extends AbstractJob
             ]);
         } catch (\Throwable $e) {
             $logger->error('Refund wash failed: ' . $e->getMessage(), ['uuid' => $this->uuid]);
-            $this->failTask($e, '应补应退清洗失败');
+            $this->failTask($e, '应补应退筛查失败');
         } finally {
             $this->releaseLock();
         }
@@ -127,6 +160,11 @@ class RefundWashExecuteJob extends AbstractJob
         $rows = UnrescuedRefundRecord::query()
             ->select(['id', 'id_card', 'total_fee'])
             ->where('settlement_period', $period)
+            ->where('exclude_status', '!=', UnrescuedRecordService::EXCLUDE_YES)
+            ->where(function ($query) {
+                $query->whereNull('exclude_rule_code')
+                    ->orWhere('exclude_rule_code', '!=', UnrescuedRecordService::PRIORITY_WASH_RULE_CODE);
+            })
             ->where('total_fee', '!=', 0)
             ->orderBy('id')
             ->get();
@@ -178,6 +216,28 @@ class RefundWashExecuteJob extends AbstractJob
                         'exclude_rule_code' => $row['code'],
                         'remark' => $row['remark'],
                         'updated_at' => date('Y-m-d H:i:s'),
+                    ]);
+            }
+        }
+    }
+
+    private function batchUpdateScreeningResult(array $rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        $now = date('Y-m-d H:i:s');
+        foreach (array_chunk($rows, 500) as $chunk) {
+            foreach ($chunk as $row) {
+                UnrescuedRefundRecord::query()
+                    ->where('id', $row['id'])
+                    ->update([
+                        'status' => $row['status'],
+                        'exclude_status' => $row['exclude_status'],
+                        'exclude_rule_code' => $row['exclude_rule_code'],
+                        'remark' => $row['remark'],
+                        'updated_at' => $now,
                     ]);
             }
         }

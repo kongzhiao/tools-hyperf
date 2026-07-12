@@ -139,6 +139,9 @@ class RecordController extends AbstractController
         foreach ($rules as $rule) {
             $code = (string) ($rule['code'] ?? '');
             $values = (array) ($rule['values'] ?? []);
+            if ($code === UnrescuedRecordService::PRIORITY_WASH_RULE_CODE) {
+                $medicalCategories = array_merge($medicalCategories, (array) ($rule['medical_categories'] ?? []));
+            }
             if ($code === 'medical_category_keep') {
                 $medicalCategories = array_merge($medicalCategories, $values);
             }
@@ -159,15 +162,15 @@ class RecordController extends AbstractController
     public function saveWashConfig(RequestInterface $request)
     {
         if ($this->currentTownId($request) > 0) {
-            return $this->error('镇街账号不能配置清洗规则', 403);
+            return $this->error('镇街账号不能配置筛查规则', 403);
         }
 
         $rules = $request->input('rules', $request->input('data', []));
         if (!is_array($rules)) {
-            return $this->error('清洗规则格式不正确', 400);
+            return $this->error('筛查规则格式不正确', 400);
         }
 
-        $name = trim((string) $request->input('name', '未救助默认清洗规则'));
+        $name = trim((string) $request->input('name', '未救助默认筛查规则'));
         $rules = $this->recordService->normalizeWashRules($rules);
 
         UnrescuedWashConfig::query()
@@ -185,7 +188,7 @@ class RecordController extends AbstractController
 
         $this->syncWashRuleFilterOptions($rules);
 
-        $this->operationLogService->record('未救助明细', '保存清洗规则', 'wash_config', (string) $config->id, '保存未救助清洗规则', ['version' => $config->version]);
+        $this->operationLogService->record('未救助明细', '保存筛查规则', 'wash_config', (string) $config->id, '保存未救助筛查规则', ['version' => $config->version]);
 
         return $this->success($config, '保存成功');
     }
@@ -196,7 +199,7 @@ class RecordController extends AbstractController
     public function executeWash(RequestInterface $request)
     {
         if ($this->currentTownId($request) > 0) {
-            return $this->error('镇街账号不能执行清洗', 403);
+            return $this->error('镇街账号不能执行筛查', 403);
         }
 
         $period = $this->recordService->normalizePeriod((string) $request->input('settlement_period', ''));
@@ -207,7 +210,7 @@ class RecordController extends AbstractController
         $config = $this->activeWashConfig();
         $rules = (array) ($config->data ?? []);
         if (!$this->recordService->hasEnabledWashRules($rules)) {
-            return $this->error('请先配置并启用至少一条清洗规则', 400);
+            return $this->error('请先配置并启用至少一条筛查规则', 400);
         }
 
         $townId = (int) $request->input('town_id', 0);
@@ -215,7 +218,7 @@ class RecordController extends AbstractController
         $username = (string) $request->getAttribute('username', 'System');
         $lockKey = sprintf('task:lock:%d:unrescuedWash:%s:%d', $userId, $period, $townId);
         $uuid = TaskService::instance()->dispatchTask(
-            sprintf('未救助台账_清洗_清洗规则_%s_', $period),
+            sprintf('未救助台账_筛查_筛查规则_%s_', $period),
             $userId,
             $username,
             WashExecuteJob::class,
@@ -229,15 +232,15 @@ class RecordController extends AbstractController
         );
 
         if ($uuid === false) {
-            return $this->error('当前清算期清洗任务正在执行中，请勿重复提交', 400);
+            return $this->error('当前清算期筛查任务正在执行中，请勿重复提交', 400);
         }
 
-        $this->operationLogService->record('未救助明细', '提交清洗', 'wash_task', $uuid, '提交未救助清洗任务', [
+        $this->operationLogService->record('未救助明细', '提交筛查', 'wash_task', $uuid, '提交未救助筛查任务', [
             'settlement_period' => $period,
             'town_id' => $townId,
         ]);
 
-        return $this->success(['uuid' => $uuid], '清洗任务已提交，请等待执行完成');
+        return $this->success(['uuid' => $uuid], '筛查任务已提交，请等待执行完成');
     }
 
     /**
@@ -252,7 +255,11 @@ class RecordController extends AbstractController
 
         $task = Task::query()
             ->where('uid', (int) $request->getAttribute('userId', 0))
-            ->where('title', 'like', sprintf('未救助台账\_执行清洗\_%s\_%%', $period))
+            ->where(function ($query) use ($period) {
+                $query->where('title', 'like', sprintf('未救助台账\_筛查\_筛查规则\_%s\_%%', $period))
+                    ->orWhere('title', 'like', sprintf('未救助台账\_清洗\_清洗规则\_%s\_%%', $period))
+                    ->orWhere('title', 'like', sprintf('未救助台账\_执行清洗\_%s\_%%', $period));
+            })
             ->whereIn('status', [Task::STATUS_PENDING, Task::STATUS_RUNNING])
             ->orderByDesc('id')
             ->first();
@@ -549,12 +556,13 @@ class RecordController extends AbstractController
             ->first();
         if ($config) {
             $config->data = $this->recordService->normalizeWashRules((array) ($config->data ?? []));
+            $config->name = '未救助默认筛查规则';
             return $config;
         }
 
         return UnrescuedWashConfig::create([
             'version' => 'default_' . date('YmdHis'),
-            'name' => '未救助默认清洗规则',
+            'name' => '未救助默认筛查规则',
             'rule_name' => '未救助默认清洗规则',
             'data' => $this->recordService->defaultWashRules(),
             'is_active' => 1,
@@ -634,6 +642,7 @@ class RecordController extends AbstractController
     private function syncWashRuleFilterOptions(array $rules): void
     {
         $typeByCode = [
+            UnrescuedRecordService::PRIORITY_WASH_RULE_CODE => 'medical_category',
             'medical_category_keep' => 'medical_category',
             'identity_exclude' => 'priority_identity',
         ];
@@ -645,7 +654,10 @@ class RecordController extends AbstractController
                 continue;
             }
 
-            foreach ((array) ($rule['values'] ?? []) as $value) {
+            $values = $code === UnrescuedRecordService::PRIORITY_WASH_RULE_CODE
+                ? (array) ($rule['medical_categories'] ?? [])
+                : (array) ($rule['values'] ?? []);
+            foreach ($values as $value) {
                 $this->filterOptionService->saveOption('unrescued', $type, (string) $value, 'wash_config');
             }
         }

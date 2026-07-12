@@ -35,13 +35,17 @@ class WashExecuteJob extends AbstractJob
 
             $config = UnrescuedWashConfig::query()->find($configId);
             if (!$config) {
-                throw new \RuntimeException('清洗规则配置不存在');
+                throw new \RuntimeException('筛查规则配置不存在');
             }
 
             $rules = $service->normalizeWashRules((array) ($config->data ?? []));
+            $priorityRule = $service->priorityWashRule($rules);
+            $ordinaryRules = $service->withoutPriorityWashRule($rules);
+            $enabledMajorDiseaseCodes = $service->enabledMajorDiseaseCodes();
             $total = $this->baseQuery($period, $townId)->count();
             $processed = 0;
             $excluded = 0;
+            $priorityKept = 0;
             $summary = [];
             $lastId = 0;
             $chunkSize = 1000;
@@ -66,15 +70,38 @@ class WashExecuteJob extends AbstractJob
                     break;
                 }
 
-                $matchedRows = [];
-                $keptIds = [];
+                $resultRows = [];
                 foreach ($records as $record) {
                     $lastId = max($lastId, (int) $record->id);
-                    $matched = $service->matchWashRule($record, $rules);
+                    $baseStatus = $service->screeningStatus($record);
+
+                    if ($service->matchesPriorityWashRule($record, $priorityRule, $enabledMajorDiseaseCodes)) {
+                        $action = $service->priorityWashAction($priorityRule);
+                        $isExcluded = $action === 'exclude';
+                        $code = UnrescuedRecordService::PRIORITY_WASH_RULE_CODE;
+                        $resultRows[] = [
+                            'id' => (int) $record->id,
+                            'status' => UnrescuedRecordService::STATUS_NOTICE_2,
+                            'exclude_status' => $isExcluded ? UnrescuedRecordService::EXCLUDE_YES : UnrescuedRecordService::EXCLUDE_NO,
+                            'exclude_rule_code' => $code,
+                            'remark' => (string) ($priorityRule['remark'] ?? ''),
+                        ];
+                        $summary[$code] = ($summary[$code] ?? 0) + 1;
+                        if ($isExcluded) {
+                            $excluded++;
+                        } else {
+                            $priorityKept++;
+                        }
+                        continue;
+                    }
+
+                    $matched = $service->matchWashRule($record, $ordinaryRules);
                     if ($matched) {
                         $code = (string) ($matched['code'] ?? 'unknown');
-                        $matchedRows[] = [
+                        $resultRows[] = [
                             'id' => (int) $record->id,
+                            'status' => $baseStatus,
+                            'exclude_status' => UnrescuedRecordService::EXCLUDE_YES,
                             'exclude_rule_code' => $code,
                             'remark' => (string) ($matched['remark'] ?? ''),
                         ];
@@ -83,10 +110,16 @@ class WashExecuteJob extends AbstractJob
                         continue;
                     }
 
-                    $keptIds[] = (int) $record->id;
+                    $resultRows[] = [
+                        'id' => (int) $record->id,
+                        'status' => $baseStatus,
+                        'exclude_status' => UnrescuedRecordService::EXCLUDE_NO,
+                        'exclude_rule_code' => null,
+                        'remark' => null,
+                    ];
                 }
 
-                $this->flushWashResult($matchedRows, $keptIds);
+                $this->flushWashResult($resultRows);
                 $processed += $records->count();
 
                 $progress = $total > 0 ? min(($processed / $total) * 100, 99.9) : 99.9;
@@ -112,9 +145,9 @@ class WashExecuteJob extends AbstractJob
                 'created_by' => $createdBy,
             ]);
 
-            $title = Task::where('uuid', $this->uuid)->value('title') ?: '未救助台账_清洗_清洗规则_';
+            $title = Task::where('uuid', $this->uuid)->value('title') ?: '未救助台账_筛查_筛查规则_';
             if (!str_contains($title, '(剔除')) {
-                $title .= sprintf('(剔除%d/保留%d)', $excluded, $total - $excluded);
+                $title .= sprintf('(剔除%d/优先保留%d/保留%d)', $excluded, $priorityKept, $total - $excluded);
             }
             $this->updateTask($this->uuid, [
                 'progress' => 100.00,
@@ -137,7 +170,7 @@ class WashExecuteJob extends AbstractJob
                 'uuid' => $this->uuid,
                 'params' => $this->params,
             ]);
-            $this->failTask($e, '未救助清洗失败');
+            $this->failTask($e, '未救助筛查失败');
         } finally {
             $this->releaseLock();
         }
@@ -153,28 +186,13 @@ class WashExecuteJob extends AbstractJob
         return $query;
     }
 
-    private function flushWashResult(array $matchedRows, array $keptIds): void
+    private function flushWashResult(array $rows): void
     {
         $now = date('Y-m-d H:i:s');
         Db::beginTransaction();
         try {
-            if (!empty($matchedRows)) {
-                foreach (array_chunk($matchedRows, 500) as $chunk) {
-                    $this->batchMarkExcluded($chunk, $now);
-                }
-            }
-
-            if (!empty($keptIds)) {
-                foreach (array_chunk($keptIds, 1000) as $ids) {
-                    UnrescuedRecord::query()
-                        ->whereIn('id', $ids)
-                        ->update([
-                            'exclude_status' => UnrescuedRecordService::EXCLUDE_NO,
-                            'exclude_rule_code' => null,
-                            'remark' => null,
-                            'updated_at' => $now,
-                        ]);
-                }
+            foreach (array_chunk($rows, 500) as $chunk) {
+                $this->batchUpdateScreeningResult($chunk, $now);
             }
 
             Db::commit();
@@ -184,34 +202,31 @@ class WashExecuteJob extends AbstractJob
         }
     }
 
-    private function batchMarkExcluded(array $rows, string $now): void
+    private function batchUpdateScreeningResult(array $rows, string $now): void
     {
+        if ($rows === []) {
+            return;
+        }
+
         $ids = array_column($rows, 'id');
         $bindings = [];
-        $ruleCase = '`exclude_rule_code` = CASE `id`';
-        $remarkCase = '`remark` = CASE `id`';
-
-        foreach ($rows as $row) {
-            $ruleCase .= ' WHEN ? THEN ?';
-            $bindings[] = $row['id'];
-            $bindings[] = $row['exclude_rule_code'];
+        $caseStatements = [];
+        foreach (['status', 'exclude_status', 'exclude_rule_code', 'remark'] as $field) {
+            $case = "`{$field}` = CASE `id`";
+            foreach ($rows as $row) {
+                $case .= ' WHEN ? THEN ?';
+                $bindings[] = $row['id'];
+                $bindings[] = $row[$field];
+            }
+            $caseStatements[] = $case . " ELSE `{$field}` END";
         }
-        $ruleCase .= ' ELSE `exclude_rule_code` END';
-
-        foreach ($rows as $row) {
-            $remarkCase .= ' WHEN ? THEN ?';
-            $bindings[] = $row['id'];
-            $bindings[] = $row['remark'];
-        }
-        $remarkCase .= ' ELSE `remark` END';
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $bindings[] = UnrescuedRecordService::EXCLUDE_YES;
         $bindings[] = $now;
         $bindings = array_merge($bindings, $ids);
 
         Db::update(
-            "UPDATE `unrescued_records` SET {$ruleCase}, {$remarkCase}, `exclude_status` = ?, `updated_at` = ? WHERE `id` IN ({$placeholders})",
+            'UPDATE `unrescued_records` SET ' . implode(', ', $caseStatements) . ", `updated_at` = ? WHERE `id` IN ({$placeholders})",
             $bindings
         );
     }

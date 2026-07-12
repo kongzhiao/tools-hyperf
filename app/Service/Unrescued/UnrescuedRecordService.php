@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Unrescued;
 
 use App\Model\Town;
+use App\Model\Unrescued\UnrescuedDiseaseConfig;
 use App\Model\Unrescued\UnrescuedRecord;
 use Carbon\Carbon;
 
@@ -32,6 +33,7 @@ class UnrescuedRecordService
     public const EXCLUDE_YES = '已剔除';
     public const MATCHED = '已匹配';
     public const UNMATCHED = '未匹配';
+    public const PRIORITY_WASH_RULE_CODE = 'outpatient_major_disease';
 
     public function pickValue(array $row, array $headers, string $default = ''): string
     {
@@ -372,6 +374,18 @@ class UnrescuedRecordService
     {
         return [
             [
+                'code' => self::PRIORITY_WASH_RULE_CODE,
+                'name' => '门诊重大疾病匹配',
+                'field' => 'medical_category',
+                'action' => 'keep',
+                'operator' => 'compound',
+                'medical_categories' => ['门诊慢特病', '造口袋门诊'],
+                'disease_codes' => ['M00500'],
+                'remark' => '门诊重大疾病匹配，标记为拟通知2',
+                'condition_text' => '医疗类别命中配置，且病种编码命中指定编码或已启用的重大疾病编码库',
+                'enabled' => true,
+            ],
+            [
                 'code' => 'medical_category_keep',
                 'name' => '医疗类别保留',
                 'field' => 'medical_category',
@@ -541,6 +555,89 @@ class UnrescuedRecordService
         }
 
         return false;
+    }
+
+    public function priorityWashRule(array $rules): ?array
+    {
+        foreach ($rules as $rule) {
+            if ((string) ($rule['code'] ?? '') === self::PRIORITY_WASH_RULE_CODE) {
+                return $rule;
+            }
+        }
+
+        return null;
+    }
+
+    public function withoutPriorityWashRule(array $rules): array
+    {
+        return array_values(array_filter(
+            $rules,
+            static fn (array $rule): bool => (string) ($rule['code'] ?? '') !== self::PRIORITY_WASH_RULE_CODE
+        ));
+    }
+
+    public function enabledMajorDiseaseCodes(): array
+    {
+        return UnrescuedDiseaseConfig::query()
+            ->where('status', 1)
+            ->pluck('disease_code')
+            ->map(fn ($code) => $this->normalizeDiseaseCode((string) $code))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function matchesPriorityWashRule(object $record, ?array $rule, array $enabledMajorDiseaseCodes): bool
+    {
+        if (!$rule || !filter_var($rule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
+        $medicalCategory = trim((string) ($record->medical_category ?? ''));
+        $medicalCategories = array_values(array_filter(array_map(
+            static fn ($value): string => trim((string) $value),
+            (array) ($rule['medical_categories'] ?? [])
+        )));
+        if ($medicalCategory === '' || !in_array($medicalCategory, $medicalCategories, true)) {
+            return false;
+        }
+
+        $diseaseCode = $this->normalizeDiseaseCode((string) ($record->disease_code ?? ''));
+        if ($diseaseCode === '') {
+            return false;
+        }
+
+        $configuredCodes = array_map(
+            fn ($code): string => $this->normalizeDiseaseCode((string) $code),
+            (array) ($rule['disease_codes'] ?? [])
+        );
+        $libraryCodes = array_map(
+            fn ($code): string => $this->normalizeDiseaseCode((string) $code),
+            $enabledMajorDiseaseCodes
+        );
+
+        return in_array($diseaseCode, array_unique(array_filter(array_merge($configuredCodes, $libraryCodes))), true);
+    }
+
+    public function priorityWashAction(?array $rule): string
+    {
+        return (string) ($rule['action'] ?? 'keep') === 'exclude' ? 'exclude' : 'keep';
+    }
+
+    public function screeningStatus(object $record): string
+    {
+        $currentStatus = (string) ($record->status ?? '');
+        if ($this->shouldKeepWorkflowStatus($currentStatus)) {
+            return $currentStatus;
+        }
+
+        return $this->decideStatus((string) ($record->calc_reimbursement_amount ?? '0'));
+    }
+
+    public function normalizeDiseaseCode(string $code): string
+    {
+        return mb_strtoupper(trim($code));
     }
 
     public function matchWashRule(object $record, array $rules): ?array
