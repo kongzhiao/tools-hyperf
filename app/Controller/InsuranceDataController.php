@@ -1143,7 +1143,7 @@ class InsuranceDataController extends AbstractController
                 $cellIterator = $headerRow->getCellIterator();
                 $cellIterator->setIterateOnlyExistingCells(true);
 
-                $column = 'A';
+                $column = 0;
                 foreach ($cellIterator as $cell) {
                     $value = $cell->getValue();
                     if (!empty($value)) {
@@ -1200,7 +1200,7 @@ class InsuranceDataController extends AbstractController
             $uploadDir = BASE_PATH . '/storage/uploads/';
             if (!is_dir($uploadDir))
                 mkdir($uploadDir, 0755, true);
-            $newFileName = 'insurance_import_' . time() . '_' . uniqid() . '.csv';
+            $newFileName = 'insurance_import_' . time() . '_' . uniqid() . '.' . $fileExtension;
             $finalPath = $uploadDir . $newFileName;
 
             // 如果是流上传，可能没有 getRealPath
@@ -1225,7 +1225,8 @@ class InsuranceDataController extends AbstractController
                     $finalPath,
                     (int) $year,
                     (string) $importType,
-                    $columnMap
+                    $columnMap,
+                    1
                 ],
                 $lockKey
             );
@@ -1297,7 +1298,7 @@ class InsuranceDataController extends AbstractController
                 $headerRow = $worksheet->getRowIterator(3)->current();
                 $cellIterator = $headerRow->getCellIterator();
                 $cellIterator->setIterateOnlyExistingCells(true);
-                $column = 'A';
+                $column = 0;
                 foreach ($cellIterator as $cell) {
                     $value = $cell->getValue();
                     if (!empty($value)) {
@@ -1316,7 +1317,7 @@ class InsuranceDataController extends AbstractController
             $uploadDir = BASE_PATH . '/storage/uploads/';
             if (!is_dir($uploadDir))
                 mkdir($uploadDir, 0755, true);
-            $newFileName = 'insurance_stream_import_' . time() . '_' . uniqid() . '.csv';
+            $newFileName = 'insurance_stream_import_' . time() . '_' . uniqid() . '.' . $fileExtension;
             $finalPath = $uploadDir . $newFileName;
 
             if (method_exists($file, 'moveTo')) {
@@ -1340,7 +1341,8 @@ class InsuranceDataController extends AbstractController
                     $finalPath,
                     (int) $year,
                     (string) $importType,
-                    $columnMap
+                    $columnMap,
+                    $isCsv ? 1 : 3
                 ],
                 $lockKey
             );

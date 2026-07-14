@@ -22,14 +22,16 @@ class InsuranceDataImportJob extends AbstractJob
     public int $year;
     public string $importType;
     public array $columnMap;
+    public int $headerRow;
 
-    public function __construct(array $params, string $uuid, string $filePath, int $year, string $importType, array $columnMap)
+    public function __construct(array $params, string $uuid, string $filePath, int $year, string $importType, array $columnMap, int $headerRow = 1)
     {
         parent::__construct($params, $uuid);
         $this->filePath = $filePath;
         $this->year = $year;
         $this->importType = $importType;
         $this->columnMap = $columnMap;
+        $this->headerRow = $headerRow;
     }
 
     public function handle()
@@ -58,7 +60,7 @@ class InsuranceDataImportJob extends AbstractJob
             }
 
             $csvReader = new CsvReaderService();
-            $totalRows = $csvReader->countRows($this->filePath) - 1; // 扣除表头
+            $totalRows = max(0, $csvReader->countRows($this->filePath) - $this->headerRow);
 
             $result = [
                 'imported_count' => 0,
@@ -84,8 +86,9 @@ class InsuranceDataImportJob extends AbstractJob
             $currentRowIdx = 0;
             $csvReader->read($this->filePath, function ($row) use (&$result, &$validData, &$processedCount, &$currentRowIdx, &$levelMatchingTime, $batchSize, $duplicateIds, $logger) {
                 $currentRowIdx++;
-                if ($currentRowIdx === 1)
-                    return; // 跳过表头
+                if ($currentRowIdx <= $this->headerRow) {
+                    return;
+                }
 
                 try {
                     $idCard = isset($this->columnMap['id_number']) ? trim((string) ($row[$this->columnMap['id_number']] ?? '')) : null;
