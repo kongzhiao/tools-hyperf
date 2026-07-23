@@ -1,0 +1,748 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>统计汇总用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  
+    .note {
+      margin: 14px 0 18px;
+      padding: 12px 15px;
+      border: 1px solid var(--border-strong);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: #f7fbff;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .note strong { color: #173e73; }
+    .note.info { border-left-color: var(--primary); background: #f3f8ff; }
+    .note.success { border-left-color: #16a34a; background: #f1fbf4; }
+    .note.warn { border-left-color: var(--check); background: var(--check-soft); }
+    .note.danger { border-left-color: #ef4444; background: #fff4f4; }
+    .quick-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 22px;
+      counter-reset: flow-step;
+    }
+    .quick-flow .step {
+      position: relative;
+      min-height: 96px;
+      padding: 15px 14px 13px 48px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: linear-gradient(145deg, #fff, #f3f8ff);
+      box-shadow: 0 9px 20px rgba(30, 84, 146, 0.07);
+    }
+    .quick-flow .step::before {
+      counter-increment: flow-step;
+      content: counter(flow-step);
+      position: absolute;
+      left: 13px;
+      top: 14px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    .quick-flow .step b { display: block; margin-bottom: 4px; color: #173e73; }
+    .quick-flow .step span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .status {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status.pending { color: #9a5b00; background: #fff2cc; }
+    .status.ok { color: #15703a; background: #dcf8e6; }
+    .status.stop { color: #a12b2b; background: #ffe4e4; }
+    .status.muted { color: #5c6675; background: #edf0f4; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; padding-left: 28px; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 2px;
+      top: 0;
+      color: #16803a;
+      font-weight: 900;
+    }
+    .entry {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      color: #173e73;
+      font-weight: 700;
+    }
+    .small { color: var(--muted); font-size: 14px; }
+    .doc-footer {
+      margin-top: 38px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    @media (max-width: 480px) {
+      .top-link {
+        right: 10px;
+        bottom: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        opacity: 0.82;
+      }
+    }
+
+  
+    .role-swimlane { overflow-x: auto; }
+    .role-swimlane .swimlane-canvas { min-width: 780px; }
+    @media (max-width: 900px) {
+      .role-swimlane { -webkit-overflow-scrolling: touch; }
+      .role-swimlane .swimlane-canvas { min-width: 780px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#统计汇总用户操作与核对参考文档">统计汇总用户操作与核对参考文档</a>
+      <a class="toc-level-2" href="#一、标准工作流程">一、标准工作流程</a>
+      <a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+      <a class="toc-level-2" href="#三、数据项目管理">三、数据项目管理</a>
+      <a class="toc-level-3" href="#1新增或编辑项目">1. 新增或编辑项目</a>
+      <a class="toc-level-3" href="#2删除项目">2. 删除项目</a>
+      <a class="toc-level-2" href="#四、导入统计明细">四、导入统计明细</a>
+      <a class="toc-level-2" href="#五、查看和核对数据详情">五、查看和核对数据详情</a>
+      <a class="toc-level-3" href="#1建议抽查方式">1. 建议抽查方式</a>
+      <a class="toc-level-3" href="#2清空项目数据">2. 清空项目数据</a>
+      <a class="toc-level-2" href="#六、人次统计">六、人次统计</a>
+      <a class="toc-level-2" href="#七、报销统计">七、报销统计</a>
+      <a class="toc-level-2" href="#八、倾斜救助统计">八、倾斜救助统计</a>
+      <a class="toc-level-2" href="#九、导出明细">九、导出明细</a>
+      <a class="toc-level-2" href="#十、最终验收清单">十、最终验收清单</a>
+      <a class="toc-level-2" href="#十一、常见问题">十一、常见问题</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">用户操作与核对参考文档 · 单文件可离线浏览</div>
+      <h1 id="统计汇总用户操作与核对参考文档">统计汇总用户操作与核对参考文档</h1>
+      <p>更新时间：2026-07-23</p>
+<p>本模块以“年月号”为数据项目，汇集区内、跨区和手工明细，并生成就诊人次、报销和倾斜救助统计。一个项目可包含三类明细。</p>
+
+<h2 id="一、标准工作流程">一、标准工作流程</h2>
+<div class="quick-flow">
+  <div class="step"><b>创建数据项目</b><span>填写年月号</span></div>
+  <div class="step"><b>下载对应模板</b><span>区内、跨区或手工</span></div>
+  <div class="step"><b>导入明细</b><span>到任务中心核对</span></div>
+  <div class="step"><b>查看数据详情</b><span>按类型和人员抽查</span></div>
+  <div class="step"><b>生成统计</b><span>选择一个或多个项目</span></div>
+  <div class="step"><b>导出归档</b><span>统计表和明细</span></div>
+</div>
+
+
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<p>泳道图按实际岗位展示操作发起、系统处理、业务复核和异常回退关系；账号未获相应操作权限时，对应按钮不会显示。</p>
+<div class="swimlane-wrap role-swimlane" aria-label="统计汇总角色操作泳道图">
+  <div class="swimlane-title">统计汇总角色操作泳道图</div>
+  <div class="swimlane-canvas" style="height:980px;">
+    <div class="lane-head lane-1">统计经办人</div>
+    <div class="lane-head lane-2">系统 / 任务中心</div>
+    <div class="lane-head lane-3">明细复核人员</div>
+    <div class="lane-head lane-4">汇总使用人员</div>
+    <svg class="flow-lines" viewBox="0 0 1000 980" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-statistics" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-statistics)" d="M125 128 L125 165"></path>
+      <path marker-end="url(#arrow-statistics)" d="M125 223 L125 260"></path>
+      <path marker-end="url(#arrow-statistics)" d="M189 289 L311 384"></path>
+      <path marker-end="url(#arrow-statistics)" d="M439 384 L561 489"></path>
+      <path marker-end="url(#arrow-statistics)" d="M625 518 C480 540 270 545 125 565"></path>
+      <path marker-end="url(#arrow-statistics)" d="M189 594 L311 699"></path>
+      <path marker-end="url(#arrow-statistics)" d="M439 699 L561 799"></path>
+      <path marker-end="url(#arrow-statistics)" d="M625 828 C480 840 270 850 125 870"></path>
+      <path marker-end="url(#arrow-statistics)" d="M189 899 L811 899"></path>
+      <path marker-end="url(#arrow-statistics)" d="M625 518 C770 560 850 700 875 870"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(46% - 36px);top:535px;">发现重复或字段错误</div>
+    <div class="flow-note" style="left:calc(74% - 36px);top:805px;">复核通过</div>
+    <div class="flow-card start" style="left:calc(12.5% - 64px);top:70px;">创建年月项目</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:165px;">选择区内、跨区<br>或手工模板</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:260px;">导入对应明细</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:355px;">异步读取并入库<br>反馈任务结果</div>
+    <div class="flow-card check" style="left:calc(62.5% - 64px);top:460px;">按类型、人员<br>抽查数据详情</div>
+    <div class="flow-card warn" style="left:calc(12.5% - 64px);top:565px;">重复或错误：清空<br>对应类型后重导</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:670px;">重新导入<br>刷新明细</div>
+    <div class="flow-card check" style="left:calc(62.5% - 64px);top:770px;">复核条数、金额<br>和重复记录</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:870px;">勾选项目<br>生成人次 / 报销 / 倾斜统计</div>
+    <div class="flow-card end" style="left:calc(87.5% - 64px);top:870px;">导出统计和明细<br>完成归档</div>
+  </div>
+</div>
+<h2 id="三、数据项目管理">三、数据项目管理</h2>
+<div class="entry">入口：<code>统计汇总 -&gt; 数据管理</code></div>
+<h3 id="1新增或编辑项目">1. 新增或编辑项目</h3>
+<ol>
+<li>点击新增，填写必填的 <code>年月号</code>，如 202501；说明可选。</li>
+<li>保存后在列表核对年月号、说明和创建时间。</li>
+<li>年月号写错时使用编辑，不要另建近似名称造成重复统计。</li>
+</ol>
+<h3 id="2删除项目">2. 删除项目</h3>
+<div class="note danger"><strong>删除影响：</strong>删除单个项目或批量删除项目，会同时删除该项目下全部区内、跨区和手工明细。删除前先导出明细留档。</div>
+
+<h2 id="四、导入统计明细">四、导入统计明细</h2>
+<ol>
+<li>进入目标项目的数据详情，点击 <code>导入</code>。</li>
+<li>选择导入类型：区内明细、跨区明细或手工明细。</li>
+<li>下载对应模板：<code>统计汇总-区内明细.csv</code>、<code>统计汇总-跨区明细.csv</code> 或 <code>统计汇总-手工明细.csv</code>。</li>
+<li>上传不超过 128MB 的 CSV 并确认。</li>
+<li>任务提交后到任务中心查看结果，完成后返回数据详情刷新。</li>
+</ol>
+<div class="note warn"><strong>重复导入规则：</strong>系统不会自动替换同类型旧明细。重新导入同一批数据前，应先按对应类型清空，再导入完整新文件，否则可能重复统计。</div>
+
+<h2 id="五、查看和核对数据详情">五、查看和核对数据详情</h2>
+<p>详情页可按数据类型、镇街、姓名和身份证号查询。重点查看项目、数据类型、人员信息、医保类别、总费用、符合报销金额、基本医疗、大病、大额、医疗救助、倾斜救助、缴费类别、金额、日期和导入批次。</p>
+<h3 id="1建议抽查方式">1. 建议抽查方式</h3>
+<ul>
+<li>每种导入类型至少抽查一条人员明细。</li>
+<li>抽查身份证号、所属期、就诊类型和费用合计。</li>
+<li>用姓名或身份证号查询同一人员，检查是否因重复导入出现重复行。</li>
+</ul>
+<h3 id="2清空项目数据">2. 清空项目数据</h3>
+<p>可选择清空区内、跨区、手工或全部数据。该操作不可恢复；选择“全部”前应确认三类明细均已备份。</p>
+
+<h2 id="六、人次统计">六、人次统计</h2>
+<ol>
+<li>在项目列表勾选一个或多个年月项目。</li>
+<li>点击 <code>人次统计</code>。</li>
+<li>按月份和数据类型查看门诊、住院的人次、金额、小计和合计。</li>
+<li>确认统计范围后导出 XLSX。</li>
+</ol>
+
+<h2 id="七、报销统计">七、报销统计</h2>
+<p>勾选项目后点击 <code>报销统计</code>，核对医疗费用、符合报销金额、基本医疗、大病、大额、医疗救助和倾斜救助金额，同时关注政策范围内报销比例和综合报销率。比例异常时应回到明细检查金额字段。</p>
+
+<h2 id="八、倾斜救助统计">八、倾斜救助统计</h2>
+<p>勾选项目后点击 <code>倾斜救助统计</code>，按月份核对人数和倾斜救助金额，再导出 XLSX。人员数与金额异常时，按身份证号回查数据详情。</p>
+
+<h2 id="九、导出明细">九、导出明细</h2>
+<p>勾选项目后点击 <code>导出明细</code>。明细导出为异步任务；到任务中心等待完成后下载。统计弹窗中的 XLSX 导出会由页面直接生成，下载后也应核对文件中的项目范围。</p>
+
+<h2 id="十、最终验收清单">十、最终验收清单</h2>
+<ul class="checklist">
+<li>年月项目唯一且名称正确。</li>
+<li>区内、跨区、手工三类文件放入了正确项目和正确类型。</li>
+<li>任务中心显示导入完成，没有未处理失败原因。</li>
+<li>详情总数与来源文件条数相符，没有重复导入。</li>
+<li>人次、报销、倾斜救助统计均完成抽样核对。</li>
+<li>导出文件标注了项目范围并已归档。</li>
+</ul>
+
+<h2 id="十一、常见问题">十一、常见问题</h2>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>处理方法</th></tr></thead><tbody>
+<tr><td>统计数比来源文件多</td><td>按类型、姓名或身份证号检查是否重复导入；确认后清空对应类型并重新导入。</td></tr>
+<tr><td>统计按钮不可用</td><td>先在项目列表勾选至少一个项目。</td></tr>
+<tr><td>清空后无法恢复</td><td>只能从此前导出的备份或原始文件重新导入。</td></tr>
+<tr><td>导出明细没有立即下载</td><td>该操作进入任务中心，完成后再下载。</td></tr>
+<tr><td>报销比例异常</td><td>回查明细中的费用总额、政策范围金额和各类报销金额。</td></tr>
+</tbody></table></div>
+      <div class="doc-footer">本文档按当前系统页面、操作按钮和业务规则整理。实际可见菜单及按钮以当前账号已分配范围为准。</div>
+      <a class="top-link" href="#top">返回顶部</a>
+    </main>
+  </div>
+</body>
+</html>

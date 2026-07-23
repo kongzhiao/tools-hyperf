@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>救助报销用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  
+    .note {
+      margin: 14px 0 18px;
+      padding: 12px 15px;
+      border: 1px solid var(--border-strong);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: #f7fbff;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .note strong { color: #173e73; }
+    .note.info { border-left-color: var(--primary); background: #f3f8ff; }
+    .note.success { border-left-color: #16a34a; background: #f1fbf4; }
+    .note.warn { border-left-color: var(--check); background: var(--check-soft); }
+    .note.danger { border-left-color: #ef4444; background: #fff4f4; }
+    .quick-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 22px;
+      counter-reset: flow-step;
+    }
+    .quick-flow .step {
+      position: relative;
+      min-height: 96px;
+      padding: 15px 14px 13px 48px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: linear-gradient(145deg, #fff, #f3f8ff);
+      box-shadow: 0 9px 20px rgba(30, 84, 146, 0.07);
+    }
+    .quick-flow .step::before {
+      counter-increment: flow-step;
+      content: counter(flow-step);
+      position: absolute;
+      left: 13px;
+      top: 14px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    .quick-flow .step b { display: block; margin-bottom: 4px; color: #173e73; }
+    .quick-flow .step span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .status {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status.pending { color: #9a5b00; background: #fff2cc; }
+    .status.ok { color: #15703a; background: #dcf8e6; }
+    .status.stop { color: #a12b2b; background: #ffe4e4; }
+    .status.muted { color: #5c6675; background: #edf0f4; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; padding-left: 28px; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 2px;
+      top: 0;
+      color: #16803a;
+      font-weight: 900;
+    }
+    .entry {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      color: #173e73;
+      font-weight: 700;
+    }
+    .small { color: var(--muted); font-size: 14px; }
+    .doc-footer {
+      margin-top: 38px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    @media (max-width: 480px) {
+      .top-link {
+        right: 10px;
+        bottom: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        opacity: 0.82;
+      }
+    }
+
+  
+    .role-swimlane { overflow-x: auto; }
+    .role-swimlane .swimlane-canvas { min-width: 780px; }
+    @media (max-width: 900px) {
+      .role-swimlane { -webkit-overflow-scrolling: touch; }
+      .role-swimlane .swimlane-canvas { min-width: 780px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#救助报销用户操作与核对参考文档">救助报销用户操作与核对参考文档</a>
+      <a class="toc-level-2" href="#一、标准受理流程">一、标准受理流程</a>
+      <a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+      <a class="toc-level-2" href="#三、患者管理">三、患者管理</a>
+      <a class="toc-level-3" href="#1新增和编辑患者">1. 新增和编辑患者</a>
+      <a class="toc-level-3" href="#2查看关联记录">2. 查看关联记录</a>
+      <a class="toc-level-3" href="#3删除患者">3. 删除患者</a>
+      <a class="toc-level-2" href="#四、就诊记录">四、就诊记录</a>
+      <a class="toc-level-3" href="#1手工新增就诊记录">1. 手工新增就诊记录</a>
+      <a class="toc-level-3" href="#2批量导入就诊记录">2. 批量导入就诊记录</a>
+      <a class="toc-level-3" href="#3删除就诊记录">3. 删除就诊记录</a>
+      <a class="toc-level-2" href="#五、发起受理">五、发起受理</a>
+      <a class="toc-level-2" href="#六、受理状态和编辑规则">六、受理状态和编辑规则</a>
+      <a class="toc-level-2" href="#七、受理记录查询和导出">七、受理记录查询和导出</a>
+      <a class="toc-level-2" href="#八、移动端报销受理">八、移动端报销受理</a>
+      <a class="toc-level-2" href="#九、最终核对清单">九、最终核对清单</a>
+      <a class="toc-level-2" href="#十、常见问题">十、常见问题</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">用户操作与核对参考文档 · 单文件可离线浏览</div>
+      <h1 id="救助报销用户操作与核对参考文档">救助报销用户操作与核对参考文档</h1>
+      <p>更新时间：2026-07-23</p>
+<p>本模块包括患者管理、就诊记录和受理记录。推荐先保证患者和就诊记录准确，再发起受理；一个受理记录可关联同一患者的多条就诊记录。</p>
+
+<h2 id="一、标准受理流程">一、标准受理流程</h2>
+<div class="quick-flow">
+  <div class="step"><b>维护患者</b><span>姓名、身份证号、参保地</span></div>
+  <div class="step"><b>维护就诊记录</b><span>医院、日期和费用</span></div>
+  <div class="step"><b>发起受理</b><span>选择患者和未报销记录</span></div>
+  <div class="step"><b>核对银行信息</b><span>银行、账号、户名</span></div>
+  <div class="step"><b>确认受理状态</b><span>未申请、已受理或作废</span></div>
+  <div class="step"><b>导出台账</b><span>任务中心下载归档</span></div>
+</div>
+
+
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<p>泳道图按实际岗位展示操作发起、系统处理、业务复核和异常回退关系；账号未获相应操作权限时，对应按钮不会显示。</p>
+<div class="swimlane-wrap role-swimlane" aria-label="救助报销角色操作泳道图">
+  <div class="swimlane-title">救助报销角色操作泳道图</div>
+  <div class="swimlane-canvas" style="height:1040px;">
+    <div class="lane-head lane-1">PC 受理经办人</div>
+    <div class="lane-head lane-2">系统 / 任务中心</div>
+    <div class="lane-head lane-3">移动端经办人</div>
+    <div class="lane-head lane-4">复核 / 财务人员</div>
+    <svg class="flow-lines" viewBox="0 0 1000 1040" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-medical" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-medical)" d="M189 99 L311 199"></path>
+      <path marker-end="url(#arrow-medical)" d="M311 199 L189 314"></path>
+      <path marker-end="url(#arrow-medical)" d="M625 343 L375 410"></path>
+      <path marker-end="url(#arrow-medical)" d="M189 314 L375 410"></path>
+      <path marker-end="url(#arrow-medical)" d="M375 468 L375 515"></path>
+      <path marker-end="url(#arrow-medical)" d="M439 544 L811 654"></path>
+      <path marker-end="url(#arrow-medical)" d="M875 683 C700 705 330 715 125 735"></path>
+      <path marker-end="url(#arrow-medical)" d="M189 764 L311 874"></path>
+      <path marker-end="url(#arrow-medical)" d="M439 874 L811 959"></path>
+      <path marker-end="url(#arrow-medical)" d="M875 683 L875 930"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(47% - 36px);top:695px;">银行或业务信息异常</div>
+    <div class="flow-note" style="left:calc(78% - 36px);top:700px;">复核通过</div>
+    <div class="flow-card start" style="left:calc(12.5% - 64px);top:70px;">维护患者<br>和就诊记录</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:170px;">校验人员关联<br>处理导入任务</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:285px;">PC 发起受理<br>选择未报销记录</div>
+    <div class="flow-card key" style="left:calc(62.5% - 64px);top:285px;">OCR 核对银行信息<br>选择就诊记录</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:410px;">校验不可重复报销<br>汇总金额和比例</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:515px;">创建受理记录<br>就诊状态改为已报销</div>
+    <div class="flow-card check" style="left:calc(87.5% - 64px);top:625px;">复核银行账号<br>金额和受理状态</div>
+    <div class="flow-card warn" style="left:calc(12.5% - 64px);top:735px;">异常时编辑移除<br>就诊记录或作废</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:845px;">重新计算金额<br>恢复相关就诊状态</div>
+    <div class="flow-card end" style="left:calc(87.5% - 64px);top:930px;">确认受理台账<br>导出交财务归档</div>
+  </div>
+</div>
+<h2 id="三、患者管理">三、患者管理</h2>
+<div class="entry">入口：<code>救助报销 -&gt; 患者管理</code></div>
+<h3 id="1新增和编辑患者">1. 新增和编辑患者</h3>
+<ol>
+<li>点击 <code>新增患者</code>。</li>
+<li>填写姓名、18 位身份证号和参保地区。</li>
+<li>保存后用姓名或身份证号查询，确认不存在重复人员。</li>
+<li>信息变化时使用编辑，不要重复新建同一身份证号患者。</li>
+</ol>
+<h3 id="2查看关联记录">2. 查看关联记录</h3>
+<p>从患者行进入详情可查看其就诊记录。患者总数和列表总数用于日常核对；患者是否完成受理应继续到受理记录中确认。</p>
+<h3 id="3删除患者">3. 删除患者</h3>
+<div class="note danger"><strong>级联删除：</strong>普通删除会同时删除该患者的就诊记录；存在受理记录时需要选择级联删除，届时患者、就诊记录和受理记录都会永久删除。删除前必须先导出或截图留档，并核对身份证号。</div>
+
+<h2 id="四、就诊记录">四、就诊记录</h2>
+<div class="entry">入口：<code>救助报销 -&gt; 就诊记录</code></div>
+<p>页面可按患者姓名或身份证号、医院、就诊类别、处理状态和入院日期查询。统计卡显示总数、未报销、已报销和已退回数量。</p>
+<h3 id="1手工新增就诊记录">1. 手工新增就诊记录</h3>
+<ol>
+<li>点击 <code>新增就诊记录</code>，选择患者。</li>
+<li>填写医院、就诊类别、处理状态和入院日期。</li>
+<li>填写总费用、政策范围内费用，以及统筹、大额、大病、医疗救助、渝快保等金额；金额不得为负数。</li>
+<li>按实际情况填写出院日期和结算日期，保存后查看详情核对。</li>
+</ol>
+<h3 id="2批量导入就诊记录">2. 批量导入就诊记录</h3>
+<ol>
+<li>点击 <code>导入</code> 并下载 <code>救助报销-就诊记录数据.csv</code>。</li>
+<li>至少保证姓名、身份证号和就诊医疗机构名称有效；其余字段按模板填写。</li>
+<li>页面只接收 CSV。为保证后端能够成功处理，文件应控制在 20MB 以内。</li>
+<li>系统按身份证号查找患者：不存在时新建患者，已存在时沿用该患者；每个有效数据行会新增一条未报销就诊记录。</li>
+<li>任务提交后到任务中心查看结果，再返回页面核对人数和就诊记录数。</li>
+</ol>
+<div class="note warn"><strong>重复风险：</strong>导入不会自动替换既有就诊记录。重复提交同一文件可能新增重复就诊记录，导入前后都要按身份证号和日期抽查。</div>
+<h3 id="3删除就诊记录">3. 删除就诊记录</h3>
+<p>删除就诊记录会同步影响关联受理：受理只关联这一条时，整个受理记录会被删除；关联多条时，该条会从受理中移除并重新计算受理金额和比例。批量删除同样适用。</p>
+
+<h2 id="五、发起受理">五、发起受理</h2>
+<div class="entry">入口：<code>救助报销 -&gt; 受理记录</code></div>
+<ol>
+<li>点击 <code>发起受理</code>。</li>
+<li>按姓名或身份证号搜索并选择患者。</li>
+<li>填写银行名称、银行账号和户名。</li>
+<li>选择受理状态：新增时可选 <code>未申请</code> 或 <code>已受理</code>。</li>
+<li>在就诊记录表勾选需要纳入本次受理的记录。已报销记录不能选择。</li>
+<li>核对医院、日期、总费用及各类报销金额后提交。</li>
+</ol>
+<p>提交成功后，系统把所选就诊记录汇总成一条受理记录，自动计算金额和比例，并把这些就诊记录标记为已报销，避免重复受理。</p>
+
+<h2 id="六、受理状态和编辑规则">六、受理状态和编辑规则</h2>
+<div class="table-wrap"><table><thead><tr><th>状态</th><th>含义</th><th>允许的后续操作</th></tr></thead><tbody>
+<tr><td><span class="status pending">未申请</span></td><td>已登记但尚未确认完成受理</td><td>可编辑为已受理或作废，也可删除</td></tr>
+<tr><td><span class="status ok">已受理</span></td><td>受理已确认</td><td>可查看，可编辑为作废；页面不提供删除</td></tr>
+<tr><td><span class="status stop">作废</span></td><td>本次受理失效</td><td>只能查看；关联就诊记录会恢复为未报销</td></tr>
+</tbody></table></div>
+<p>编辑时患者不能更换，只能在当前已关联的就诊记录中取消选择，不能追加新的就诊记录。取消后系统重新计算金额，移出的记录恢复为未报销。</p>
+
+<h2 id="七、受理记录查询和导出">七、受理记录查询和导出</h2>
+<p>可按患者、银行名称、受理状态和户名筛选。列表显示受理编号、患者、关联就诊记录数、银行信息、总金额、政策内金额、统筹/大额/重疾金额及比例。</p>
+<ol>
+<li>先设置筛选条件并点击查询。</li>
+<li>点击详情核对银行信息、金额、比例和关联就诊记录。</li>
+<li>点击 <code>导出受理台账</code>，确认当前筛选范围。</li>
+<li>到任务中心等待完成并下载文件。</li>
+</ol>
+
+<h2 id="八、移动端报销受理">八、移动端报销受理</h2>
+<div class="entry">移动端入口：<code>/m/medical/reimbursement</code></div>
+<p>移动端提供拍照识别、选择图片和手动录入入口，共五步：OCR 识别、信息确认、报销申报、选择就诊记录、提交完成。为保证提交信息完整，建议先识别并采用银行名称、银行卡号和银行账户姓名，手动输入用于核对和补充。</p>
+<ol>
+<li>拍照或选择清晰图片；可多张识别。单张图片请控制在 20MB 以内。</li>
+<li>在识别结果中逐项采用姓名、身份证号、银行卡号、银行名称等信息；错误内容不要采用，可继续识别其他图片替换。</li>
+<li>进入报销申报，核对并补充银行名称、银行账号、银行账户姓名。识别结果仅用于预填，必须人工复核。</li>
+<li>系统按身份证号查询患者和就诊记录；选择至少一条非“已报销”的记录。</li>
+<li>点击提交，记录申请编号；需要继续办理时点击 <code>继续受理</code>。</li>
+</ol>
+<div class="note danger"><strong>银行信息必须人工核对：</strong>重点比对户名、账号末四位和银行名称。OCR 结果可能因图片反光、遮挡或字体产生误识别。</div>
+
+<h2 id="九、最终核对清单">九、最终核对清单</h2>
+<ul class="checklist">
+<li>患者姓名、身份证号和参保地正确且无重复。</li>
+<li>就诊记录的医院、日期和金额与来源材料一致。</li>
+<li>本次受理只选择同一患者且尚未报销的记录。</li>
+<li>银行名称、账号和户名已进行二次人工核对。</li>
+<li>受理状态符合实际办理进度。</li>
+<li>受理详情中的金额合计和比例已抽查。</li>
+<li>导出任务已完成，台账已及时下载归档。</li>
+</ul>
+
+<h2 id="十、常见问题">十、常见问题</h2>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>处理方法</th></tr></thead><tbody>
+<tr><td>患者保存提示身份证号已存在</td><td>按身份证号查询现有患者并编辑，不要重复新增。</td></tr>
+<tr><td>发起受理时看不到就诊记录</td><td>先到就诊记录确认患者关联、处理状态和数据是否存在。</td></tr>
+<tr><td>就诊记录无法勾选</td><td>该记录已报销；先核对关联受理，不要重复办理。</td></tr>
+<tr><td>作废后就诊记录状态变化</td><td>这是正常联动，作废会把关联就诊记录恢复为未报销。</td></tr>
+<tr><td>CSV 小于 128MB 仍导入失败</td><td>实际处理上限为 20MB，请拆分文件后重新提交。</td></tr>
+<tr><td>删除就诊记录后受理金额变化</td><td>系统会移除关联并重算；应重新查看受理详情并核对。</td></tr>
+</tbody></table></div>
+      <div class="doc-footer">本文档按当前系统页面、操作按钮和业务规则整理。实际可见菜单及按钮以当前账号已分配范围为准。</div>
+      <a class="top-link" href="#top">返回顶部</a>
+    </main>
+  </div>
+</body>
+</html>

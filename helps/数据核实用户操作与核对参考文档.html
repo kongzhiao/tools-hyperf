@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>数据核实用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  
+    .note {
+      margin: 14px 0 18px;
+      padding: 12px 15px;
+      border: 1px solid var(--border-strong);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: #f7fbff;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .note strong { color: #173e73; }
+    .note.info { border-left-color: var(--primary); background: #f3f8ff; }
+    .note.success { border-left-color: #16a34a; background: #f1fbf4; }
+    .note.warn { border-left-color: var(--check); background: var(--check-soft); }
+    .note.danger { border-left-color: #ef4444; background: #fff4f4; }
+    .quick-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 22px;
+      counter-reset: flow-step;
+    }
+    .quick-flow .step {
+      position: relative;
+      min-height: 96px;
+      padding: 15px 14px 13px 48px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: linear-gradient(145deg, #fff, #f3f8ff);
+      box-shadow: 0 9px 20px rgba(30, 84, 146, 0.07);
+    }
+    .quick-flow .step::before {
+      counter-increment: flow-step;
+      content: counter(flow-step);
+      position: absolute;
+      left: 13px;
+      top: 14px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    .quick-flow .step b { display: block; margin-bottom: 4px; color: #173e73; }
+    .quick-flow .step span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .status {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status.pending { color: #9a5b00; background: #fff2cc; }
+    .status.ok { color: #15703a; background: #dcf8e6; }
+    .status.stop { color: #a12b2b; background: #ffe4e4; }
+    .status.muted { color: #5c6675; background: #edf0f4; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; padding-left: 28px; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 2px;
+      top: 0;
+      color: #16803a;
+      font-weight: 900;
+    }
+    .entry {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      color: #173e73;
+      font-weight: 700;
+    }
+    .small { color: var(--muted); font-size: 14px; }
+    .doc-footer {
+      margin-top: 38px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    @media (max-width: 480px) {
+      .top-link {
+        right: 10px;
+        bottom: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        opacity: 0.82;
+      }
+    }
+
+  
+    .role-swimlane { overflow-x: auto; }
+    .role-swimlane .swimlane-canvas { min-width: 780px; }
+    @media (max-width: 900px) {
+      .role-swimlane { -webkit-overflow-scrolling: touch; }
+      .role-swimlane .swimlane-canvas { min-width: 780px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#数据核实用户操作与核对参考文档">数据核实用户操作与核对参考文档</a>
+      <a class="toc-level-2" href="#一、标准处理流程">一、标准处理流程</a>
+      <a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+      <a class="toc-level-2" href="#三、参保数据管理页面">三、参保数据管理页面</a>
+      <a class="toc-level-2" href="#四、年份管理">四、年份管理</a>
+      <a class="toc-level-3" href="#1创建年度">1. 创建年度</a>
+      <a class="toc-level-3" href="#2清空或删除年度">2. 清空或删除年度</a>
+      <a class="toc-level-2" href="#五、导入原始数据">五、导入原始数据</a>
+      <a class="toc-level-2" href="#六、导入档次匹配数据">六、导入档次匹配数据</a>
+      <a class="toc-level-2" href="#七、匹配身份和认定区">七、匹配身份和认定区</a>
+      <a class="toc-level-2" href="#八、处理待匹配和疑似数据">八、处理待匹配和疑似数据</a>
+      <a class="toc-level-3" href="#1逐条编辑">1. 逐条编辑</a>
+      <a class="toc-level-3" href="#2批量更新">2. 批量更新</a>
+      <a class="toc-level-2" href="#九、导出和任务中心">九、导出和任务中心</a>
+      <a class="toc-level-2" href="#十、税务汇总">十、税务汇总</a>
+      <a class="toc-level-2" href="#十一、参保汇总">十一、参保汇总</a>
+      <a class="toc-level-2" href="#十二、最终核对清单">十二、最终核对清单</a>
+      <a class="toc-level-2" href="#十三、常见问题">十三、常见问题</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">用户操作与核对参考文档 · 单文件可离线浏览</div>
+      <h1 id="数据核实用户操作与核对参考文档">数据核实用户操作与核对参考文档</h1>
+      <p>更新时间：2026-07-23</p>
+<p>本模块用于按年度导入参保原始数据，匹配参保档次、资助身份和认定区，处理待匹配或疑似记录，并生成税务和参保汇总结果。</p>
+
+<h2 id="一、标准处理流程">一、标准处理流程</h2>
+<div class="quick-flow">
+  <div class="step"><b>准备业务配置</b><span>类别转换、参保档次</span></div>
+  <div class="step"><b>创建年度</b><span>年份管理中启用</span></div>
+  <div class="step"><b>导入原始数据</b><span>增量或全量</span></div>
+  <div class="step"><b>匹配参保档次</b><span>身份证号 + 个人实缴</span></div>
+  <div class="step"><b>匹配身份和认定区</b><span>形成综合状态</span></div>
+  <div class="step"><b>处理异常并汇总</b><span>编辑、批量更新、导出</span></div>
+</div>
+
+
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<p>泳道图按实际岗位展示操作发起、系统处理、业务复核和异常回退关系；账号未获相应操作权限时，对应按钮不会显示。</p>
+<div class="swimlane-wrap role-swimlane" aria-label="数据核实角色操作泳道图">
+  <div class="swimlane-title">数据核实角色操作泳道图</div>
+  <div class="swimlane-canvas" style="height:1070px;">
+    <div class="lane-head lane-1">数据核实经办人</div>
+    <div class="lane-head lane-2">系统 / 任务中心</div>
+    <div class="lane-head lane-3">配置经办人</div>
+    <div class="lane-head lane-4">汇总使用人员</div>
+    <svg class="flow-lines" viewBox="0 0 1000 1070" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-data-verification" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-data-verification)" d="M561 99 C430 120 260 145 189 199"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M125 228 L125 270"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M189 299 L311 399"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M375 428 L189 509"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M189 509 L311 619"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M311 619 L189 729"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M125 758 L125 810"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M189 729 C350 750 500 770 625 810"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M125 868 L311 939"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M625 868 L439 939"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M439 939 L811 1019"></path>
+      <path marker-end="url(#arrow-data-verification)" d="M189 729 C450 700 720 800 811 1019"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(47% - 36px);top:765px;">配置口径问题</div>
+    <div class="flow-note" style="left:calc(8% - 36px);top:772px;">人员数据问题</div>
+    <div class="flow-note" style="left:calc(74% - 36px);top:900px;">复核通过</div>
+    <div class="flow-card start" style="left:calc(62.5% - 64px);top:70px;">准备类别转换<br>和参保档次</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:170px;">创建并选择年度</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:270px;">导入原始数据</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:370px;">文件校验、入库<br>初步匹配档次</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:480px;">导入档次匹配<br>身份和认定区</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:590px;">重新计算三类状态<br>和总体状态</div>
+    <div class="flow-card warn" style="left:calc(12.5% - 64px);top:700px;">筛选待匹配、疑似<br>逐条或批量核对</div>
+    <div class="flow-card warn" style="left:calc(62.5% - 64px);top:810px;">配置问题：修正<br>类别或金额口径</div>
+    <div class="flow-card check" style="left:calc(12.5% - 64px);top:810px;">数据问题：修正<br>人员业务字段</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:910px;">重新匹配并刷新<br>统计结果</div>
+    <div class="flow-card end" style="left:calc(87.5% - 64px);top:990px;">核对税务 / 参保汇总<br>导出归档</div>
+  </div>
+</div>
+<h2 id="三、参保数据管理页面">三、参保数据管理页面</h2>
+<div class="entry">入口：<code>数据核实 -&gt; 参保数据管理</code></div>
+<p>进入后先选择年度。可按姓名、身份证号、街道乡镇、代缴类别、档次、医疗救助类别及四类匹配状态查询。</p>
+<p>统计卡展示总数、正确、待匹配、疑似和代缴金额；列表可查看人员、金额、日期及匹配状态。统计卡和列表都受当前筛选条件影响时，应以当前筛选范围为准核对。</p>
+
+<h2 id="四、年份管理">四、年份管理</h2>
+<h3 id="1创建年度">1. 创建年度</h3>
+<ol>
+<li>点击 <code>年份管理</code>，创建 2020—2030 范围内尚不存在的年度。</li>
+<li>填写或编辑年度说明，并设置是否启用。</li>
+<li>返回主页面选择新年度，再开始导入。</li>
+</ol>
+<h3 id="2清空或删除年度">2. 清空或删除年度</h3>
+<div class="note danger"><strong>不可逆操作：</strong><code>清空年度数据</code>会删除所选年度全部参保数据；年份有数据时不能直接删除年份。清空前先导出留档，并再次核对年份和记录数。</div>
+
+<h2 id="五、导入原始数据">五、导入原始数据</h2>
+<ol>
+<li>选择年度，点击 <code>导入原始数据</code>。</li>
+<li>下载 <code>数据核实-原始数据.csv</code>，必填表头为：序号、姓名、身份证号、街道乡镇、代缴类别、代缴金额。</li>
+<li>上传不超过 128MB 的 CSV，先执行文件校验。</li>
+<li>选择导入方式：<code>增量</code>保留现有数据并新增；<code>全量</code>先删除所选年度全部数据再导入。</li>
+<li>确认后到任务中心查看完成状态，再回到列表刷新。</li>
+</ol>
+<div class="note warn"><strong>自动匹配：</strong>原始导入时会按“年度 + 代缴类别 + 代缴金额”初步匹配档次。若配置缺失或存在多条可匹配配置，记录会进入待处理状态。</div>
+
+<h2 id="六、导入档次匹配数据">六、导入档次匹配数据</h2>
+<ol>
+<li>下载 <code>数据核实-匹配档次数据.csv</code>。</li>
+<li>至少填写 <code>身份证号</code> 和 <code>个人实缴金额</code>。</li>
+<li>选择正确年度，上传并通过校验后确认导入。</li>
+<li>系统按身份证号找到该年度原记录，再按“年度 + 原记录代缴类别 + 个人实缴金额”匹配档次。</li>
+<li>唯一匹配时更新档次；没有匹配或匹配到多条时标记为未匹配。</li>
+</ol>
+
+<h2 id="七、匹配身份和认定区">七、匹配身份和认定区</h2>
+<ol>
+<li>下载 <code>数据核实-匹配身份和认定区数据.csv</code>。</li>
+<li>填写身份证号、认定区和资助身份。</li>
+<li>上传并通过校验后确认，任务完成后刷新列表。</li>
+<li>资助身份会通过类别转换配置转换为税务标准口径。</li>
+<li>认定区为 <code>江津区</code> 时认定区匹配为正确；为空或其他值会进入疑似核对。</li>
+</ol>
+<p>完成后系统会综合档次、医疗救助身份和认定区结果重新计算总体匹配状态。</p>
+
+<h2 id="八、处理待匹配和疑似数据">八、处理待匹配和疑似数据</h2>
+<h3 id="1逐条编辑">1. 逐条编辑</h3>
+<p>点击行内编辑，可核对姓名、身份证号、街道乡镇、代缴类别及金额、档次、个人实缴、医疗救助类别、付款日期、备注和各类状态。金额不得为负数。</p>
+<h3 id="2批量更新">2. 批量更新</h3>
+<p>勾选多条记录后使用批量更新，可统一修改档次、个人实缴金额、医疗救助类别、付款日期、备注及匹配状态。只填写本次确需更新的字段，保存前再次核对选中数量。</p>
+<div class="note danger"><strong>不要用状态掩盖数据问题：</strong>先修正类别、金额或认定区等业务值，再调整状态。批量把记录直接改为“正确”会造成汇总口径失真。</div>
+
+<h2 id="九、导出和任务中心">九、导出和任务中心</h2>
+<p><code>导出匹配结果</code>按当前年度及筛选条件提交异步任务。提交后打开任务中心，等待状态从“待执行/执行中”变为“已完成”，再点击下载。任务生成的文件下载有效期为 7 天，应及时归档。</p>
+
+<h2 id="十、税务汇总">十、税务汇总</h2>
+<div class="entry">入口：<code>数据核实 -&gt; 税务汇总</code></div>
+<p>选择年度后查看各代缴类别的人数和代缴金额及合计。先核对正确、待匹配和疑似数量，再导出 Excel；如果仍有待匹配或疑似，汇总只能作为阶段性结果。</p>
+
+<h2 id="十一、参保汇总">十一、参保汇总</h2>
+<div class="entry">入口：<code>数据核实 -&gt; 参保汇总</code></div>
+<p>选择年度后，系统按街道乡镇以及类别、档次动态汇总人数和金额。导出前重点核对镇街合计、类别档次小计和总计是否与参保数据管理筛选结果一致。</p>
+
+<h2 id="十二、最终核对清单">十二、最终核对清单</h2>
+<ul class="checklist">
+<li>年度正确，业务配置已经完成并经过抽查。</li>
+<li>原始数据导入数量与来源文件一致。</li>
+<li>同一身份证号没有因重复导入形成异常记录。</li>
+<li>待匹配和疑似记录已逐项说明或处理。</li>
+<li>抽查人员的类别、档次、个人实缴和代缴金额一致。</li>
+<li>税务汇总、参保汇总与明细筛选合计一致。</li>
+<li>导出文件已从任务中心下载并按年度归档。</li>
+</ul>
+
+<h2 id="十三、常见问题">十三、常见问题</h2>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>核对方法</th></tr></thead><tbody>
+<tr><td>下拉中没有目标年度</td><td>先在年份管理创建并启用年度。</td></tr>
+<tr><td>档次一直未匹配</td><td>核对年度、代缴类别、代缴金额或个人实缴金额是否存在唯一配置。</td></tr>
+<tr><td>资助身份无法转换</td><td>到类别转换配置核对来源名称及目标税务口径。</td></tr>
+<tr><td>认定区显示疑似</td><td>核对来源值是否准确为“江津区”。</td></tr>
+<tr><td>导入后原数据消失</td><td>可能选择了全量导入；从留档文件恢复并重新导入。</td></tr>
+<tr><td>导出后找不到文件</td><td>到任务中心查看状态；已完成且未过期时点击下载。</td></tr>
+</tbody></table></div>
+      <div class="doc-footer">本文档按当前系统页面、操作按钮和业务规则整理。实际可见菜单及按钮以当前账号已分配范围为准。</div>
+      <a class="top-link" href="#top">返回顶部</a>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>仪表板用户操作与核对参考文档</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef5ff;
+      --bg-2: #f7fbff;
+      --card: rgba(255, 255, 255, 0.92);
+      --text: #243042;
+      --muted: #6b7a90;
+      --border: #dbe7f5;
+      --border-strong: #bfd7f3;
+      --primary: #1677ff;
+      --primary-dark: #0f4fb8;
+      --primary-soft: #e9f3ff;
+      --operation: #1677ff;
+      --operation-dark: #0f4fb8;
+      --operation-soft: #eaf3ff;
+      --check: #f59e0b;
+      --check-dark: #a35400;
+      --check-soft: #fff7e6;
+      --cyan: #13a8a8;
+      --code-bg: #eef7f6;
+      --shadow: 0 22px 55px rgba(30, 84, 146, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 8% 0%, rgba(22, 119, 255, 0.18), transparent 28rem),
+        radial-gradient(circle at 92% 10%, rgba(19, 168, 168, 0.16), transparent 24rem),
+        linear-gradient(180deg, var(--bg), var(--bg-2) 36%, #ffffff 100%);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      line-height: 1.78;
+      font-size: 16px;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(22, 119, 255, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 119, 255, 0.045) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 58%);
+    }
+    .page {
+      position: relative;
+      display: grid;
+      grid-template-columns: 282px minmax(0, 1fr);
+      gap: 24px;
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+    .toc {
+      position: sticky;
+      top: 22px;
+      align-self: start;
+      max-height: calc(100vh - 44px);
+      overflow: auto;
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(191, 215, 243, 0.9);
+      border-radius: 14px;
+      box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
+    }
+    .toc-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 4px 12px;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+    .toc-title::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      box-shadow: 0 0 0 4px rgba(22, 119, 255, 0.12);
+    }
+    .toc a {
+      display: block;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: #405169;
+      text-decoration: none;
+      font-size: 14px;
+      line-height: 1.45;
+      transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .toc a:hover {
+      background: linear-gradient(135deg, rgba(22, 119, 255, 0.12), rgba(19, 168, 168, 0.1));
+      color: var(--primary-dark);
+      transform: translateX(2px);
+    }
+    .toc-level-1 { font-weight: 800; color: #183b75; }
+    .toc-level-2 { margin-left: 8px; }
+    .toc-level-3 { margin-left: 22px; color: var(--muted) !important; font-size: 13px !important; }
+    main {
+      min-width: 0;
+      background: var(--card);
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 0 44px 50px;
+      overflow: hidden;
+    }
+    .doc-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      color: #43627f;
+      font-size: 13px;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.08);
+    }
+    .doc-meta::before {
+      content: "离线文档";
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(22,119,255,0.14), rgba(19,168,168,0.13));
+      color: var(--primary-dark);
+      font-weight: 700;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #102033;
+      line-height: 1.35;
+      scroll-margin-top: 24px;
+      letter-spacing: 0;
+    }
+    h1 {
+      position: relative;
+      margin: 18px -44px 30px;
+      padding: 34px 44px 38px;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: 850;
+      background:
+        linear-gradient(135deg, rgba(22, 119, 255, 0.96), rgba(19, 168, 168, 0.9)),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.28), transparent 18rem);
+      overflow: hidden;
+    }
+    h1::after {
+      content: "";
+      position: absolute;
+      right: -70px;
+      top: -90px;
+      width: 240px;
+      height: 240px;
+      border-radius: 50%;
+      border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    h2 {
+      position: relative;
+      margin-top: 38px;
+      padding: 13px 16px 13px 20px;
+      border: 1px solid rgba(219, 231, 245, 0.95);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: linear-gradient(90deg, rgba(233, 243, 255, 0.95), rgba(255,255,255,0.62));
+      box-shadow: 0 10px 22px rgba(30, 84, 146, 0.06);
+      font-size: 22px;
+    }
+    h3 {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 28px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid rgba(22, 119, 255, 0.18);
+      font-size: 19px;
+      color: #163f73;
+    }
+    h3::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    h4 { margin-top: 20px; font-size: 17px; color: #334155; }
+    p { margin: 12px 0; }
+    ul, ol { padding-left: 1.5em; margin: 10px 0 18px; }
+    li { margin: 5px 0; }
+    li::marker { color: var(--primary); font-weight: 700; }
+    .callout-lead {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 18px 0 10px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .callout-badge {
+      flex: 0 0 auto;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      line-height: 20px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .callout-operation {
+      border: 1px solid rgba(22, 119, 255, 0.22);
+      border-left: 5px solid var(--operation);
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.95), rgba(255, 255, 255, 0.72));
+      color: var(--operation-dark);
+    }
+    .callout-operation .callout-badge { background: linear-gradient(135deg, var(--operation), #42a5ff); }
+    .callout-check {
+      border: 1px solid rgba(245, 158, 11, 0.28);
+      border-left: 5px solid var(--check);
+      background: linear-gradient(90deg, rgba(255, 247, 230, 0.98), rgba(255, 255, 255, 0.76));
+      color: var(--check-dark);
+    }
+    .callout-check .callout-badge { background: linear-gradient(135deg, var(--check), #ffbf45); }
+    .highlight-list {
+      margin-top: -2px;
+      padding: 12px 18px 12px 34px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+    }
+    .highlight-operation {
+      background: var(--operation-soft);
+      border-color: rgba(22, 119, 255, 0.18);
+    }
+    .highlight-operation li::marker { color: var(--operation); }
+    .highlight-check {
+      background: var(--check-soft);
+      border-color: rgba(245, 158, 11, 0.22);
+    }
+    .highlight-check li::marker { color: var(--check); }
+    code {
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      border: 1px solid rgba(19, 168, 168, 0.16);
+      color: #047c73;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+      margin: 16px 0 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 12px 24px rgba(30, 84, 146, 0.08);
+    }
+    .table-operation {
+      border-color: rgba(22, 119, 255, 0.32);
+      background: var(--operation-soft);
+    }
+    .table-check {
+      border-color: rgba(245, 158, 11, 0.36);
+      background: var(--check-soft);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 560px;
+      background: #fff;
+    }
+    th, td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+    }
+    th:last-child, td:last-child { border-right: 0; }
+    tr:last-child td { border-bottom: 0; }
+    th {
+      background: linear-gradient(180deg, #edf6ff, #f8fbff);
+      color: #143966;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .table-operation th { background: linear-gradient(180deg, #ddecff, #f6fbff); color: var(--operation-dark); }
+    .table-check th { background: linear-gradient(180deg, #fff0cb, #fffaf0); color: var(--check-dark); }
+    tbody tr:nth-child(even) td { background: #fbfdff; }
+    tbody tr:hover td { background: #f0f8ff; }
+    .table-operation tbody tr:nth-child(even) td { background: #f8fbff; }
+    .table-operation tbody tr:hover td { background: #edf6ff; }
+    .table-check tbody tr:nth-child(even) td { background: #fffdf7; }
+    .table-check tbody tr:hover td { background: #fff7e6; }
+    .swimlane-wrap {
+      margin: 18px 0 28px;
+      overflow: hidden;
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      background: #ffffff;
+      box-shadow: 0 18px 36px rgba(30, 84, 146, 0.1);
+    }
+    .swimlane-title {
+      padding: 13px 18px;
+      text-align: center;
+      color: #fff;
+      font-weight: 850;
+      background: linear-gradient(135deg, #2f7dec, #13a8a8);
+    }
+    .swimlane-canvas {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+      height: 900px;
+      overflow: hidden;
+      background:
+        linear-gradient(90deg, transparent 0 24.9%, rgba(219,231,245,0.95) 25%, transparent 25.1% 49.9%, rgba(219,231,245,0.95) 50%, transparent 50.1% 74.9%, rgba(219,231,245,0.95) 75%, transparent 75.1%),
+        linear-gradient(180deg, #f8fbff 0 54px, #ffffff 54px);
+    }
+    .lane-head {
+      position: absolute;
+      top: 0;
+      width: 25%;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      color: #405169;
+      font-size: 14px;
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+    }
+    .lane-1 { left: 0; }
+    .lane-2 { left: 25%; }
+    .lane-3 { left: 50%; }
+    .lane-4 { left: 75%; }
+    .flow-card {
+      position: absolute;
+      z-index: 2;
+      width: 128px;
+      min-height: 58px;
+      display: grid;
+      place-items: center;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: #bfe4f7;
+      color: #17324d;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.35;
+      box-shadow: 0 10px 20px rgba(30, 84, 146, 0.14);
+      border: 1px solid rgba(126, 190, 225, 0.8);
+    }
+    .flow-card.start,
+    .flow-card.end {
+      border-radius: 999px;
+      background: #25344b;
+      color: #fff;
+      border-color: #25344b;
+    }
+    .flow-card.key {
+      background: #e8f3ff;
+      border-color: #7db7ff;
+      box-shadow: 0 10px 22px rgba(22,119,255,0.18);
+    }
+    .flow-card.warn {
+      background: #fff2c7;
+      border-color: #f4bf4f;
+      color: #6b4300;
+    }
+    .flow-card.diamond {
+      width: 116px;
+      min-height: 116px;
+      padding: 0;
+      border-radius: 12px;
+      transform: rotate(45deg);
+      background: #4f86f7;
+      color: #fff;
+      border-color: #4f86f7;
+    }
+    .flow-card.diamond span {
+      display: grid;
+      place-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px;
+      transform: rotate(-45deg);
+    }
+    .flow-card.check {
+      background: #eafaf2;
+      border-color: #7ed6a6;
+      color: #14543a;
+    }
+    .flow-note {
+      position: absolute;
+      z-index: 3;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .flow-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .flow-lines > path {
+      fill: none;
+      stroke: #2f3a49;
+      stroke-width: 2.2;
+      vector-effect: non-scaling-stroke;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .flow-lines > path.soft { stroke: #7a8798; stroke-dasharray: 6 5; }
+    .flow-lines marker path {
+      fill: #2f3a49;
+      stroke: none;
+    }
+    blockquote {
+      margin: 18px 0;
+      padding: 12px 16px;
+      border-left: 5px solid var(--cyan);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(19, 168, 168, 0.12), rgba(255, 255, 255, 0.72));
+      color: #185b5b;
+    }
+    .top-link {
+      position: fixed;
+      right: 22px;
+      bottom: 22px;
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      text-decoration: none;
+      box-shadow: 0 12px 28px rgba(22, 119, 255, 0.32);
+      font-weight: 800;
+    }
+    @media (max-width: 900px) {
+      .page { display: block; padding: 14px; }
+      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      main { padding: 0 18px 34px; border-radius: 14px; }
+      .doc-meta { margin-top: 20px; }
+      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h2 { font-size: 19px; padding: 11px 13px; }
+      h3 { font-size: 17px; }
+      .callout-lead { display: block; }
+      .callout-badge { display: inline-block; margin-bottom: 6px; }
+    }
+    @media print {
+      body { background: #fff; }
+      body::before { display: none; }
+      .page { display: block; max-width: none; padding: 0; }
+      .toc, .top-link { display: none; }
+      main { box-shadow: none; border: 0; padding: 0; }
+      h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
+      h1::after { display: none; }
+      h2 { box-shadow: none; }
+      a { color: inherit; }
+    }
+
+  
+    .note {
+      margin: 14px 0 18px;
+      padding: 12px 15px;
+      border: 1px solid var(--border-strong);
+      border-left: 5px solid var(--primary);
+      border-radius: 12px;
+      background: #f7fbff;
+      box-shadow: 0 8px 18px rgba(30, 84, 146, 0.06);
+    }
+    .note strong { color: #173e73; }
+    .note.info { border-left-color: var(--primary); background: #f3f8ff; }
+    .note.success { border-left-color: #16a34a; background: #f1fbf4; }
+    .note.warn { border-left-color: var(--check); background: var(--check-soft); }
+    .note.danger { border-left-color: #ef4444; background: #fff4f4; }
+    .quick-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 22px;
+      counter-reset: flow-step;
+    }
+    .quick-flow .step {
+      position: relative;
+      min-height: 96px;
+      padding: 15px 14px 13px 48px;
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      background: linear-gradient(145deg, #fff, #f3f8ff);
+      box-shadow: 0 9px 20px rgba(30, 84, 146, 0.07);
+    }
+    .quick-flow .step::before {
+      counter-increment: flow-step;
+      content: counter(flow-step);
+      position: absolute;
+      left: 13px;
+      top: 14px;
+      display: grid;
+      place-items: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      color: #fff;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+    }
+    .quick-flow .step b { display: block; margin-bottom: 4px; color: #173e73; }
+    .quick-flow .step span { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .status {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status.pending { color: #9a5b00; background: #fff2cc; }
+    .status.ok { color: #15703a; background: #dcf8e6; }
+    .status.stop { color: #a12b2b; background: #ffe4e4; }
+    .status.muted { color: #5c6675; background: #edf0f4; }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { position: relative; padding-left: 28px; }
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 2px;
+      top: 0;
+      color: #16803a;
+      font-weight: 900;
+    }
+    .entry {
+      margin: 14px 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: var(--primary-soft);
+      color: #173e73;
+      font-weight: 700;
+    }
+    .small { color: var(--muted); font-size: 14px; }
+    .doc-footer {
+      margin-top: 38px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 14px;
+    }
+    @media (max-width: 480px) {
+      .top-link {
+        right: 10px;
+        bottom: 10px;
+        width: 36px;
+        height: 36px;
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        opacity: 0.82;
+      }
+    }
+
+  
+    .role-swimlane { overflow-x: auto; }
+    .role-swimlane .swimlane-canvas { min-width: 780px; }
+    @media (max-width: 900px) {
+      .role-swimlane { -webkit-overflow-scrolling: touch; }
+      .role-swimlane .swimlane-canvas { min-width: 780px; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page">
+    <nav class="toc" aria-label="目录">
+      <div class="toc-title">目录</div>
+      <a class="toc-level-1" href="#仪表板用户操作与核对参考文档">仪表板用户操作与核对参考文档</a>
+      <a class="toc-level-2" href="#一、页面入口和用途">一、页面入口和用途</a>
+      <a class="toc-level-2" href="#二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</a>
+      <a class="toc-level-2" href="#三、登录后先核对四项信息">三、登录后先核对四项信息</a>
+      <a class="toc-level-2" href="#四、常用操作">四、常用操作</a>
+      <a class="toc-level-3" href="#1进入业务模块">1. 进入业务模块</a>
+      <a class="toc-level-3" href="#2页面加载失败时重试">2. 页面加载失败时重试</a>
+      <a class="toc-level-3" href="#3安全退出">3. 安全退出</a>
+      <a class="toc-level-2" href="#五、每日开工核对清单">五、每日开工核对清单</a>
+      <a class="toc-level-2" href="#六、常见问题">六、常见问题</a>
+    </nav>
+    <main id="top">
+      <div class="doc-meta">用户操作与核对参考文档 · 单文件可离线浏览</div>
+      <h1 id="仪表板用户操作与核对参考文档">仪表板用户操作与核对参考文档</h1>
+      <p>更新时间：2026-07-23</p>
+<p>仪表板是登录后的工作起点，用于确认当前登录账号、登录时间和在线状态。该页面不修改业务数据，适合每天开始工作时先核对一次。</p>
+
+<h2 id="一、页面入口和用途">一、页面入口和用途</h2>
+<div class="entry">入口：<code>仪表板</code></div>
+<p>进入后先看欢迎信息和“当前用户信息”卡片。页面显示当前日期，便于确认自己正在正确的工作日期和账号下操作。</p>
+<div class="note info"><strong>提示：</strong>如果菜单中没有某个业务模块，应先确认当前账号是否绑定了正确角色，不要通过他人的账号代办。</div>
+
+
+<h2 id="二、按角色查看用户操作泳道图">二、按角色查看用户操作泳道图</h2>
+<p>泳道图按实际岗位展示操作发起、系统处理、业务复核和异常回退关系；账号未获相应操作权限时，对应按钮不会显示。</p>
+<div class="swimlane-wrap role-swimlane" aria-label="仪表板角色操作泳道图">
+  <div class="swimlane-title">仪表板角色操作泳道图</div>
+  <div class="swimlane-canvas" style="height:700px;">
+    <div class="lane-head lane-1">登录用户</div>
+    <div class="lane-head lane-2">系统</div>
+    <div class="lane-head lane-3">用户管理员</div>
+    <div class="lane-head lane-4">业务模块</div>
+    <svg class="flow-lines" viewBox="0 0 1000 700" preserveAspectRatio="none">
+      <defs>
+        <marker id="arrow-dashboard" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z"></path>
+        </marker>
+      </defs>
+      <path marker-end="url(#arrow-dashboard)" d="M125 136 L375 170"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M375 228 L125 270"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M189 299 C410 318 650 350 811 409"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M125 328 C240 350 470 360 625 380"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M625 438 L375 490"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M375 548 L125 590"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M189 619 L811 619"></path>
+      <path marker-end="url(#arrow-dashboard)" d="M875 438 L875 590"></path>
+    </svg>
+    <div class="flow-note" style="left:calc(47% - 36px);top:330px;">信息或菜单异常</div>
+    <div class="flow-note" style="left:calc(74% - 36px);top:337px;">信息正确</div>
+    <div class="flow-card start" style="left:calc(12.5% - 64px);top:78px;">登录系统</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:170px;">验证登录<br>加载账号与角色</div>
+    <div class="flow-card key" style="left:calc(12.5% - 64px);top:270px;">核对仪表板<br>账号、时间、状态</div>
+    <div class="flow-card end" style="left:calc(87.5% - 64px);top:380px;">进入有权限的<br>业务模块</div>
+    <div class="flow-card warn" style="left:calc(62.5% - 64px);top:380px;">核对用户、角色<br>所属镇街</div>
+    <div class="flow-card" style="left:calc(37.5% - 64px);top:490px;">保存调整<br>刷新授权结果</div>
+    <div class="flow-card check" style="left:calc(12.5% - 64px);top:590px;">重新登录<br>再次核对</div>
+    <div class="flow-card end" style="left:calc(87.5% - 64px);top:590px;">正常开始<br>岗位工作</div>
+  </div>
+</div>
+<h2 id="三、登录后先核对四项信息">三、登录后先核对四项信息</h2>
+<div class="table-wrap"><table><thead><tr><th>核对项</th><th>核对方法</th><th>异常时怎么做</th></tr></thead><tbody>
+<tr><td>用户名</td><td>确认是本人或本岗位专用账号</td><td>退出后使用正确账号重新登录</td></tr>
+<tr><td>昵称</td><td>确认显示的人员或岗位名称正确</td><td>联系用户管理员修改账号信息</td></tr>
+<tr><td>登录时间</td><td>确认是本次登录时间</td><td>点击页面重试；仍异常时重新登录</td></tr>
+<tr><td>在线状态</td><td>正常应显示在线</td><td>检查网络连接后刷新页面</td></tr>
+</tbody></table></div>
+
+<h2 id="四、常用操作">四、常用操作</h2>
+<h3 id="1进入业务模块">1. 进入业务模块</h3>
+<ol>
+<li>从左侧菜单选择需要办理的模块。</li>
+<li>确认页面标题与本次工作内容一致。</li>
+<li>涉及年度或月份的数据，进入业务页后先选择正确年度、月份再查询。</li>
+</ol>
+<h3 id="2页面加载失败时重试">2. 页面加载失败时重试</h3>
+<p>如果出现加载失败提示，先点击 <code>重试</code>。若仍失败，检查网络后重新登录；不要在页面反复提交同一操作。</p>
+<h3 id="3安全退出">3. 安全退出</h3>
+<p>离开电脑前应从右上角账号菜单退出系统。公用电脑上不要保存密码，也不要只关闭显示器。</p>
+
+<h2 id="五、每日开工核对清单">五、每日开工核对清单</h2>
+<ul class="checklist">
+<li>确认用户名和昵称属于本人或当前岗位。</li>
+<li>确认在线状态正常、系统日期无误。</li>
+<li>确认左侧菜单与本人工作职责相符。</li>
+<li>开始业务操作前，再到目标页面核对年度、月份和筛选条件。</li>
+</ul>
+
+<h2 id="六、常见问题">六、常见问题</h2>
+<div class="table-wrap"><table><thead><tr><th>现象</th><th>处理方法</th></tr></thead><tbody>
+<tr><td>看不到某个菜单</td><td>确认账号是否绑定正确角色；由用户管理员检查角色分配。</td></tr>
+<tr><td>欢迎信息不是本人</td><td>立即退出，不要继续办理业务，再用本人账号登录。</td></tr>
+<tr><td>页面一直加载</td><td>先点击重试；仍无结果时检查网络并重新登录。</td></tr>
+<tr><td>登录后按钮比同事少</td><td>不同岗位的可操作范围不同，由用户管理员按职责核对角色权限。</td></tr>
+</tbody></table></div>
+      <div class="doc-footer">本文档按当前系统页面、操作按钮和业务规则整理。实际可见菜单及按钮以当前账号已分配范围为准。</div>
+      <a class="top-link" href="#top">返回顶部</a>
+    </main>
+  </div>
+</body>
+</html>
