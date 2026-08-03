@@ -81,7 +81,7 @@ class WashExecuteJob extends AbstractJob
                         $code = UnrescuedRecordService::PRIORITY_WASH_RULE_CODE;
                         $resultRows[] = [
                             'id' => (int) $record->id,
-                            'status' => UnrescuedRecordService::STATUS_NOTICE_2,
+                            'status' => $baseStatus,
                             'exclude_status' => $isExcluded ? UnrescuedRecordService::EXCLUDE_YES : UnrescuedRecordService::EXCLUDE_NO,
                             'exclude_rule_code' => $code,
                             'remark' => (string) ($priorityRule['remark'] ?? ''),

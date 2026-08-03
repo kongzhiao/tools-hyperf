@@ -59,12 +59,13 @@ class RefundWashExecuteJob extends AbstractJob
                     $updates = [];
                     foreach ($records as $record) {
                         $initialized++;
+                        $baseStatus = $service->screeningStatus($record);
                         $priorityMatched = $service->matchesPriorityWashRule($record, $priorityRule, $enabledMajorDiseaseCodes);
                         $priorityAction = $service->priorityWashAction($priorityRule);
                         $isExcluded = $priorityMatched && $priorityAction === 'exclude';
                         $updates[] = [
                             'id' => (int) $record->id,
-                            'status' => $priorityMatched ? UnrescuedRecordService::STATUS_NOTICE_2 : $service->screeningStatus($record),
+                            'status' => $baseStatus,
                             'exclude_status' => $isExcluded ? UnrescuedRecordService::EXCLUDE_YES : UnrescuedRecordService::EXCLUDE_NO,
                             'exclude_rule_code' => $priorityMatched ? UnrescuedRecordService::PRIORITY_WASH_RULE_CODE : null,
                             'remark' => $priorityMatched ? (string) ($priorityRule['remark'] ?? '') : null,

@@ -72,6 +72,17 @@ class UnrescuedRecordService
         return number_format(((float) $left) - ((float) $right), 2, '.', '');
     }
 
+    private function compareAmount(string|float|int $left, string|float|int $right): int
+    {
+        $left = $this->parseAmount($left);
+        $right = $this->parseAmount($right);
+        if (function_exists('bccomp')) {
+            return bccomp($left, $right, 2);
+        }
+
+        return (float) $left <=> (float) $right;
+    }
+
     public function calcReimbursementAmount(array $data): string
     {
         $amount = $this->parseAmount($data['policy_fee'] ?? 0);
@@ -94,12 +105,11 @@ class UnrescuedRecordService
 
     public function decideStatus(string|float|int $amount): string
     {
-        $amount = (float) $amount;
-        if ($amount <= 0) {
+        if ($this->compareAmount($amount, 0) <= 0) {
             return self::STATUS_NO_AMOUNT;
         }
 
-        if ($amount <= 300) {
+        if ($this->compareAmount($amount, 300) <= 0) {
             return self::STATUS_NOTICE_1;
         }
 
@@ -381,8 +391,8 @@ class UnrescuedRecordService
                 'operator' => 'compound',
                 'medical_categories' => ['门诊慢特病', '造口袋门诊'],
                 'disease_codes' => ['M00500'],
-                'remark' => '门诊重大疾病匹配，标记为拟通知2',
-                'condition_text' => '医疗类别命中配置，且病种编码命中指定编码或已启用的重大疾病编码库',
+                'remark' => '门诊重大疾病匹配',
+                'condition_text' => '进入报销金额 > 300，且医疗类别和病种编码命中配置',
                 'enabled' => true,
             ],
             [
@@ -524,6 +534,15 @@ class UnrescuedRecordService
             $saved = $savedByCode[$defaultRule['code']] ?? [];
             $rule = array_merge($defaultRule, $saved);
 
+            if ($defaultRule['code'] === self::PRIORITY_WASH_RULE_CODE) {
+                if (($rule['remark'] ?? '') === '门诊重大疾病匹配，标记为拟通知2') {
+                    $rule['remark'] = $defaultRule['remark'];
+                }
+                if (($rule['condition_text'] ?? '') === '医疗类别命中配置，且病种编码命中指定编码或已启用的重大疾病编码库') {
+                    $rule['condition_text'] = $defaultRule['condition_text'];
+                }
+            }
+
             if (empty($rule['action'])) {
                 $rule['action'] = ($rule['type'] ?? '') === 'not_in' ? 'keep' : 'exclude';
             }
@@ -591,6 +610,10 @@ class UnrescuedRecordService
     public function matchesPriorityWashRule(object $record, ?array $rule, array $enabledMajorDiseaseCodes): bool
     {
         if (!$rule || !filter_var($rule['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return false;
+        }
+
+        if ($this->compareAmount((string) ($record->calc_reimbursement_amount ?? '0'), 300) <= 0) {
             return false;
         }
 
