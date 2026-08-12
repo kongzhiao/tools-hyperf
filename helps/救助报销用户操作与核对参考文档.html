@@ -75,6 +75,153 @@
       border-radius: 14px;
       box-shadow: 0 16px 38px rgba(30, 84, 146, 0.12);
     }
+    .module-switcher {
+      margin: 0 0 16px;
+      overflow: hidden;
+      border: 1px solid rgba(191, 215, 243, 0.95);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 8px 20px rgba(30, 84, 146, 0.06);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .module-switcher[open] {
+      border-color: rgba(22, 119, 255, 0.28);
+      box-shadow: 0 12px 26px rgba(30, 84, 146, 0.1);
+    }
+    .module-switcher summary {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      padding: 10px 36px 10px 13px;
+      color: var(--primary-dark);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      transition: color 0.18s ease, background 0.18s ease;
+    }
+    .module-switcher summary::-webkit-details-marker { display: none; }
+    .module-switcher summary::before {
+      content: "";
+      flex: 0 0 auto;
+      width: 15px;
+      height: 15px;
+      border-radius: 4px;
+      background:
+        radial-gradient(circle, var(--primary) 2px, transparent 2.5px) 0 0 / 7px 7px;
+      transition: transform 0.18s ease, filter 0.18s ease;
+    }
+    .module-switcher summary::after {
+      content: "";
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      width: 7px;
+      height: 7px;
+      border-right: 2px solid #59738f;
+      border-bottom: 2px solid #59738f;
+      transform: translateY(-70%) rotate(45deg);
+      transition: transform 0.18s ease;
+    }
+    .module-switcher[open] summary {
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.96), rgba(240, 252, 251, 0.85));
+    }
+    .module-switcher[open] summary::after { transform: translateY(-30%) rotate(225deg); }
+    .module-switcher summary:hover {
+      background: rgba(22, 119, 255, 0.06);
+      color: var(--primary);
+    }
+    .module-switcher summary:hover::before {
+      filter: drop-shadow(0 2px 3px rgba(22, 119, 255, 0.22));
+      transform: scale(1.06);
+    }
+    .module-switcher summary:focus-visible {
+      outline: 3px solid rgba(22, 119, 255, 0.22);
+      outline-offset: -3px;
+    }
+    .module-switcher-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 8px;
+      border-top: 1px solid var(--border);
+      background: linear-gradient(180deg, #fff, #f8fbff);
+      animation: module-switcher-reveal 0.2s ease-out;
+    }
+    .module-switcher-list > :nth-child(1) { --module-color: #7c3aed; --module-soft: #f5f0ff; }
+    .module-switcher-list > :nth-child(2) { --module-color: #2563eb; --module-soft: #edf4ff; }
+    .module-switcher-list > :nth-child(3) { --module-color: #dc2626; --module-soft: #fff1f1; }
+    .module-switcher-list > :nth-child(4) { --module-color: #0891b2; --module-soft: #ecfbff; }
+    .module-switcher-list > :nth-child(5) { --module-color: #d97706; --module-soft: #fff8e8; }
+    .module-switcher-list > :nth-child(6) { --module-color: #0f766e; --module-soft: #ecfdf9; }
+    .module-switcher-list > :nth-child(7) { --module-color: #16a34a; --module-soft: #effcf3; }
+    .module-switcher-list > :nth-child(8) { --module-color: #4f46e5; --module-soft: #f1f0ff; }
+    .toc .module-switcher-list a,
+    .module-switcher-current {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      min-height: 36px;
+      margin: 0;
+      gap: 6px;
+      padding: 7px 8px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #405169;
+      font-size: 13px;
+      line-height: 1.35;
+      text-decoration: none;
+      transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    }
+    .module-switcher-icon {
+      flex: 0 0 auto;
+      width: 13px;
+      height: 13px;
+      fill: currentColor;
+      color: #8da0b4;
+      transition: color 0.18s ease, transform 0.18s ease;
+    }
+    .toc .module-switcher-list a:hover {
+      border-color: var(--module-color);
+      background: var(--module-soft);
+      color: var(--module-color);
+      box-shadow: 0 5px 12px rgba(30, 84, 146, 0.08);
+      transform: translateY(-1px);
+    }
+    .toc .module-switcher-list a:active { transform: translateY(0); }
+    .toc .module-switcher-list a:hover .module-switcher-icon {
+      color: var(--module-color);
+      transform: scale(1.12);
+    }
+    .module-switcher-current {
+      border-color: var(--module-color);
+      background: var(--module-soft);
+      color: var(--module-color);
+      font-weight: 800;
+      box-shadow: 0 5px 12px rgba(22, 119, 255, 0.08);
+    }
+    .module-switcher-current .module-switcher-icon {
+      color: var(--module-color);
+    }
+    @keyframes module-switcher-reveal {
+      from { opacity: 0; transform: translateY(-5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .module-switcher,
+      .module-switcher summary,
+      .module-switcher summary::before,
+      .module-switcher summary::after,
+      .module-switcher-list,
+      .toc .module-switcher-list a {
+        animation: none;
+        transition: none;
+      }
+    }
     .toc-title {
       display: flex;
       align-items: center;
@@ -148,6 +295,9 @@
     }
     h1 {
       position: relative;
+      display: flex;
+      align-items: center;
+      gap: 14px;
       margin: 18px -44px 30px;
       padding: 34px 44px 38px;
       color: #ffffff;
@@ -167,6 +317,52 @@
       height: 240px;
       border-radius: 50%;
       border: 38px solid rgba(255, 255, 255, 0.16);
+    }
+    .document-title-icon {
+      position: relative;
+      z-index: 1;
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      fill: currentColor;
+      opacity: 0.96;
+      filter: drop-shadow(0 4px 8px rgba(0, 61, 153, 0.16));
+    }
+    .module-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      gap: 9px;
+      margin: -6px 0 12px;
+      padding: 18px 20px;
+      border: 1px solid rgba(19, 168, 168, 0.24);
+      border-left: 5px solid var(--cyan);
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(238, 252, 251, 0.98), rgba(241, 247, 255, 0.92));
+      box-shadow: 0 10px 24px rgba(30, 84, 146, 0.08);
+    }
+    .module-summary-title {
+      justify-self: start;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--primary), var(--cyan));
+      color: #fff;
+      font-size: 13px;
+      line-height: 22px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .module-summary p {
+      margin: 0;
+      color: #24445f;
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .updated-at {
+      margin: 0 2px 24px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
     }
     h2 {
       position: relative;
@@ -465,10 +661,14 @@
     }
     @media (max-width: 900px) {
       .page { display: block; padding: 14px; }
-      .toc { position: static; max-height: none; margin-bottom: 14px; }
+      .toc { display: none; }
       main { padding: 0 18px 34px; border-radius: 14px; }
       .doc-meta { margin-top: 20px; }
-      h1 { margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      h1 { gap: 10px; margin: 16px -18px 24px; padding: 28px 18px 32px; font-size: 25px; }
+      .document-title-icon { width: 26px; height: 26px; }
+      .module-summary { grid-template-columns: 1fr; gap: 10px; padding: 16px; }
+      .module-summary-title { justify-self: start; }
+      .updated-at { margin-bottom: 20px; }
       h2 { font-size: 19px; padding: 11px 13px; }
       h3 { font-size: 17px; }
       .callout-lead { display: block; }
@@ -482,6 +682,7 @@
       main { box-shadow: none; border: 0; padding: 0; }
       h1 { margin: 0 0 18px; color: #111827; background: none; padding: 0 0 14px; border-bottom: 2px solid #d1d5db; }
       h1::after { display: none; }
+      .module-summary { background: #f8fafc; box-shadow: none; break-inside: avoid; }
       h2 { box-shadow: none; }
       a { color: inherit; }
     }
@@ -598,6 +799,19 @@
 <body>
   <div class="page">
     <nav class="toc" aria-label="目录">
+      <details class="module-switcher">
+        <summary>切换功能模块</summary>
+        <div class="module-switcher-list">
+          <a href="业务配置用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M924.8 625.7l-65.5-56c3.1-19 4.7-38.4 4.7-57.8s-1.6-38.8-4.7-57.8l65.5-56a32.03 32.03 0 009.3-35.2l-.9-2.6a443.74 443.74 0 00-79.7-137.9l-1.8-2.1a32.12 32.12 0 00-35.1-9.5l-81.3 28.9c-30-24.6-63.5-44-99.7-57.6l-15.7-85a32.05 32.05 0 00-25.8-25.7l-2.7-.5c-52.1-9.4-106.9-9.4-159 0l-2.7.5a32.05 32.05 0 00-25.8 25.7l-15.8 85.4a351.86 351.86 0 00-99 57.4l-81.9-29.1a32 32 0 00-35.1 9.5l-1.8 2.1a446.02 446.02 0 00-79.7 137.9l-.9 2.6c-4.5 12.5-.8 26.5 9.3 35.2l66.3 56.6c-3.1 18.8-4.6 38-4.6 57.1 0 19.2 1.5 38.4 4.6 57.1L99 625.5a32.03 32.03 0 00-9.3 35.2l.9 2.6c18.1 50.4 44.9 96.9 79.7 137.9l1.8 2.1a32.12 32.12 0 0035.1 9.5l81.9-29.1c29.8 24.5 63.1 43.9 99 57.4l15.8 85.4a32.05 32.05 0 0025.8 25.7l2.7.5a449.4 449.4 0 00159 0l2.7-.5a32.05 32.05 0 0025.8-25.7l15.7-85a350 350 0 0099.7-57.6l81.3 28.9a32 32 0 0035.1-9.5l1.8-2.1c34.8-41.1 61.6-87.5 79.7-137.9l.9-2.6c4.5-12.3.8-26.3-9.3-35zM788.3 465.9c2.5 15.1 3.8 30.6 3.8 46.1s-1.3 31-3.8 46.1l-6.6 40.1 74.7 63.9a370.03 370.03 0 01-42.6 73.6L721 702.8l-31.4 25.8c-23.9 19.6-50.5 35-79.3 45.8l-38.1 14.3-17.9 97a377.5 377.5 0 01-85 0l-17.9-97.2-37.8-14.5c-28.5-10.8-55-26.2-78.7-45.7l-31.4-25.9-93.4 33.2c-17-22.9-31.2-47.6-42.6-73.6l75.5-64.5-6.5-40c-2.4-14.9-3.7-30.3-3.7-45.5 0-15.3 1.2-30.6 3.7-45.5l6.5-40-75.5-64.5c11.3-26.1 25.6-50.7 42.6-73.6l93.4 33.2 31.4-25.9c23.7-19.5 50.2-34.9 78.7-45.7l37.9-14.3 17.9-97.2c28.1-3.2 56.8-3.2 85 0l17.9 97 38.1 14.3c28.7 10.8 55.4 26.2 79.3 45.8l31.4 25.8 92.8-32.9c17 22.9 31.2 47.6 42.6 73.6L781.8 426l6.5 39.9zM512 326c-97.2 0-176 78.8-176 176s78.8 176 176 176 176-78.8 176-176-78.8-176-176-176zm79.2 255.2A111.6 111.6 0 01512 614c-29.9 0-58-11.7-79.2-32.8A111.6 111.6 0 01400 502c0-29.9 11.7-58 32.8-79.2C454 401.6 482.1 390 512 390c29.9 0 58 11.6 79.2 32.8A111.6 111.6 0 01624 502c0 29.9-11.7 58-32.8 79.2z"></path></svg><span>业务配置</span></a>
+          <a href="参保台账用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M688 264c0-4.4-3.6-8-8-8H296c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h384c4.4 0 8-3.6 8-8v-48zm-8 136H296c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h384c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8zM480 544H296c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h184c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8zm-48 308H208V148h560v344c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V108c0-17.7-14.3-32-32-32H168c-17.7 0-32 14.3-32 32v784c0 17.7 14.3 32 32 32h264c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm356.8-74.4c29-26.3 47.2-64.3 47.2-106.6 0-79.5-64.5-144-144-144s-144 64.5-144 144c0 42.3 18.2 80.3 47.2 106.6-57 32.5-96.2 92.7-99.2 162.1-.2 4.5 3.5 8.3 8 8.3h48.1c4.2 0 7.7-3.3 8-7.6C564 871.2 621.7 816 692 816s128 55.2 131.9 124.4c.2 4.2 3.7 7.6 8 7.6H880c4.6 0 8.2-3.8 8-8.3-2.9-69.5-42.2-129.6-99.2-162.1zM692 591c44.2 0 80 35.8 80 80s-35.8 80-80 80-80-35.8-80-80 35.8-80 80-80z"></path></svg><span>参保台账</span></a>
+          <span class="module-switcher-current" aria-current="page"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M839.2 278.1a32 32 0 00-30.4-22.1H736V144c0-17.7-14.3-32-32-32H320c-17.7 0-32 14.3-32 32v112h-72.8a31.9 31.9 0 00-30.4 22.1L112 502v378c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V502l-72.8-223.9zM360 184h304v72H360v-72zm480 656H184V513.4L244.3 328h535.4L840 513.4V840zM652 572H544V464c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v108H372c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h108v108c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V636h108c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8z"></path></svg><span>救助报销</span></span>
+          <a href="数据核实用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M296 250c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h384c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8H296zm184 144H296c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h184c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8zm-48 458H208V148h560v320c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V108c0-17.7-14.3-32-32-32H168c-17.7 0-32 14.3-32 32v784c0 17.7 14.3 32 32 32h264c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm440-88H728v-36.6c46.3-13.8 80-56.6 80-107.4 0-61.9-50.1-112-112-112s-112 50.1-112 112c0 50.7 33.7 93.6 80 107.4V764H520c-8.8 0-16 7.2-16 16v152c0 8.8 7.2 16 16 16h352c8.8 0 16-7.2 16-16V780c0-8.8-7.2-16-16-16zM646 620c0-27.6 22.4-50 50-50s50 22.4 50 50-22.4 50-50 50-50-22.4-50-50zm180 266H566v-60h260v60z"></path></svg><span>数据核实</span></a>
+          <a href="未救助台账用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M688 312v-48c0-4.4-3.6-8-8-8H296c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h384c4.4 0 8-3.6 8-8zm-392 88c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h184c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8H296zm144 452H208V148h560v344c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V108c0-17.7-14.3-32-32-32H168c-17.7 0-32 14.3-32 32v784c0 17.7 14.3 32 32 32h272c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm445.7 51.5l-93.3-93.3C814.7 780.7 828 743.9 828 704c0-97.2-78.8-176-176-176s-176 78.8-176 176 78.8 176 176 176c35.8 0 69-10.7 96.8-29l94.7 94.7c1.6 1.6 3.6 2.3 5.6 2.3s4.1-.8 5.6-2.3l31-31a7.9 7.9 0 000-11.2zM652 816c-61.9 0-112-50.1-112-112s50.1-112 112-112 112 50.1 112 112-50.1 112-112 112z"></path></svg><span>未救助台账</span></a>
+          <a href="用户管理用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M824.2 699.9a301.55 301.55 0 00-86.4-60.4C783.1 602.8 812 546.8 812 484c0-110.8-92.4-201.7-203.2-200-109.1 1.7-197 90.6-197 200 0 62.8 29 118.8 74.2 155.5a300.95 300.95 0 00-86.4 60.4C345 754.6 314 826.8 312 903.8a8 8 0 008 8.2h56c4.3 0 7.9-3.4 8-7.7 1.9-58 25.4-112.3 66.7-153.5A226.62 226.62 0 01612 684c60.9 0 118.2 23.7 161.3 66.8C814.5 792 838 846.3 840 904.3c.1 4.3 3.7 7.7 8 7.7h56a8 8 0 008-8.2c-2-77-33-149.2-87.8-203.9zM612 612c-34.2 0-66.4-13.3-90.5-37.5a126.86 126.86 0 01-37.5-91.8c.3-32.8 13.4-64.5 36.3-88 24-24.6 56.1-38.3 90.4-38.7 33.9-.3 66.8 12.9 91 36.6 24.8 24.3 38.4 56.8 38.4 91.4 0 34.2-13.3 66.3-37.5 90.5A127.3 127.3 0 01612 612zM361.5 510.4c-.9-8.7-1.4-17.5-1.4-26.4 0-15.9 1.5-31.4 4.3-46.5.7-3.6-1.2-7.3-4.5-8.8-13.6-6.1-26.1-14.5-36.9-25.1a127.54 127.54 0 01-38.7-95.4c.9-32.1 13.8-62.6 36.3-85.6 24.7-25.3 57.9-39.1 93.2-38.7 31.9.3 62.7 12.6 86 34.4 7.9 7.4 14.7 15.6 20.4 24.4 2 3.1 5.9 4.4 9.3 3.2 17.6-6.1 36.2-10.4 55.3-12.4 5.6-.6 8.8-6.6 6.3-11.6-32.5-64.3-98.9-108.7-175.7-109.9-110.9-1.7-203.3 89.2-203.3 199.9 0 62.8 28.9 118.8 74.2 155.5-31.8 14.7-61.1 35-86.5 60.4-54.8 54.7-85.8 126.9-87.8 204a8 8 0 008 8.2h56.1c4.3 0 7.9-3.4 8-7.7 1.9-58 25.4-112.3 66.7-153.5 29.4-29.4 65.4-49.8 104.7-59.7 3.9-1 6.5-4.7 6-8.7z"></path></svg><span>用户管理</span></a>
+          <a href="统计汇总用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M888 792H200V168c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v688c0 4.4 3.6 8 8 8h752c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm-600-80h56c4.4 0 8-3.6 8-8V560c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v144c0 4.4 3.6 8 8 8zm152 0h56c4.4 0 8-3.6 8-8V384c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v320c0 4.4 3.6 8 8 8zm152 0h56c4.4 0 8-3.6 8-8V462c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v242c0 4.4 3.6 8 8 8zm152 0h56c4.4 0 8-3.6 8-8V304c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v400c0 4.4 3.6 8 8 8z"></path></svg><span>统计汇总</span></a>
+          <a href="联网结算用户操作与核对参考文档.html" target="_blank" rel="noopener noreferrer"><svg class="module-switcher-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M854.4 800.9c.2-.3.5-.6.7-.9C920.6 722.1 960 621.7 960 512s-39.4-210.1-104.8-288c-.2-.3-.5-.5-.7-.8-1.1-1.3-2.1-2.5-3.2-3.7-.4-.5-.8-.9-1.2-1.4l-4.1-4.7-.1-.1c-1.5-1.7-3.1-3.4-4.6-5.1l-.1-.1c-3.2-3.4-6.4-6.8-9.7-10.1l-.1-.1-4.8-4.8-.3-.3c-1.5-1.5-3-2.9-4.5-4.3-.5-.5-1-1-1.6-1.5-1-1-2-1.9-3-2.8-.3-.3-.7-.6-1-1C736.4 109.2 629.5 64 512 64s-224.4 45.2-304.3 119.2c-.3.3-.7.6-1 1-1 .9-2 1.9-3 2.9-.5.5-1 1-1.6 1.5-1.5 1.4-3 2.9-4.5 4.3l-.3.3-4.8 4.8-.1.1c-3.3 3.3-6.5 6.7-9.7 10.1l-.1.1c-1.6 1.7-3.1 3.4-4.6 5.1l-.1.1c-1.4 1.5-2.8 3.1-4.1 4.7-.4.5-.8.9-1.2 1.4-1.1 1.2-2.1 2.5-3.2 3.7-.2.3-.5.5-.7.8C103.4 301.9 64 402.3 64 512s39.4 210.1 104.8 288c.2.3.5.6.7.9l3.1 3.7c.4.5.8.9 1.2 1.4l4.1 4.7c0 .1.1.1.1.2 1.5 1.7 3 3.4 4.6 5l.1.1c3.2 3.4 6.4 6.8 9.6 10.1l.1.1c1.6 1.6 3.1 3.2 4.7 4.7l.3.3c3.3 3.3 6.7 6.5 10.1 9.6 80.1 74 187 119.2 304.5 119.2s224.4-45.2 304.3-119.2a300 300 0 0010-9.6l.3-.3c1.6-1.6 3.2-3.1 4.7-4.7l.1-.1c3.3-3.3 6.5-6.7 9.6-10.1l.1-.1c1.5-1.7 3.1-3.3 4.6-5 0-.1.1-.1.1-.2 1.4-1.5 2.8-3.1 4.1-4.7.4-.5.8-.9 1.2-1.4a99 99 0 003.3-3.7zm4.1-142.6c-13.8 32.6-32 62.8-54.2 90.2a444.07 444.07 0 00-81.5-55.9c11.6-46.9 18.8-98.4 20.7-152.6H887c-3 40.9-12.6 80.6-28.5 118.3zM887 484H743.5c-1.9-54.2-9.1-105.7-20.7-152.6 29.3-15.6 56.6-34.4 81.5-55.9A373.86 373.86 0 01887 484zM658.3 165.5c39.7 16.8 75.8 40 107.6 69.2a394.72 394.72 0 01-59.4 41.8c-15.7-45-35.8-84.1-59.2-115.4 3.7 1.4 7.4 2.9 11 4.4zm-90.6 700.6c-9.2 7.2-18.4 12.7-27.7 16.4V697a389.1 389.1 0 01115.7 26.2c-8.3 24.6-17.9 47.3-29 67.8-17.4 32.4-37.8 58.3-59 75.1zm59-633.1c11 20.6 20.7 43.3 29 67.8A389.1 389.1 0 01540 327V141.6c9.2 3.7 18.5 9.1 27.7 16.4 21.2 16.7 41.6 42.6 59 75zM540 640.9V540h147.5c-1.6 44.2-7.1 87.1-16.3 127.8l-.3 1.2A445.02 445.02 0 00540 640.9zm0-156.9V383.1c45.8-2.8 89.8-12.5 130.9-28.1l.3 1.2c9.2 40.7 14.7 83.5 16.3 127.8H540zm-56 56v100.9c-45.8 2.8-89.8 12.5-130.9 28.1l-.3-1.2c-9.2-40.7-14.7-83.5-16.3-127.8H484zm-147.5-56c1.6-44.2 7.1-87.1 16.3-127.8l.3-1.2c41.1 15.6 85 25.3 130.9 28.1V484H336.5zM484 697v185.4c-9.2-3.7-18.5-9.1-27.7-16.4-21.2-16.7-41.7-42.7-59.1-75.1-11-20.6-20.7-43.3-29-67.8 37.2-14.6 75.9-23.3 115.8-26.1zm0-370a389.1 389.1 0 01-115.7-26.2c8.3-24.6 17.9-47.3 29-67.8 17.4-32.4 37.8-58.4 59.1-75.1 9.2-7.2 18.4-12.7 27.7-16.4V327zM365.7 165.5c3.7-1.5 7.3-3 11-4.4-23.4 31.3-43.5 70.4-59.2 115.4-21-12-40.9-26-59.4-41.8 31.8-29.2 67.9-52.4 107.6-69.2zM165.5 365.7c13.8-32.6 32-62.8 54.2-90.2 24.9 21.5 52.2 40.3 81.5 55.9-11.6 46.9-18.8 98.4-20.7 152.6H137c3-40.9 12.6-80.6 28.5-118.3zM137 540h143.5c1.9 54.2 9.1 105.7 20.7 152.6a444.07 444.07 0 00-81.5 55.9A373.86 373.86 0 01137 540zm228.7 318.5c-39.7-16.8-75.8-40-107.6-69.2 18.5-15.8 38.4-29.7 59.4-41.8 15.7 45 35.8 84.1 59.2 115.4-3.7-1.4-7.4-2.9-11-4.4zm292.6 0c-3.7 1.5-7.3 3-11 4.4 23.4-31.3 43.5-70.4 59.2-115.4 21 12 40.9 26 59.4 41.8a373.81 373.81 0 01-107.6 69.2z"></path></svg><span>联网结算</span></a>
+        </div>
+      </details>
       <div class="toc-title">目录</div>
       <a class="toc-level-1" href="#救助报销用户操作与核对参考文档">救助报销用户操作与核对参考文档</a>
       <a class="toc-level-2" href="#一、标准受理流程">一、标准受理流程</a>
@@ -618,10 +832,13 @@
       <a class="toc-level-2" href="#十、常见问题">十、常见问题</a>
     </nav>
     <main id="top">
-      <div class="doc-meta">用户操作与核对参考文档 · 单文件可离线浏览</div>
-      <h1 id="救助报销用户操作与核对参考文档">救助报销用户操作与核对参考文档</h1>
-      <p>更新时间：2026-07-23</p>
-<p>本模块包括患者管理、就诊记录和受理记录。推荐先保证患者和就诊记录准确，再发起受理；一个受理记录可关联同一患者的多条就诊记录。</p>
+      <div class="doc-meta">用户操作与核对参考文档</div>
+      <h1 id="救助报销用户操作与核对参考文档"><svg class="document-title-icon" viewBox="64 64 896 896" aria-hidden="true"><path d="M839.2 278.1a32 32 0 00-30.4-22.1H736V144c0-17.7-14.3-32-32-32H320c-17.7 0-32 14.3-32 32v112h-72.8a31.9 31.9 0 00-30.4 22.1L112 502v378c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V502l-72.8-223.9zM360 184h304v72H360v-72zm480 656H184V513.4L244.3 328h535.4L840 513.4V840zM652 572H544V464c0-4.4-3.6-8-8-8h-48c-4.4 0-8 3.6-8 8v108H372c-4.4 0-8 3.6-8 8v48c0 4.4 3.6 8 8 8h108v108c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V636h108c4.4 0 8-3.6 8-8v-48c0-4.4-3.6-8-8-8z"></path></svg><span>救助报销用户操作与核对参考文档</span></h1>
+      <section class="module-summary" aria-label="模块简介">
+        <div class="module-summary-title">简介</div>
+        <p>救助报销用于统一管理患者、就诊和受理记录，汇总计算报销金额并跟踪办理状态，解决救助资料分散、重复受理及报销过程难以核对的问题。</p>
+      </section>
+      <p class="updated-at">更新时间：2026-07-23</p>
 
 <h2 id="一、标准受理流程">一、标准受理流程</h2>
 <div class="quick-flow">

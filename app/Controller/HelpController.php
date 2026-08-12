@@ -9,6 +9,9 @@ use Hyperf\HttpServer\Contract\ResponseInterface;
 class HelpController extends AbstractController
 {
     private const HELP_DIR = BASE_PATH . '/helps';
+    private const HIDDEN_HELP_FILES = [
+        '仪表板用户操作与核对参考文档.html',
+    ];
 
     public function index(RequestInterface $request)
     {
@@ -21,6 +24,10 @@ class HelpController extends AbstractController
             }
 
             $filename = basename($file);
+            if (in_array($filename, self::HIDDEN_HELP_FILES, true)) {
+                continue;
+            }
+
             $documents[] = [
                 'filename' => $filename,
                 'title' => pathinfo($filename, PATHINFO_FILENAME),
