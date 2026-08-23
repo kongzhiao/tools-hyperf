@@ -193,7 +193,9 @@ class InsuranceDataController extends AbstractController
             return $this->error('个人实缴金额必须是非负数');
         }
 
-        $count = InsuranceData::whereIn('id', $data['ids'])->update($updateData);
+        $count = InsuranceData::whereIn('id', $data['ids'])->update(
+            (new InsuranceData())->prepareAttributesForStorage($updateData)
+        );
 
         return $this->success(['updated_count' => $count], "成功更新 {$count} 条数据");
     }
@@ -485,10 +487,10 @@ class InsuranceDataController extends AbstractController
                 $query->where('street_town', $filters['street_town']);
             }
             if (!empty($filters['name'])) {
-                $query->where('name', 'like', "%{$filters['name']}%");
+                $query->whereBlind('name', (string) $filters['name']);
             }
             if (!empty($filters['id_number'])) {
-                $query->where('id_number', 'like', "%{$filters['id_number']}%");
+                $query->whereBlind('id_number', (string) $filters['id_number']);
             }
             if (!empty($filters['payment_category'])) {
                 $query->where('payment_category', $filters['payment_category']);
@@ -576,10 +578,10 @@ class InsuranceDataController extends AbstractController
                 $query->where('street_town', 'like', "%{$filters['street_town']}%");
             }
             if (!empty($filters['name'])) {
-                $query->where('name', 'like', "%{$filters['name']}%");
+                $query->whereBlind('name', (string) $filters['name']);
             }
             if (!empty($filters['id_number'])) {
-                $query->where('id_number', 'like', "%{$filters['id_number']}%");
+                $query->whereBlind('id_number', (string) $filters['id_number']);
             }
             if (!empty($filters['payment_category'])) {
                 $query->where('payment_category', $filters['payment_category']);
@@ -907,7 +909,11 @@ class InsuranceDataController extends AbstractController
                     }
                 }
                 if (!empty($idNumbers)) {
-                    $existingIds = \App\Model\InsuranceData::where('year', $year)->whereIn('id_number', $idNumbers)->pluck('id_number')->toArray();
+                    $existingIds = \App\Model\InsuranceData::where('year', $year)
+                        ->whereBlindIn('id_number', $idNumbers)
+                        ->get(['id_number'])
+                        ->pluck('id_number')
+                        ->toArray();
                     $duplicateIds = array_flip($existingIds);
                 }
                 $duplicateCheckTime = microtime(true) - $checkStart;
@@ -962,7 +968,11 @@ class InsuranceDataController extends AbstractController
                     }
                 }
                 if (!empty($idNumbers)) {
-                    $existingIds = \App\Model\InsuranceData::where('year', $year)->whereIn('id_number', $idNumbers)->pluck('id_number')->toArray();
+                    $existingIds = \App\Model\InsuranceData::where('year', $year)
+                        ->whereBlindIn('id_number', $idNumbers)
+                        ->get(['id_number'])
+                        ->pluck('id_number')
+                        ->toArray();
                     $duplicateIds = array_flip($existingIds);
                 }
                 $duplicateCheckTime = microtime(true) - $checkStart;
@@ -1017,7 +1027,15 @@ class InsuranceDataController extends AbstractController
             $chunks = array_chunk($validData, $batchSize);
             foreach ($chunks as $chunk) {
                 try {
-                    InsuranceData::insert($chunk);
+                    $encryptedChunk = array_map(static function (array $data): array {
+                        $model = new InsuranceData($data);
+                        $attributes = $model->getAttributes();
+                        $now = date('Y-m-d H:i:s');
+                        $attributes['created_at'] = $attributes['created_at'] ?? $now;
+                        $attributes['updated_at'] = $attributes['updated_at'] ?? $now;
+                        return $attributes;
+                    }, $chunk);
+                    InsuranceData::insert($encryptedChunk);
                     $result['imported_count'] += count($chunk);
                     $batchCount++;
                 } catch (\Exception $e) {
@@ -1618,6 +1636,8 @@ class InsuranceDataController extends AbstractController
                     return '未匹配';
                 case null:
                 case '':
+                    return '未处理';
+                default:
                     return '未处理';
             }
         }

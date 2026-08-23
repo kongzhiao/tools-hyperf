@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace HyperfTest\Cases;
 
+use App\Model\Permission;
 use HyperfTest\HttpTestCase;
 
 /**
@@ -12,53 +13,68 @@ use HyperfTest\HttpTestCase;
  */
 class PermissionControllerTest extends HttpTestCase
 {
-    public function testStorePermission()
+    public function testStorePermission(): void
     {
-        $data = [
-            'name' => 'test-permission',
-            'description' => '测试权限',
-        ];
-        $response = $this->post('/permissions', $data);
-        $json = $response->json();
-        $this->assertIsArray($json);
-        $this->assertArrayHasKey('id', $json);
-        $this->assertEquals('test-permission', $json['name']);
+        $name = $this->uniqueName('test-permission');
+        try {
+            $json = $this->post('/api/permissions', [
+                'name' => $name,
+                'description' => '测试权限',
+            ], $this->authenticatedHeaders())->json();
+
+            self::assertSame(0, $json['code'] ?? null);
+            self::assertSame($name, $json['data']['name'] ?? null);
+        } finally {
+            Permission::query()->where('name', $name)->delete();
+        }
     }
 
-    public function testUpdatePermission()
+    public function testUpdatePermission(): void
     {
-        // 先创建
-        $data = [
-            'name' => 'update-permission',
-            'description' => '待更新权限',
-        ];
-        $created = $this->post('/permissions', $data)->json();
-        $id = $created['id'] ?? null;
-        $this->assertNotNull($id);
-        // 更新
-        $update = [
-            'name' => 'updated-permission',
-            'description' => '已更新',
-        ];
-        $response = $this->put("/permissions/{$id}", $update);
-        $json = $response->json();
-        $this->assertEquals('updated-permission', $json['name']);
+        $name = $this->uniqueName('update-permission');
+        $updatedName = $this->uniqueName('updated-permission');
+        try {
+            $created = $this->post('/api/permissions', [
+                'name' => $name,
+                'description' => '待更新权限',
+            ], $this->authenticatedHeaders())->json();
+            $id = $created['data']['id'] ?? null;
+            self::assertNotNull($id);
+
+            $json = $this->put("/api/permissions/{$id}", [
+                'name' => $updatedName,
+                'description' => '已更新',
+            ], $this->authenticatedHeaders())->json();
+
+            self::assertSame(0, $json['code'] ?? null);
+            self::assertSame($updatedName, $json['data']['name'] ?? null);
+        } finally {
+            Permission::query()->whereIn('name', [$name, $updatedName])->delete();
+        }
     }
 
-    public function testDeletePermission()
+    public function testDeletePermission(): void
     {
-        // 先创建
-        $data = [
-            'name' => 'delete-permission',
-            'description' => '待删除权限',
-        ];
-        $created = $this->post('/permissions', $data)->json();
-        $id = $created['id'] ?? null;
-        $this->assertNotNull($id);
-        // 删除
-        $response = $this->delete("/permissions/{$id}");
-        $json = $response->json();
-        $this->assertArrayHasKey('message', $json);
-        $this->assertStringContainsString('删除成功', $json['message']);
+        $name = $this->uniqueName('delete-permission');
+        try {
+            $created = $this->post('/api/permissions', [
+                'name' => $name,
+                'description' => '待删除权限',
+            ], $this->authenticatedHeaders())->json();
+            $id = $created['data']['id'] ?? null;
+            self::assertNotNull($id);
+
+            $json = $this->delete("/api/permissions/{$id}", [], $this->authenticatedHeaders())->json();
+            self::assertSame(0, $json['code'] ?? null);
+            self::assertSame('删除成功', $json['msg'] ?? null);
+            self::assertFalse(Permission::query()->whereKey($id)->exists());
+        } finally {
+            Permission::query()->where('name', $name)->delete();
+        }
+    }
+
+    private function uniqueName(string $prefix): string
+    {
+        return $prefix . '-' . bin2hex(random_bytes(6));
     }
 }

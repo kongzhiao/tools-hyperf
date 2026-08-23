@@ -172,8 +172,10 @@ class EnrollLedgerService
         $keyword = trim((string) ($filters['keyword'] ?? ''));
         if ($keyword !== '') {
             $query->where(function ($subQuery) use ($keyword) {
-                $subQuery->where('name', 'like', "%{$keyword}%")
-                    ->orWhere('id_card', 'like', "%{$keyword}%")
+                $subQuery->whereBlind('name', $keyword)
+                    ->orWhere(function ($idQuery) use ($keyword) {
+                        $idQuery->whereBlind('id_card', $keyword);
+                    })
                     ->orWhere('village_name', 'like', "%{$keyword}%");
             });
         }
@@ -768,7 +770,7 @@ class EnrollLedgerService
     {
         $existing = EnrollLedger::query()
             ->where('year', (int) $data['year'])
-            ->where('id_card', (string) $data['id_card'])
+            ->whereBlind('id_card', (string) $data['id_card'])
             ->orderBy('id')
             ->first();
 
@@ -783,7 +785,7 @@ class EnrollLedgerService
 
     private function snapshotRow(array $data, int $year, string $period, string $type, string $sourceBatch, string $now): array
     {
-        return [
+        $row = [
             'year' => $year,
             'period' => $period,
             'snapshot_type' => $type,
@@ -802,5 +804,7 @@ class EnrollLedgerService
             'created_at' => $now,
             'updated_at' => $now,
         ];
+
+        return (new EnrollLedgerSnapshot($row))->getAttributes();
     }
 }

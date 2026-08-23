@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Model\MedPersonInfo;
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Annotation\Command;
 use Hyperf\DbConnection\Db;
@@ -41,12 +42,13 @@ class CleanupPatientDataCommand extends HyperfCommand
             Db::beginTransaction();
 
             // 1. 获取要删除的患者ID
-            $patientIds = Db::table('med_person_info')
-                ->whereIn('name', ['刁全树', '许林'])
+            $patientIds = MedPersonInfo::query()
+                ->whereBlindIn('name', ['刁全树', '许林'])
                 ->pluck('id')
                 ->toArray();
 
             if (empty($patientIds)) {
+                Db::commit();
                 $this->output->warning('No patients found with the specified names');
                 return;
             }
@@ -82,4 +84,4 @@ class CleanupPatientDataCommand extends HyperfCommand
             $this->output->error('Transaction rolled back');
         }
     }
-} 
+}

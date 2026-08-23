@@ -291,7 +291,7 @@ class SupplementImportJob extends AbstractJob
 
         $existingRows = EnrollLedger::query()
             ->where('year', $year)
-            ->whereIn('id_card', array_keys($rows))
+            ->whereBlindIn('id_card', array_keys($rows))
             ->get();
         $existingMap = [];
         foreach ($existingRows as $record) {

@@ -96,11 +96,9 @@ class VerifyIdentityCommand extends HyperfCommand
 
             if ($returnCode !== 0) {
                 $this->output->writeln('<error>读取Excel文件失败</error>');
-                $this->output->writeln('错误信息: ' . implode("\n", $output));
                 return;
             }
 
-            $this->output->writeln('Python输出: ' . implode("\n", $output));
             $jsonOutput = implode("\n", $output);
             $data = json_decode($jsonOutput, true);
             if (!$data) {
@@ -157,7 +155,7 @@ class VerifyIdentityCommand extends HyperfCommand
                     if ($matchedCategory) {
                         // 查找对应的保险数据记录
                         $insuranceData = InsuranceData::where('year', $year)
-                            ->where('id_number', $idNumber)
+                            ->whereBlind('id_number', $idNumber)
                             ->first();
 
                         if ($insuranceData) {
@@ -227,6 +225,32 @@ class VerifyIdentityCommand extends HyperfCommand
      */
     private function outputResult(array $result): void
     {
+        if (array_key_exists('id_number', $result)) {
+            $result['id_number'] = $this->maskIdentifier((string) $result['id_number']);
+        }
+        if (array_key_exists('name', $result)) {
+            $result['name'] = $this->maskName((string) $result['name']);
+        }
         $this->output->writeln('RESULT:' . json_encode($result, JSON_UNESCAPED_UNICODE));
     }
-} 
+
+    private function maskIdentifier(string $value): string
+    {
+        $length = strlen($value);
+        if ($length < 13) {
+            return $value === '' ? '' : '***';
+        }
+
+        return substr($value, 0, 6) . str_repeat('*', $length - 12) . substr($value, -6);
+    }
+
+    private function maskName(string $value): string
+    {
+        $length = mb_strlen($value, 'UTF-8');
+        if ($length <= 1) {
+            return $value === '' ? '' : '*';
+        }
+
+        return mb_substr($value, 0, 1, 'UTF-8') . str_repeat('*', max(1, $length - 1));
+    }
+}

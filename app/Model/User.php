@@ -19,7 +19,19 @@ class User extends Model
      *
      * @var array
      */
-    protected array $fillable = ['username', 'password', 'nickname', 'town_id'];
+    protected array $fillable = [
+        'username',
+        'password',
+        'nickname',
+        'town_id',
+        'totp_required',
+        'totp_secret',
+        'totp_bound_at',
+        'totp_reset_at',
+        'session_version',
+    ];
+
+    protected array $hidden = ['password', 'totp_secret'];
     
     /**
      * The attributes that should be cast to native types.
@@ -29,6 +41,10 @@ class User extends Model
     protected array $casts = [
         'id' => 'integer',
         'town_id' => 'integer',
+        'totp_required' => 'boolean',
+        'session_version' => 'integer',
+        'totp_bound_at' => 'datetime',
+        'totp_reset_at' => 'datetime',
     ];
     
     /**
@@ -66,6 +82,25 @@ class User extends Model
         }
         return array_values(array_unique($permissions));
     }
+
+    public function hasAdminCapability(): bool
+    {
+        if ((int) $this->id === 1) {
+            return true;
+        }
+
+        return $this->roles()->where('roles.name', '管理员')->exists();
+    }
+
+    public function isTotpRequired(): bool
+    {
+        return (bool) $this->totp_required || $this->hasAdminCapability();
+    }
+
+    public function isTotpBound(): bool
+    {
+        return !empty($this->totp_secret) && !empty($this->totp_bound_at);
+    }
     
     /**
      * 获取用户信息（用于 JWT）
@@ -80,6 +115,10 @@ class User extends Model
             'nickname' => $this->nickname,
             'town_id' => $this->town_id,
             'town_name' => $this->town ? $this->town->name : null,
+            'totp_required' => $this->isTotpRequired(),
+            'totp_bound' => $this->isTotpBound(),
+            'admin_capability' => $this->hasAdminCapability(),
+            'session_version' => max(1, (int) ($this->session_version ?? 1)),
             'permissions' => $permissions,
             'menus' => Permission::getUserMenus($permissions, (int) $this->id === 1),
         ];

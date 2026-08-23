@@ -126,8 +126,10 @@ class RefundExportJob extends AbstractJob
         $keyword = trim((string) ($filters['keyword'] ?? ''));
         if ($keyword !== '') {
             $query->where(function ($sub) use ($keyword) {
-                $sub->where('name', 'like', "%{$keyword}%")
-                    ->orWhere('id_card', 'like', "%{$keyword}%")
+                $sub->whereBlind('name', $keyword)
+                    ->orWhere(function ($idQuery) use ($keyword) {
+                        $idQuery->whereBlind('id_card', $keyword);
+                    })
                     ->orWhere('sequence_no', 'like', "%{$keyword}%");
             });
         }

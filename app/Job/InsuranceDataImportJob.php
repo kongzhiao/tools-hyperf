@@ -78,6 +78,7 @@ class InsuranceDataImportJob extends AbstractJob
             $duplicateIds = [];
             if ($this->importType === 'increment') {
                 $duplicateIds = InsuranceData::where('year', $this->year)
+                    ->get(['id_number'])
                     ->pluck('id_number')
                     ->flip()
                     ->toArray();
@@ -212,21 +213,22 @@ class InsuranceDataImportJob extends AbstractJob
                 $tempInstance = new InsuranceData($data);
                 $data['match_status'] = $tempInstance->calculateOverallMatchStatus();
 
-                // 使用 updateOrCreate 实现 Upsert，由于 match_status 已预填，一次保存即可
-                InsuranceData::updateOrCreate(
-                    [
-                        'year' => $data['year'],
-                        'id_number' => $data['id_number']
-                    ],
-                    $data
-                );
+                $record = InsuranceData::query()
+                    ->where('year', $data['year'])
+                    ->whereBlind('id_number', (string) $data['id_number'])
+                    ->first();
+                if ($record) {
+                    $record->update($data);
+                } else {
+                    InsuranceData::create($data);
+                }
 
                 $result['imported_count']++;
             } catch (\Exception $e) {
                 $result['skipped_count']++;
                 $result['error_rows'][] = [
                     'reason' => '写入或更新失败：' . $e->getMessage(),
-                    'id_number' => $data['id_number'] ?? 'unknown'
+                    'id_number' => $this->maskIdentifier((string) ($data['id_number'] ?? ''))
                 ];
             }
         }
@@ -241,5 +243,15 @@ class InsuranceDataImportJob extends AbstractJob
             'url_at' => date('Y-m-d H:i:s'),
         ]);
         $this->releaseLock();
+    }
+
+    private function maskIdentifier(string $value): string
+    {
+        $length = strlen($value);
+        if ($length < 13) {
+            return $value === '' ? '' : '***';
+        }
+
+        return substr($value, 0, 6) . str_repeat('*', $length - 12) . substr($value, -6);
     }
 }

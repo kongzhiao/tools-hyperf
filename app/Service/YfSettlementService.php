@@ -75,7 +75,7 @@ class YfSettlementService
         }
 
         // 获取该人该年度已使用的补助总额
-        $usedAmountQuery = YfSettlement::where('id_card', $idCard)
+        $usedAmountQuery = YfSettlement::whereBlind('id_card', $idCard)
             ->where('period_belong', 'like', "{$year}%");
 
         if ($excludeId) {
@@ -147,10 +147,10 @@ class YfSettlementService
             $query->where('month', (int) $filters['month']);
         }
         if (!empty($filters['name'])) {
-            $query->where('name', 'like', '%' . $filters['name'] . '%');
+            $query->whereBlind('name', (string) $filters['name']);
         }
         if (!empty($filters['id_card'])) {
-            $query->where('id_card', 'like', '%' . $filters['id_card'] . '%');
+            $query->whereBlind('id_card', (string) $filters['id_card']);
         }
         if (!empty($filters['category'])) {
             $query->where('category', $filters['category']);

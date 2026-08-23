@@ -298,7 +298,7 @@ class NoticeRecordController extends AbstractController
                     UnrescuedNoticeRecord::STATUS_NOTIFIED,
                 ]);
         }
-        $affected = $query->update([
+        $feedback = [
             'contact_name' => trim((string) $request->input('contact_name', '')) ?: null,
             'contact_phone' => trim((string) $request->input('contact_phone', '')) ?: null,
             'bank_name' => trim((string) $request->input('bank_name', '')) ?: null,
@@ -306,7 +306,8 @@ class NoticeRecordController extends AbstractController
             'bank_account_no' => trim((string) $request->input('bank_account_no', '')) ?: null,
             'town_remark' => trim((string) $request->input('town_remark', '')) ?: null,
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ];
+        $affected = $query->update((new UnrescuedNoticeRecord())->prepareAttributesForStorage($feedback));
         return $this->success(['affected_rows' => $affected], '回填成功');
     }
 
@@ -405,12 +406,14 @@ class NoticeRecordController extends AbstractController
         $keyword = trim((string) ($filters['keyword'] ?? ''));
         if ($keyword !== '') {
             $query->where(function ($sub) use ($keyword) {
-                $sub->where('name', 'like', "%{$keyword}%")
-                    ->orWhere('id_card', 'like', "%{$keyword}%")
+                $sub->whereBlind('name', $keyword)
+                    ->orWhere(function ($idQuery) use ($keyword) {
+                        $idQuery->whereBlind('id_card', $keyword);
+                    })
                     ->orWhere('sequence_no', 'like', "%{$keyword}%");
             });
         }
-        foreach (['hospital_name', 'disease_code', 'disease_name', 'contact_name'] as $field) {
+        foreach (['hospital_name', 'disease_code', 'disease_name'] as $field) {
             $values = $this->recordService->filterValues($filters[$field] ?? null);
             if ($values !== []) {
                 $query->where(function ($sub) use ($field, $values) {
@@ -419,6 +422,10 @@ class NoticeRecordController extends AbstractController
                     }
                 });
             }
+        }
+        $contactNames = $this->recordService->filterValues($filters['contact_name'] ?? null);
+        if ($contactNames !== []) {
+            $query->whereBlindIn('contact_name', $contactNames);
         }
         $this->recordService->applyDiseaseKeywordFilter($query, $filters['disease_keyword'] ?? null);
         $remark = trim((string) ($filters['remark'] ?? ''));
@@ -515,7 +522,7 @@ class NoticeRecordController extends AbstractController
             $query->whereIn('status', $allowedStatuses);
         }
         $data['updated_at'] = date('Y-m-d H:i:s');
-        $affected = $query->update($data);
+        $affected = $query->update((new UnrescuedNoticeRecord())->prepareAttributesForStorage($data));
 
         $this->operationLogService->record('下放通知', $action, 'unrescued_notice_records', implode(',', $ids), $action, ['affected' => $affected]);
         return $this->success(['affected_rows' => $affected], $message);

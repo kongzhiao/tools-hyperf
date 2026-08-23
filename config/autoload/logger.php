@@ -27,4 +27,21 @@ return [
             ],
         ],
     ],
+    'sensitive_encryption' => [
+        'handler' => [
+            'class' => Monolog\Handler\StreamHandler::class,
+            'constructor' => [
+                'stream' => BASE_PATH . '/runtime/logs/sensitive-encryption.log',
+                'level' => Monolog\Logger::INFO,
+            ],
+        ],
+        'formatter' => [
+            'class' => Monolog\Formatter\LineFormatter::class,
+            'constructor' => [
+                'format' => "[%datetime%] %channel%.%level_name%: %message%\n",
+                'dateFormat' => 'Y-m-d H:i:s',
+                'allowInlineLineBreaks' => false,
+            ],
+        ],
+    ],
 ];

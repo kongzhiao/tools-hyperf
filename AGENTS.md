@@ -86,7 +86,7 @@ Request -> JwtAuthMiddleware -> Controller -> Service/Model -> DB/Redis
 - `JwtAuthMiddleware` 注入 `userId`、`user`、`username`。
 - 超级管理员 `users.id = 1` 取得全部权限；普通账号通过角色关联启用权限。
 - 镇街数据范围必须由后端根据当前用户绑定强制追加，忽略调用方伪造的其他镇街范围。
-- 身份证、联系电话、银行账户、Token、密码哈希和环境口令不得输出到文档或日志。
+- 身份证、联系电话、银行账户、Token、密码哈希和环境口令不得输出完整（可脱敏保留少部分）的到文档或日志。
 
 ## 文档维护
 

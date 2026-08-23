@@ -21,12 +21,22 @@ if (!function_exists('env')) {
 use Hyperf\Contract\StdoutLoggerInterface;
 use Psr\Log\LogLevel;
 
+$isSensitiveEncryptionCommand = PHP_SAPI === 'cli'
+    && isset($_SERVER['argv'])
+    && in_array('data:encrypt-sensitive', $_SERVER['argv'], true);
+
 return [
     'app_name' => env('APP_NAME', 'skeleton'),
     'app_env' => env('APP_ENV', 'dev'),
     'scan_cacheable' => env('SCAN_CACHEABLE', false),
     StdoutLoggerInterface::class => [
-        'log_level' => [
+        'log_level' => $isSensitiveEncryptionCommand ? [
+            LogLevel::ALERT,
+            LogLevel::CRITICAL,
+            LogLevel::EMERGENCY,
+            LogLevel::ERROR,
+            LogLevel::WARNING,
+        ] : [
             LogLevel::ALERT,
             LogLevel::CRITICAL,
             LogLevel::DEBUG,

@@ -229,7 +229,11 @@ class Attachment1ImportJob extends AbstractJob
 
             if (!empty($insertRows)) {
                 foreach (array_chunk($insertRows, 500) as $chunk) {
-                    Db::table('unrescued_records')->insert($chunk);
+                    $encryptedChunk = array_map(
+                        static fn (array $row) => (new UnrescuedRecord())->prepareAttributesForStorage($row),
+                        $chunk
+                    );
+                    Db::table('unrescued_records')->insert($encryptedChunk);
                 }
                 $result['created'] += count($insertRows);
             }
@@ -250,10 +254,17 @@ class Attachment1ImportJob extends AbstractJob
 
     private function batchUpdate(array $rows, string $now): void
     {
+        foreach ($rows as &$row) {
+            $row['data'] = (new UnrescuedRecord())->prepareAttributesForStorage($row['data']);
+        }
+        unset($row);
+
         $columns = [
             'source_batch',
             'name',
+            'name_bidx',
             'id_card',
+            'id_card_bidx',
             'medical_category',
             'disease_code',
             'disease_name',
@@ -314,7 +325,8 @@ class Attachment1ImportJob extends AbstractJob
                     if (!$service->shouldKeepWorkflowStatus((string) $existing->status)) {
                         $data['status'] = $service->decideStatus($data['calc_reimbursement_amount']);
                     }
-                    UnrescuedRecord::query()->where('id', (int) $existing->id)->update($data);
+                    $existing->fill($data);
+                    $existing->save();
                     $result['updated']++;
                     continue;
                 }

@@ -61,10 +61,10 @@ class InsuranceDataExportJob extends AbstractJob
                 $query->where('street_town', 'like', "%{$filters['street_town']}%");
             }
             if (!empty($filters['name'])) {
-                $query->where('name', 'like', "%{$filters['name']}%");
+                $query->whereBlind('name', (string) $filters['name']);
             }
             if (!empty($filters['id_number'])) {
-                $query->where('id_number', 'like', "%{$filters['id_number']}%");
+                $query->whereBlind('id_number', (string) $filters['id_number']);
             }
             if (!empty($filters['payment_category'])) {
                 $query->where('payment_category', $filters['payment_category']);

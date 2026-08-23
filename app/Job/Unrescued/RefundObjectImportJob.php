@@ -10,7 +10,6 @@ use App\Model\Unrescued\UnrescuedRefundRecord;
 use App\Service\CsvReaderService;
 use App\Service\Unrescued\UnrescuedRecordService;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\DbConnection\Db;
 use Hyperf\Logger\LoggerFactory;
 
 class RefundObjectImportJob extends AbstractJob
@@ -52,9 +51,11 @@ class RefundObjectImportJob extends AbstractJob
                 ->where('settlement_period', $period)
                 ->whereNotNull('id_card')
                 ->where('id_card', '!=', '')
-                ->distinct()
+                ->get(['id_card'])
                 ->pluck('id_card')
                 ->map(static fn ($value) => (string) $value)
+                ->unique()
+                ->values()
                 ->all();
             $targetIdCardMap = array_fill_keys($targetIdCards, true);
 
@@ -164,31 +165,29 @@ class RefundObjectImportJob extends AbstractJob
         }
 
         $idCards = array_keys($rowsByIdCard);
-        $countRows = UnrescuedRefundRecord::query()
-            ->select(['id_card', Db::raw('COUNT(*) AS record_count')])
+        $matchedRecords = UnrescuedRefundRecord::query()
+            ->select(['id', 'id_card'])
             ->where('settlement_period', $period)
-            ->whereIn('id_card', $idCards)
-            ->groupBy('id_card')
+            ->whereBlindIn('id_card', $idCards)
             ->get();
 
-        $recordCounts = [];
-        foreach ($countRows as $item) {
-            $recordCounts[(string) $item->id_card] = (int) $item->record_count;
+        $recordsByIdCard = [];
+        foreach ($matchedRecords as $record) {
+            $recordsByIdCard[(string) $record->id_card][] = $record;
         }
 
         $now = date('Y-m-d H:i:s');
         foreach ($rowsByIdCard as $row) {
             try {
-                $matchedCount = $recordCounts[$row['id_card']] ?? 0;
+                $records = $recordsByIdCard[$row['id_card']] ?? [];
+                $matchedCount = count($records);
                 if ($matchedCount <= 0) {
                     $result['skipped']++;
                     continue;
                 }
 
-                UnrescuedRefundRecord::query()
-                    ->where('settlement_period', $period)
-                    ->where('id_card', $row['id_card'])
-                    ->update([
+                foreach ($records as $record) {
+                    $record->fill([
                         'name' => $row['name'],
                         'town_id' => $row['town_id'],
                         'street_town' => $row['street_town'],
@@ -197,6 +196,8 @@ class RefundObjectImportJob extends AbstractJob
                         'match_status' => UnrescuedRecordService::MATCHED,
                         'updated_at' => $now,
                     ]);
+                    $record->save();
+                }
 
                 $result['matched_rows']++;
                 $result['updated_records'] += $matchedCount;

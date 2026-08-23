@@ -145,12 +145,14 @@ class NoticeExportJob extends AbstractJob
         $keyword = trim((string) ($filters['keyword'] ?? ''));
         if ($keyword !== '') {
             $query->where(function ($sub) use ($keyword) {
-                $sub->where('name', 'like', "%{$keyword}%")
-                    ->orWhere('id_card', 'like', "%{$keyword}%")
+                $sub->whereBlind('name', $keyword)
+                    ->orWhere(function ($idQuery) use ($keyword) {
+                        $idQuery->whereBlind('id_card', $keyword);
+                    })
                     ->orWhere('sequence_no', 'like', "%{$keyword}%");
             });
         }
-        foreach (['hospital_name', 'disease_code', 'disease_name', 'contact_name'] as $field) {
+        foreach (['hospital_name', 'disease_code', 'disease_name'] as $field) {
             $values = $service->filterValues($filters[$field] ?? null);
             if ($values !== []) {
                 $query->where(function ($sub) use ($field, $values) {
@@ -159,6 +161,10 @@ class NoticeExportJob extends AbstractJob
                     }
                 });
             }
+        }
+        $contactNames = $service->filterValues($filters['contact_name'] ?? null);
+        if ($contactNames !== []) {
+            $query->whereBlindIn('contact_name', $contactNames);
         }
         $service->applyDiseaseKeywordFilter($query, $filters['disease_keyword'] ?? null);
         $remark = trim((string) ($filters['remark'] ?? ''));

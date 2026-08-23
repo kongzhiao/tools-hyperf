@@ -15,4 +15,5 @@ return [
     App\Command\ImportInsuranceLevelConfigCommand::class,
     App\Command\ImportInsuranceDataCommand::class,
     App\Command\CheckLevelDataCommand::class,
+    App\Command\EncryptSensitiveDataCommand::class,
 ];

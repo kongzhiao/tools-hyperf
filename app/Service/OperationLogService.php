@@ -18,15 +18,18 @@ class OperationLogService
         ?string $description = null,
         array $params = [],
         string $status = 'success',
-        ?string $errorMessage = null
+        ?string $errorMessage = null,
+        array $actor = []
     ): void {
         try {
             $request = $this->getRequest();
             $user = $request ? $request->getAttribute('user') : null;
+            $requestUserId = $request ? $request->getAttribute('userId') : null;
+            $requestUsername = is_array($user) ? ($user['username'] ?? null) : null;
 
             OperationLog::create([
-                'user_id' => $request ? $request->getAttribute('userId') : null,
-                'username' => is_array($user) ? ($user['username'] ?? null) : null,
+                'user_id' => $actor['user_id'] ?? $requestUserId,
+                'username' => $actor['username'] ?? $requestUsername,
                 'module' => $module,
                 'action' => $action,
                 'target_type' => $targetType,
@@ -55,14 +58,66 @@ class OperationLogService
 
     private function sanitizeParams(array $params): array
     {
-        $sensitiveKeys = ['password', 'token', 'authorization'];
-
         foreach ($params as $key => $value) {
-            if (in_array(strtolower((string) $key), $sensitiveKeys, true)) {
+            $normalizedKey = strtolower((string) $key);
+
+            if (is_array($value)) {
+                $params[$key] = $this->sanitizeParams($value);
+                continue;
+            }
+
+            if ($this->isPasswordInputKey($normalizedKey)) {
+                $params[$key] = is_string($value) ? $this->maskPassword($value) : '***';
+                continue;
+            }
+
+            if ($this->isFullyHiddenKey($normalizedKey)) {
                 $params[$key] = '***';
             }
         }
 
         return $params;
+    }
+
+    private function isPasswordInputKey(string $key): bool
+    {
+        if (strpos($key, 'hash') !== false) {
+            return false;
+        }
+
+        return $key === 'password'
+            || substr($key, -9) === '_password'
+            || strpos($key, 'password_') === 0;
+    }
+
+    private function isFullyHiddenKey(string $key): bool
+    {
+        if (strpos($key, 'password_hash') !== false || strpos($key, 'totp_secret') !== false) {
+            return true;
+        }
+
+        return in_array($key, [
+            'token',
+            'access_token',
+            'refresh_token',
+            'authorization',
+            'secret',
+        ], true);
+    }
+
+    private function maskPassword(string $password): string
+    {
+        $length = function_exists('mb_strlen') ? mb_strlen($password, 'UTF-8') : strlen($password);
+        if ($length < 5) {
+            return '***';
+        }
+
+        if (function_exists('mb_substr')) {
+            return mb_substr($password, 0, 2, 'UTF-8')
+                . '***'
+                . mb_substr($password, -2, 2, 'UTF-8');
+        }
+
+        return substr($password, 0, 2) . '***' . substr($password, -2);
     }
 }

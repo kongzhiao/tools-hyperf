@@ -34,13 +34,12 @@
 - 移动端登录与受理：`/m/login`、`/m/medical/reimbursement`
 - 仪表板：`/dashboard`
 - 用户管理：账户、角色、权限
-- 业务配置：类别转换配置、参保档次配置、类别额度配置
-- 数据核实：参保数据管理、税务数据汇总、参保数据汇总
+- 数据核实：参保数据管理、税务数据汇总、参保数据汇总、类别转换配置、参保档次配置
 - 统计汇总：`/statistics-summary`
 - 救助报销：受理记录、就诊记录、患者管理
-- 优抚联网结算：`/yf/settlement-online`
+- 优抚联网结算：联网结算明细 `/yf/settlement-online`、类别额度配置 `/yf/category-money-config`
 
-注意：前端 `.umirc.ts` 中部分静态路由路径带 `config/` 前缀，而当前数据库权限菜单中是 `/business-config/category-conversion`、`/business-config/insurance-level-config`。实际运行以动态菜单为主，后续新增菜单时应保证数据库 `permissions.path/component` 与前端页面路径一致。
+原“业务配置”菜单已停用。旧 `/business-config/config/*` 地址只用于兼容历史收藏并重定向到新地址；实际菜单和业务文档均按所属模块维护。
 
 ## 3. 后端架构
 
@@ -93,7 +92,6 @@
 
 - 仪表板
 - 用户管理
-- 业务配置
 - 数据核实
 - 统计汇总
 - 救助报销

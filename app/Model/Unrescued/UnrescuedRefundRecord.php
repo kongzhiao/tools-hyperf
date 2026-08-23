@@ -14,6 +14,10 @@ class UnrescuedRefundRecord extends Model
 
     protected ?string $table = 'unrescued_refund_records';
 
+    protected array $encrypts = ['name', 'id_card'];
+
+    protected array $blindIndexes = ['name' => 'name_bidx', 'id_card' => 'id_card_bidx'];
+
     protected array $guarded = [];
 
     protected array $casts = [

@@ -173,7 +173,7 @@ class ImportInsuranceDataCommand extends HyperfCommand
 
                     // 检查是否已存在（根据年份和身份证件号码）
                     $existing = InsuranceData::where('year', $year)
-                        ->where('id_number', $idNumber)
+                        ->whereBlind('id_number', $idNumber)
                         ->first();
 
                     // 匹配档次和个人实缴金额

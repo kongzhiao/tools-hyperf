@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Model;
 
-use Hyperf\DbConnection\Model\Model;
-
 class StatisticsData extends Model
 {
     protected ?string $table = 'statistics_data';
+
+    protected array $encrypts = ['settlement_id', 'name', 'id_number'];
+
+    protected array $blindIndexes = ['name' => 'name_bidx', 'id_number' => 'id_number_bidx'];
 
     protected array $fillable = [
         'project_id',
@@ -67,4 +69,4 @@ class StatisticsData extends Model
     {
         return $this->belongsTo(Project::class, 'project_id');
     }
-} 
+}

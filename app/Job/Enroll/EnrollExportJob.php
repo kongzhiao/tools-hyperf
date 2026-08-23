@@ -69,7 +69,7 @@ class EnrollExportJob extends AbstractJob
             $processed = 0;
 
             $query->orderBy('town_name')
-                ->orderBy('id_card')
+                ->orderBy('id')
                 ->chunk(1000, function ($rows) use ($writer, $type, $subsidyIdentityHeaders, &$processed, $total) {
                     foreach ($rows as $row) {
                         $processed++;

@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace App\Model;
 
-use Hyperf\DbConnection\Model\Model;
-
 class InsuranceData extends Model
 {
     protected ?string $table = 'insurance_data';
+
+    protected array $encrypts = ['name', 'id_number', 'person_number'];
+
+    protected array $blindIndexes = [
+        'name' => 'name_bidx',
+        'id_number' => 'id_number_bidx',
+    ];
 
     protected array $fillable = [
         'year',
@@ -122,11 +127,11 @@ class InsuranceData extends Model
         }
 
         if (!empty($filters['name'])) {
-            $query->where('name', 'like', "%{$filters['name']}%");
+            $query->whereBlind('name', (string) $filters['name']);
         }
 
         if (!empty($filters['id_number'])) {
-            $query->where('id_number', 'like', "%{$filters['id_number']}%");
+            $query->whereBlind('id_number', (string) $filters['id_number']);
         }
 
         if (!empty($filters['payment_category'])) {
@@ -263,9 +268,11 @@ class InsuranceData extends Model
     {
         $isLevelMatched = $this->level_match_status === 'matched';
         $isAssistanceMatched = $this->assistance_identity_match_status === 'matched';
-        $isStreetMatched = $this->street_town_match_status === 'matched';
+        // 认定区不再参与总体疑点数据判定，保留原逻辑便于恢复。
+        // $isStreetMatched = $this->street_town_match_status === 'matched';
 
-        return ($isLevelMatched && $isAssistanceMatched && $isStreetMatched) ? 'matched' : 'unmatched';
+        // return ($isLevelMatched && $isAssistanceMatched && $isStreetMatched) ? 'matched' : 'unmatched';
+        return ($isLevelMatched && $isAssistanceMatched) ? 'matched' : 'unmatched';
     }
 
     /**

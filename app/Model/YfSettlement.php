@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Model;
 
-use Hyperf\DbConnection\Model\Model;
-
 class YfSettlement extends Model
 {
     protected ?string $table = 'yf_settlements';
+
+    protected array $encrypts = ['name', 'id_card'];
+
+    protected array $blindIndexes = ['name' => 'name_bidx', 'id_card' => 'id_card_bidx'];
 
     protected array $fillable = [
         'name',

@@ -158,22 +158,22 @@ class Attachment2ImportJob extends AbstractJob
         }
 
         $idCards = array_values(array_unique(array_column($rows, 'id_card')));
-        $countRows = UnrescuedRecord::query()
-            ->select(['id_card', Db::raw('COUNT(*) AS record_count')])
+        $matchedRecords = UnrescuedRecord::query()
+            ->select(['id', 'id_card', 'name'])
             ->where('settlement_period', $settlementPeriod)
-            ->whereIn('id_card', $idCards)
-            ->groupBy('id_card')
+            ->whereBlindIn('id_card', $idCards)
             ->get();
 
-        $recordCounts = [];
-        foreach ($countRows as $item) {
-            $recordCounts[(string) $item->id_card] = (int) $item->record_count;
+        $recordsByIdCard = [];
+        foreach ($matchedRecords as $record) {
+            $recordsByIdCard[(string) $record->id_card][] = $record;
         }
 
         $now = date('Y-m-d H:i:s');
         foreach ($rows as $row) {
             try {
-                $matchedCount = $recordCounts[$row['id_card']] ?? 0;
+                $records = $recordsByIdCard[$row['id_card']] ?? [];
+                $matchedCount = count($records);
                 if ($matchedCount <= 0) {
                     $result['skipped']++;
                     continue;
@@ -181,7 +181,7 @@ class Attachment2ImportJob extends AbstractJob
 
                 UnrescuedRecord::query()
                     ->where('settlement_period', $settlementPeriod)
-                    ->where('id_card', $row['id_card'])
+                    ->whereBlind('id_card', $row['id_card'])
                     ->update([
                         'town_id' => $row['town_id'],
                         'street_town' => $row['street_town'] !== '' ? $row['street_town'] : null,
@@ -193,18 +193,13 @@ class Attachment2ImportJob extends AbstractJob
                     ]);
 
                 if ($row['name'] !== '') {
-                    UnrescuedRecord::query()
-                        ->where('settlement_period', $settlementPeriod)
-                        ->where('id_card', $row['id_card'])
-                        ->where(function ($query) {
-                            $query->whereNull('name')
-                                ->orWhere('name', '')
-                                ->orWhere('name', '--');
-                        })
-                        ->update([
-                            'name' => $row['name'],
-                            'updated_at' => $now,
-                        ]);
+                    foreach ($records as $record) {
+                        if ($record->name === null || $record->name === '' || $record->name === '--') {
+                            $record->name = $row['name'];
+                            $record->updated_at = $now;
+                            $record->save();
+                        }
+                    }
                 }
 
                 $result['matched_rows']++;

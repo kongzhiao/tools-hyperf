@@ -286,7 +286,7 @@ class Attachment3ImportJob extends AbstractJob
                 }
                 $affected = EnrollLedger::query()
                     ->where('year', $year)
-                    ->whereIn('id_card', $chunk)
+                    ->whereBlindIn('id_card', $chunk)
                     ->where('change_status', '!=', EnrollLedgerService::CHANGE_CANCELLED)
                     ->update([
                         'change_status' => EnrollLedgerService::CHANGE_CANCELLED,

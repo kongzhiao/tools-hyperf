@@ -1591,7 +1591,7 @@ class MedicalAssistanceController extends AbstractController
                 $query->where('reimbursement_status', $filters['reimbursement_status']);
             }
             if (!empty($filters['account_name'])) {
-                $query->where('account_name', 'like', "%{$filters['account_name']}%");
+                $query->whereBlind('account_name', (string) $filters['account_name']);
             }
 
             $count = $query->count();

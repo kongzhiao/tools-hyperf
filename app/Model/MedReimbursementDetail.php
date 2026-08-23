@@ -8,6 +8,10 @@ class MedReimbursementDetail extends Model
 {
     protected ?string $table = 'med_reimbursement_detail';
 
+    protected array $encrypts = ['bank_account', 'account_name'];
+
+    protected array $blindIndexes = ['account_name' => 'account_name_bidx'];
+
     protected array $fillable = [
         'person_id',
         'medical_record_ids',
@@ -92,7 +96,7 @@ class MedReimbursementDetail extends Model
         }
 
         if (!empty($filters['account_name'])) {
-            $query->where('account_name', 'like', "%{$filters['account_name']}%");
+            $query->whereBlind('account_name', (string) $filters['account_name']);
         }
 
         $total = $query->count();
@@ -156,4 +160,4 @@ class MedReimbursementDetail extends Model
             'critical_illness_amount' => $criticalIllnessAmount,
         ];
     }
-} 
+}

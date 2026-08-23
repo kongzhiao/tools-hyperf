@@ -11,10 +11,13 @@ declare(strict_types=1);
  */
 namespace App\Model;
 
+use App\Model\Concerns\HasEncryptedAttributes;
 use Hyperf\DbConnection\Model\Model as BaseModel;
 
 abstract class Model extends BaseModel
 {
+    use HasEncryptedAttributes;
+
     // 移除 Cacheable trait 和 CacheableInterface 接口
     // 这样所有模型都不会使用缓存，直接操作数据库
 }

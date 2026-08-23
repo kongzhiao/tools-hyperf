@@ -197,11 +197,11 @@ class StatisticsSummaryController extends AbstractController
             }
 
             if (!empty($params['name'])) {
-                $query->where('name', 'like', '%' . $params['name'] . '%');
+                $query->whereBlind('name', (string) $params['name']);
             }
 
             if (!empty($params['id_number'])) {
-                $query->where('id_number', 'like', '%' . $params['id_number'] . '%');
+                $query->whereBlind('id_number', (string) $params['id_number']);
             }
 
             $total = $query->count();

@@ -8,6 +8,10 @@ class MedPersonInfo extends Model
 {
     protected ?string $table = 'med_person_info';
 
+    protected array $encrypts = ['name', 'id_card'];
+
+    protected array $blindIndexes = ['name' => 'name_bidx', 'id_card' => 'id_card_bidx'];
+
     protected array $fillable = [
         'name',
         'id_card',
@@ -43,11 +47,11 @@ class MedPersonInfo extends Model
         $query = self::query();
 
         if (!empty($filters['name'])) {
-            $query->where('name', 'like', "%{$filters['name']}%");
+            $query->whereBlind('name', (string) $filters['name']);
         }
 
         if (!empty($filters['id_card'])) {
-            $query->where('id_card', 'like', "%{$filters['id_card']}%");
+            $query->whereBlind('id_card', (string) $filters['id_card']);
         }
 
         if (!empty($filters['insurance_area'])) {
@@ -81,6 +85,6 @@ class MedPersonInfo extends Model
      */
     public static function findByIdCard(string $idCard): ?self
     {
-        return self::where('id_card', $idCard)->first();
+        return self::query()->whereBlind('id_card', $idCard)->first();
     }
-} 
+}

@@ -72,7 +72,7 @@ class InsuranceDataUpdateJob extends AbstractJob
                         return;
                     }
 
-                    $insuranceData = InsuranceData::where('id_number', $idNumber)
+                    $insuranceData = InsuranceData::query()->whereBlind('id_number', $idNumber)
                         ->where('year', $this->year)
                         ->first();
 
@@ -93,8 +93,9 @@ class InsuranceDataUpdateJob extends AbstractJob
                         // 若命中映射记录，则将身份字段替换为标准口径 (tax_standard)
                         $storedIdentity = $isIdentityMatched ? $conversion->tax_standard : $assistanceIdentity;
 
-                        // 2. 认定区匹配逻辑 (硬编码 "江津区" 校验)
-                        $isStreetMatched = ($streetTownName === '江津区');
+                        // 2. 认定区不再校验是否为“江津区”，统一按已匹配处理
+                        // $isStreetMatched = ($streetTownName === '江津区');
+                        $isStreetMatched = true;
 
                         $insuranceData->assistance_identity = $storedIdentity;
                         $insuranceData->assistance_identity_match_status = $isIdentityMatched ? 'matched' : 'unmatched';

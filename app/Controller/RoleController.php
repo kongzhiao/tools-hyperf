@@ -3,18 +3,27 @@ namespace App\Controller;
 
 use App\Model\Role;
 use App\Model\Permission;
+use App\Service\AuthSessionService;
 use Hyperf\HttpServer\Annotation\Controller;
 use Hyperf\HttpServer\Annotation\RequestMapping;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Psr\Container\ContainerInterface;
-use Hyperf\Redis\Redis;
-use Hyperf\Context\ApplicationContext;
+use Hyperf\HttpServer\Contract\ResponseInterface;
 
 /**
  * @Controller(prefix="/roles")
  */
 class RoleController extends AbstractController
 {
+    private const PROTECTED_ADMIN_ROLE = '管理员';
+
+    private AuthSessionService $sessionService;
+
+    public function __construct(AuthSessionService $sessionService, ResponseInterface $response)
+    {
+        parent::__construct(null, null, $response);
+        $this->sessionService = $sessionService;
+    }
+
     /**
      * @OA\Get(
      *     path="/roles",
@@ -165,8 +174,16 @@ class RoleController extends AbstractController
     public function store(RequestInterface $request)
     {
         $data = $request->all();
+        $name = trim((string) ($data['name'] ?? ''));
+        if ($name === '') {
+            return $this->response->json(['code' => 400, 'msg' => '角色名称不能为空']);
+        }
+        if (Role::query()->where('name', $name)->exists()) {
+            return $this->response->json(['code' => 400, 'msg' => '角色名称已存在']);
+        }
+        $data['name'] = $name;
         $role = Role::create($data);
-        return $role ? $role->toArray() : [];
+        return $this->response->json(['code' => 0, 'msg' => '创建成功', 'data' => $role]);
     }
 
     /**
@@ -199,8 +216,28 @@ class RoleController extends AbstractController
     public function update($id, RequestInterface $request)
     {
         $role = Role::findOrFail($id);
-        $role->update($request->all());
-        return $role ? $role->toArray() : [];
+        $data = $request->all();
+        $requestedName = array_key_exists('name', $data) ? trim((string) $data['name']) : (string) $role->name;
+
+        if ((string) $role->name === self::PROTECTED_ADMIN_ROLE && $requestedName !== self::PROTECTED_ADMIN_ROLE) {
+            return $this->response->json(['code' => 403, 'msg' => '管理员角色名称不能修改']);
+        }
+        if ((string) $role->name !== self::PROTECTED_ADMIN_ROLE && $requestedName === self::PROTECTED_ADMIN_ROLE) {
+            return $this->response->json(['code' => 403, 'msg' => '其他角色不能改名为管理员']);
+        }
+        if ($requestedName === '') {
+            return $this->response->json(['code' => 400, 'msg' => '角色名称不能为空']);
+        }
+        if (Role::query()->where('name', $requestedName)->where('id', '!=', (int) $id)->exists()) {
+            return $this->response->json(['code' => 400, 'msg' => '角色名称已存在']);
+        }
+
+        $data['name'] = $requestedName;
+        $role->update($data);
+        foreach ($role->users()->get() as $user) {
+            $this->sessionService->revokeAll($user);
+        }
+        return $this->response->json(['code' => 0, 'msg' => '更新成功', 'data' => $role]);
     }
 
     /**
@@ -216,8 +253,11 @@ class RoleController extends AbstractController
     public function destroy($id)
     {
         $role = Role::findOrFail($id);
+        if ((string) $role->name === self::PROTECTED_ADMIN_ROLE) {
+            return $this->response->json(['code' => 403, 'msg' => '管理员角色禁止删除']);
+        }
         $role->delete();
-        return ['message' => '删除成功'];
+        return $this->response->json(['code' => 0, 'msg' => '删除成功']);
     }
 
     /**
@@ -260,17 +300,11 @@ class RoleController extends AbstractController
 
         $role->permissions()->sync($permissionIds);
 
-        // 核心：清除所有拥有该角色的用户的 Redis 缓存，实现权限即时生效
-        try {
-            $redis = $this->redis ?? ApplicationContext::getContainer()->get(Redis::class);
-            $userIds = $role->users()->pluck('users.id')->toArray();
-            foreach ($userIds as $userId) {
-                $redis->del('user:cache:' . $userId);
-            }
-        } catch (\Exception $e) {
-            error_log('Redis clear failed in RoleController::assignPermissions: ' . $e->getMessage());
+        // 权限变化后使该角色全部用户的旧会话立即失效。
+        foreach ($role->users()->get() as $user) {
+            $this->sessionService->revokeAll($user);
         }
 
-        return ['message' => '分配成功'];
+        return $this->response->json(['code' => 0, 'msg' => '分配成功']);
     }
 }

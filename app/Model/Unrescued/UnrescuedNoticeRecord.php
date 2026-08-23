@@ -19,6 +19,21 @@ class UnrescuedNoticeRecord extends Model
 
     protected ?string $table = 'unrescued_notice_records';
 
+    protected array $encrypts = [
+        'name',
+        'id_card',
+        'contact_name',
+        'contact_phone',
+        'bank_account_name',
+        'bank_account_no',
+    ];
+
+    protected array $blindIndexes = [
+        'name' => 'name_bidx',
+        'id_card' => 'id_card_bidx',
+        'contact_name' => 'contact_name_bidx',
+    ];
+
     protected array $guarded = [];
 
     protected array $casts = [

@@ -541,7 +541,7 @@ class RecordController extends AbstractController
             $query->whereIn('status', $allowedStatuses);
         }
         $data['updated_at'] = date('Y-m-d H:i:s');
-        $affected = $query->update($data);
+        $affected = $query->update((new UnrescuedRecord())->prepareAttributesForStorage($data));
 
         $this->operationLogService->record('未救助明细', $action, 'unrescued_records', implode(',', $ids), $action, ['affected' => $affected]);
         return $this->success(['affected_rows' => $affected], $message);

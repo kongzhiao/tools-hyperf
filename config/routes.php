@@ -32,14 +32,21 @@ Router::get('/helps/{filename:.+}', [App\Controller\HelpController::class, 'show
 Router::addGroup('/api', function () {
     // 认证路由
     Router::post('/login', [App\Controller\AuthController::class, 'login']);
-    Router::post('/logout', [App\Controller\AuthController::class, 'logout']);
+    Router::post('/auth/totp/login-setup', [App\Controller\AuthController::class, 'loginTotpSetup']);
+    Router::post('/auth/totp/login-bind', [App\Controller\AuthController::class, 'loginTotpBind']);
+    Router::post('/auth/totp/login-verify', [App\Controller\AuthController::class, 'verifyLoginTotp']);
+    Router::post('/auth/session/reauth', [App\Controller\AuthController::class, 'reauthenticate']);
     // 下载中转
     Router::get('/download', [App\Controller\DownloadController::class, 'download']);
 });
 
 // ==================== 需要认证的通用业务路由组 ====================
 Router::addGroup('/api', function () {
+    Router::post('/logout', [App\Controller\AuthController::class, 'logout']);
     Router::get('/user/info', [App\Controller\AuthController::class, 'info']);
+    Router::get('/user/security', [App\Controller\AuthController::class, 'securityInfo']);
+    Router::post('/user/totp/setup', [App\Controller\AuthController::class, 'userTotpSetup']);
+    Router::post('/user/totp/bind', [App\Controller\AuthController::class, 'userTotpBind']);
     Router::post('/user/change-password', [App\Controller\AuthController::class, 'changePassword']);
     Router::get('/helps', [App\Controller\HelpController::class, 'index']);
 
@@ -56,6 +63,8 @@ Router::addGroup('/api', function () {
     Router::put('/users/{id}', [App\Controller\UserController::class, 'update']);
     Router::delete('/users/{id}', [App\Controller\UserController::class, 'destroy']);
     Router::post('/users/{id}/roles', [App\Controller\UserController::class, 'assignRoles']);
+    Router::post('/users/{id}/totp/reset', [App\Controller\UserController::class, 'resetTotp']);
+    Router::delete('/users/{id}/login-lock', [App\Controller\UserController::class, 'clearLoginLock']);
 
     // 镇街管理
     Router::get('/towns', [App\Controller\TownController::class, 'index']);
@@ -335,25 +344,6 @@ Router::addGroup('/api', function () {
             Router::delete('/{id:\d+}', [App\Controller\Enroll\ConfigController::class, 'destroy']);
         });
         Router::get('/import-batches', [App\Controller\Enroll\LedgerController::class, 'importBatches']);
-    });
-
-    // 优抚救助
-    Router::addGroup('/settlement-config', function () {
-        Router::get('', [App\Controller\SettlementConfigController::class, 'index']);
-        Router::post('', [App\Controller\SettlementConfigController::class, 'store']);
-        Router::get('/years', [App\Controller\SettlementConfigController::class, 'getYears']);
-        Router::get('/by-year', [App\Controller\SettlementConfigController::class, 'getByYear']);
-        Router::get('/categories', [App\Controller\SettlementConfigController::class, 'getCategories']);
-        Router::get('/levels', [App\Controller\SettlementConfigController::class, 'getLevels']);
-        Router::get('/template', [App\Controller\SettlementConfigController::class, 'getTemplate']);
-        Router::post('/batch-create', [App\Controller\SettlementConfigController::class, 'batchCreate']);
-        Router::delete('/by-year', [App\Controller\SettlementConfigController::class, 'deleteByYear']);
-        Router::get('/template/download', [App\Controller\SettlementConfigController::class, 'downloadTemplate']);
-        Router::post('/validate', [App\Controller\SettlementConfigController::class, 'validateImport']);
-        Router::post('/import', [App\Controller\SettlementConfigController::class, 'import']);
-        Router::get('/{id}', [App\Controller\SettlementConfigController::class, 'show']);
-        Router::put('/{id}', [App\Controller\SettlementConfigController::class, 'update']);
-        Router::delete('/{id}', [App\Controller\SettlementConfigController::class, 'destroy']);
     });
 
     // 仪表盘
